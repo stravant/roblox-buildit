@@ -47,13 +47,15 @@ local kAxisDotMin = 0.99
 -- How close two mated connectors must be under the final placement.
 local kMatedEpsilon = 0.05
 
-local kAxialPartner: { [string]: string } = {
-	TechnicPin = "PegHole",
-	PegHole = "TechnicPin",
-	Axle = "AxleHole",
-	AxleHole = "Axle",
-	Bar = "Clip",
-	Clip = "Bar",
+-- Axles fit through pin holes too (loose/rotating, but a valid build
+-- connection).
+local kAxialPartners: { [string]: { [string]: boolean } } = {
+	TechnicPin = { PegHole = true },
+	PegHole = { TechnicPin = true, Axle = true },
+	Axle = { AxleHole = true, PegHole = true },
+	AxleHole = { Axle = true },
+	Bar = { Clip = true },
+	Clip = { Bar = true },
 }
 
 type MateRule = "point" | "axial"
@@ -61,7 +63,9 @@ type MateRule = "point" | "axial"
 local function mateRule(a: string, b: string): MateRule?
 	if (a == "Stud" and b == "Socket") or (a == "Socket" and b == "Stud") then
 		return "point"
-	elseif kAxialPartner[a] == b then
+	end
+	local partners = kAxialPartners[a]
+	if partners ~= nil and partners[b] then
 		return "axial"
 	end
 	return nil

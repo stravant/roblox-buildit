@@ -90,9 +90,9 @@ instances).
   least; reports all mated pairs for visualization. Rotation is
   caller-controlled (yaw only). Point rule: Stud<->Socket coincide with
   anti-parallel directions. Axial rule (TechnicPin<->PegHole,
-  Axle<->AxleHole, Bar<->Clip): axes parallel (either sign), centered on
-  the axis, sliding along it by up to half the length difference (equal
-  lengths lock centered — how pins click in).
+  Axle<->AxleHole, Axle<->PegHole, Bar<->Clip): axes parallel (either
+  sign), centered on the axis, sliding along it by up to half the length
+  difference (equal lengths lock centered — how pins click in).
 - `PartPalette.lua` — panel UI listing PartLibrary templates with
   ViewportFrame thumbnails.
 - `BuildController.lua` — drag/ghost/marker/placement controller. Drag out

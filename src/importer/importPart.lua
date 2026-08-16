@@ -114,9 +114,9 @@ local function importPart(
 				position = connection.position,
 				direction = connection.direction,
 			})
-		elseif connection.type ~= "Tube" and connection.type ~= "Pin" then
-			-- Tubes/pins become Socket regions via deriveSockets; everything
-			-- else is annotated individually.
+		elseif connection.type ~= "Tube" and connection.type ~= "Pin" and connection.type ~= "Pocket" then
+			-- Tubes/pins/pockets become Socket regions via deriveSockets;
+			-- everything else is annotated individually.
 			addAxialAttachment(part, connection, meshCenter)
 		end
 	end

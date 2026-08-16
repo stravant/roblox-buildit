@@ -24,13 +24,14 @@ descriptions (`head -1 p/<name>.dat`) before extending the table:
 | Technic pin | 2780 (friction, 2 halves), 3673 (frictionless) | `connect*.dat`, `confric*.dat` pin halves (1.0 = 20 LDU, 0.5 = 10, 2.0 = 40) | TechnicPin per half |
 | Gear / axle hole | 3647 (gear 8 tooth) | `axlehole.dat`, `axl2hole`-`axl5hole` scaled segments | AxleHole (axis + length) |
 | Bar / rod | 30374 (bar 4L), 3957 (antenna shaft) | none — geometric: `4-4cyli`/`4-4cylc` at radius 4, length >= 8 | Bar (axis + length) |
-| Clip (vertical) | 4085c (plate 1x1 w/ clip), 2555 (tile w/ clip) | `clip1.dat`, `clip2.dat` | Clip (grips a Bar along local Y) |
+| Clip (vertical) | 4085c (plate 1x1 w/ clip), 2555 (tile w/ clip) | `clip1.dat`, `clip2.dat` (grip center ~8 LDU out along local -Z from the mount origin) | Clip (grips a Bar along local Y) |
+| 1x1 underside pockets | 3005, 3024, 4085c | `box5.dat`/`box4t.dat` cavity boxes at stud-pocket size (half-extents 5.5-10.5 LDU; larger placements are wall shells and ignored) | Socket via Pocket |
 
 ## Known gaps (not yet handled)
 
 | Category | Representative parts | Why |
 |---|---|---|
-| 1x1 underside pockets | 3005, 3024, 4073 | No tube/pin primitive; the pocket is bare cylinder geometry |
+| Round 1x1 underside pockets | 4073, 3062 | Pocket walls are cylinders, not box5/box4t cavity boxes |
 | Technic bush | 3713 | Axle hole built from raw chords/rects, no `axlehole` primitive |
 | Horizontal clips | 4623 (plate 1x1 w/ horiz. clip), 48729 | `clip3`-`clip16` have per-primitive orientations; needs per-name table entries |
 | Bar-into-hollow-stud | 3957 antenna into 4070 etc. | Hollow studs (`stud2*`) accept bars; needs a female "HollowStud" facet on stud2 |

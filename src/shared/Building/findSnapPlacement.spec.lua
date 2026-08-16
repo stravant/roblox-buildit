@@ -164,6 +164,19 @@ return function(t: TestTypes.TestContext)
 		t.expect(clamped.cframe.Position).toBeCloseTo(Vector3.new(0, 3.8, 0))
 	end)
 
+	t.test("axle mates with a peghole (slides through)", function()
+		local world = {
+			{ kind = "PegHole", position = Vector3.new(0, 5, 0), direction = Vector3.new(0, 0, 1), length = 1 },
+		}
+		local axle = {
+			{ kind = "Axle", position = Vector3.zero, direction = Vector3.new(0, 0, 1), length = 2 },
+		}
+		local snap = findSnapPlacement(CFrame.new(0.1, 5.2, 0.3), axle :: any, world :: any, kMaxSnap) :: any
+		t.expect(snap).toBeTruthy()
+		t.expect(snap.cframe.Position).toBeCloseTo(Vector3.new(0, 5, 0.3))
+		t.expect(#snap.matchedPairs).toBe(1)
+	end)
+
 	t.test("axial axes must be parallel", function()
 		local world = {
 			{ kind = "AxleHole", position = Vector3.new(0, 5, 0), direction = Vector3.new(1, 0, 0), length = 1 },
