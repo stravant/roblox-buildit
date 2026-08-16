@@ -43,7 +43,7 @@ local function main(widget: DockWidgetPluginGui)
 	local partNumberBox = Instance.new("TextBox")
 	partNumberBox.LayoutOrder = 1
 	partNumberBox.Size = UDim2.new(1, 0, 0, 28)
-	partNumberBox.PlaceholderText = "Part number (e.g. 3001)"
+	partNumberBox.PlaceholderText = "Part number (3001) or range (3001,3010)"
 	partNumberBox.Text = "3001"
 	partNumberBox.ClearTextOnFocus = false
 	partNumberBox.TextColor3 = kTextColor
@@ -101,36 +101,124 @@ local function main(widget: DockWidgetPluginGui)
 		return mLibrary :: LDrawLibrary.LDrawLibrary
 	end
 
+	local kMaxRangeCount = 200
+	local kRowWidth = 40 -- studs per row of workspace copies
+
+	local function countCells(part: MeshPart, connectorType: string): number
+		local count = 0
+		for _, child in part:GetChildren() do
+			if child:IsA("Attachment") and child:GetAttribute("ConnectorType") == connectorType then
+				local countX = child:GetAttribute("CountX") or 1
+				local countZ = child:GetAttribute("CountZ") or 1
+				count += (countX :: number) * (countZ :: number)
+			end
+		end
+		return count
+	end
+
+	-- "3001" imports one part; "3001,3010" imports every existing part in
+	-- the numeric range (skipping gaps and ~moved/=alias/_shortcut stubs).
+	local function parsePartNumbers(text: string): ({ string }?, string?)
+		local minText, maxText = text:match("^%s*(%d+)%s*,%s*(%d+)%s*$")
+		if minText ~= nil then
+			local rangeMin = tonumber(minText) :: number
+			local rangeMax = tonumber(maxText) :: number
+			if rangeMax < rangeMin then
+				rangeMin, rangeMax = rangeMax, rangeMin
+			end
+			if rangeMax - rangeMin + 1 > kMaxRangeCount then
+				return nil, `Range too large (max {kMaxRangeCount} parts).`
+			end
+			local numbers = {}
+			for n = rangeMin, rangeMax do
+				table.insert(numbers, tostring(n))
+			end
+			return numbers, nil
+		end
+		local single = text:gsub("%s", "")
+		if single == "" then
+			return nil, "Enter a part number first."
+		end
+		return { single }, nil
+	end
+
 	local function doImport()
 		if mBusy then
 			return
 		end
 		mBusy = true
-		local partNumber = partNumberBox.Text:gsub("%s", "")
-		if partNumber == "" then
-			setStatus("Enter a part number first.")
+		local partNumbers, parseError = parsePartNumbers(partNumberBox.Text)
+		if partNumbers == nil then
+			setStatus(parseError :: string)
 			mBusy = false
 			return
 		end
-		setStatus(`Importing {partNumber}...`)
+		local numbers = partNumbers :: { string }
+		local isRange = #numbers > 1
 
-		local recording = ChangeHistoryService:TryBeginRecording("Import LDraw part")
+		local recording = ChangeHistoryService:TryBeginRecording("Import LDraw parts")
 		local folder = getPartLibraryFolder()
-		local ok, result, errorMessage = pcall(function()
-			return importPart(getLibrary(), partNumber .. ".dat", folder)
-		end)
-		if not ok then
-			-- Connection failure: force a fresh provider on the next try.
-			if mProvider ~= nil then
-				mProvider.close()
-				mProvider = nil
-				mLibrary = nil
+
+		-- Workspace copies lay out in rows on the ground in front of the camera.
+		local camera = workspace.CurrentCamera
+		local ahead = camera.CFrame.Position + camera.CFrame.LookVector * 20
+		local baseX = math.round(ahead.X)
+		local baseZ = math.round(ahead.Z)
+		local cursorX = 0
+		local cursorZ = 0
+		local rowDepth = 0
+
+		local imported = 0
+		local skipped = 0
+		local copies: { Instance } = {}
+		local lastError: string? = nil
+		local lastPart: MeshPart? = nil
+		local aborted = false
+
+		for index, partNumber in numbers do
+			if isRange then
+				setStatus(`Importing {partNumber} ({index}/{#numbers}), {imported} imported so far...`)
+			else
+				setStatus(`Importing {partNumber}...`)
 			end
-			setStatus(`Error: {result}`)
-		elseif result == nil then
-			setStatus(`Error: {errorMessage}`)
-		else
+
+			local ok, result, errorMessage = pcall(function(): (MeshPart?, string?)
+				if isRange then
+					-- Skip alias/moved/shortcut stubs; only import real parts.
+					local file = getLibrary():getFile(partNumber .. ".dat")
+					if file == nil then
+						return nil, "no such part"
+					end
+					local description = file.description
+					if description ~= nil then
+						local prefix = description:sub(1, 1)
+						if prefix == "~" or prefix == "=" or prefix == "_" then
+							return nil, "alias/stub"
+						end
+					end
+				end
+				return importPart(getLibrary(), partNumber .. ".dat", folder)
+			end)
+			if not ok then
+				-- Hard failure (e.g. lost server connection): abort the batch
+				-- and force a fresh provider on the next try.
+				if mProvider ~= nil then
+					mProvider.close()
+					mProvider = nil
+					mLibrary = nil
+				end
+				lastError = tostring(result)
+				aborted = true
+				break
+			elseif result == nil then
+				skipped += 1
+				lastError = errorMessage
+				continue
+			end
+
 			local part = result :: MeshPart
+			lastPart = part
+			imported += 1
 
 			-- Re-import: replace any previous template for this part.
 			for _, child in folder:GetChildren() do
@@ -139,34 +227,45 @@ local function main(widget: DockWidgetPluginGui)
 				end
 			end
 
-			-- Drop a visible copy in front of the camera, resting on y=0.
+			-- Drop a visible copy resting on y=0, flowing left-to-right in rows.
 			local copy = part:Clone()
-			local camera = workspace.CurrentCamera
-			local ahead = camera.CFrame.Position + camera.CFrame.LookVector * 20
-			copy.CFrame = CFrame.new(math.round(ahead.X), copy.Size.Y / 2, math.round(ahead.Z))
-			copy.Parent = workspace
-			Selection:Set({ copy })
-
-			local studs = 0
-			local sockets = 0
-			for _, child in part:GetChildren() do
-				if child:IsA("Attachment") then
-					local connectorType = child:GetAttribute("ConnectorType")
-					if connectorType == "Stud" then
-						studs += 1
-					elseif connectorType == "Socket" then
-						sockets += 1
-					end
-				end
+			if cursorX > 0 and cursorX + copy.Size.X > kRowWidth then
+				cursorX = 0
+				cursorZ += rowDepth + 1
+				rowDepth = 0
 			end
-			setStatus(
-				`Imported {part.Name} ({partNumber}) into PartLibrary + workspace copy: {studs} studs, {sockets} sockets`
+			copy.CFrame = CFrame.new(
+				baseX + cursorX + copy.Size.X / 2,
+				copy.Size.Y / 2,
+				baseZ + cursorZ + copy.Size.Z / 2
 			)
+			cursorX += copy.Size.X + 1
+			rowDepth = math.max(rowDepth, copy.Size.Z)
+			copy.Parent = workspace
+			table.insert(copies, copy)
 		end
+
 		if recording then
 			ChangeHistoryService:FinishRecording(recording, Enum.FinishRecordingOperation.Commit)
 		else
-			ChangeHistoryService:SetWaypoint("Import LDraw part")
+			ChangeHistoryService:SetWaypoint("Import LDraw parts")
+		end
+		if #copies > 0 then
+			Selection:Set(copies)
+		end
+
+		if aborted then
+			setStatus(`Error: {lastError}`)
+		elseif isRange then
+			setStatus(`Imported {imported} of {#numbers} parts ({skipped} skipped).`)
+		elseif lastPart ~= nil then
+			local part = lastPart :: MeshPart
+			setStatus(
+				`Imported {part.Name} ({part:GetAttribute("PartNumber")}) into PartLibrary + workspace copy: `
+					.. `{countCells(part, "Stud")} studs, {countCells(part, "Socket")} sockets`
+			)
+		else
+			setStatus(`Error: {lastError}`)
 		end
 		mBusy = false
 	end
