@@ -99,6 +99,10 @@ build tool (mounted only by default.project.json, never the test plugin).
   normalized transformed -Y = "toward the mating part", and the mating
   plane point is the transform origin (studs) / transform*(0,-4,0)
   (tubes/pins).
+- Edge sharpness is authored in the data: type 2 edge lines mark SHARP
+  edges, type 5 conditional lines mark SMOOTH (curved) edges.
+  buildEditableMesh uses these for normal generation, with a 40-degree
+  crease-angle fallback for unmarked edges (e.g. across subfile seams).
 - Connection annotations on imported MeshParts: Attachments (UpVector =
   direction) named `StudN`/`SocketN` with a `ConnectorType` attribute;
   part attributes `PartNumber`, `Description`, `LDrawFile`.
@@ -111,6 +115,3 @@ build tool (mounted only by default.project.json, never the test plugin).
 - Studs are classified by name prefix; exotic stud primitives (Technic,
   Duplo) may need a curated table.
 - No texture/pattern (printed parts) or flexible part support.
-- buildEditableMesh welds all vertices by position, so normals smooth
-  across sharp edges (soft shading gradient on brick sides). Fix: split
-  vertices when the face angle exceeds a crease threshold.
