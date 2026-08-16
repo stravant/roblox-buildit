@@ -83,9 +83,16 @@ instances).
 - `PartPalette.lua` — panel UI listing PartLibrary templates with
   ViewportFrame thumbnails.
 - `BuildController.lua` — drag/ghost/marker/placement controller. Drag out
-  of the palette, release to place (release over the panel cancels), R
-  rotates 90 degrees, RMB cancels. Connector markers: studs green, sockets
-  blue, mated pairs yellow. Placed parts go in `workspace.Assembly`.
+  of the palette OR pick up any connector-annotated workspace part;
+  release to place (release over the panel cancels), R rotates 90 degrees
+  (composed on a picked part's existing rotation), RMB/Esc cancels
+  (restores a picked part). Connector markers: studs green, sockets blue,
+  mated pairs yellow. New parts go in `workspace.Assembly` in-game or
+  workspace in Edit mode; picked parts keep their parent. Runs in two
+  contexts: in-game via `src/entry/BuildTool.client.lua`, and in Edit mode
+  via the plugin's "Build" toolbar button (`start({guiParent, plugin})` —
+  palette in a dock widget, placements wrapped in undo recordings,
+  `plugin:Activate` owns the mouse; deactivation stops the tool).
 
 `src/entry/BuildTool.client.lua` — StarterPlayerScripts bootstrap for the
 build tool (mounted only by default.project.json, never the test plugin).

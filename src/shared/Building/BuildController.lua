@@ -1,16 +1,28 @@
 --!strict
 
--- The in-game build test tool. Drag parts out of the palette into the
--- world; while dragging, all connectors light up (studs green, sockets
--- blue) and the mated pairs of the current snap highlight yellow.
+-- The build test tool. Drag parts out of the palette into the world, or
+-- pick up already-placed parts and move them; while dragging, all
+-- connectors light up (studs green, sockets blue) and the mated pairs of
+-- the current snap highlight yellow.
 --
 -- Controls:
---   Hold LMB on a palette entry, drag into the world, release to place.
---   R rotates the dragged part 90 degrees. Esc or RMB cancels the drag.
+--   Hold LMB on a palette entry OR on a placed part, drag, release to
+--   place. R rotates the dragged part 90 degrees. Esc or RMB cancels
+--   (a picked-up part returns to where it was).
 --
--- Placed parts go in workspace.Assembly and keep their connector
--- attachments, so they become snap targets for the next part.
+-- ANY workspace part with connector attachments is a snap target and can
+-- be picked up — including the copies the importer drops. New palette
+-- placements go to workspace.Assembly in-game, or directly to workspace
+-- in Edit mode; picked-up parts return to their original parent.
+--
+-- Runs in two contexts:
+--   - In-game (StarterPlayerScripts): start() with no options builds its
+--     own ScreenGui in PlayerGui.
+--   - Studio Edit mode (importer plugin "Build" tool): start({guiParent =
+--     dockWidget, plugin = plugin}) parents the palette to the widget,
+--     skips character handling, and wraps placements in undo recordings.
 
+local ChangeHistoryService = game:GetService("ChangeHistoryService")
 local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -42,6 +54,14 @@ type DragState = {
 	template: BasePart,
 	ghost: BasePart,
 	rotationIndex: number,
+	-- Rotation the R-key steps compose onto (identity for palette drags,
+	-- the part's own rotation for picked-up parts).
+	baseRotation: CFrame,
+	-- Set when dragging an already-placed part: it is unparented for the
+	-- duration of the drag and restored on place/cancel.
+	existingPart: BasePart?,
+	existingParent: Instance?,
+	originalCFrame: CFrame?,
 	ghostConnectors: { getConnectors.Connector },
 	worldConnectors: { WorldConnector },
 	ghostMarkers: { Marker },
@@ -50,17 +70,34 @@ type DragState = {
 	connections: { RBXScriptConnection },
 }
 
+export type StartOptions = {
+	guiParent: Instance?,
+	plugin: Plugin?,
+}
+
+export type Controller = {
+	stop: () -> (),
+}
+
 local BuildController = {}
 
-function BuildController.start()
-	local player = Players.LocalPlayer
-	local playerGui = player:WaitForChild("PlayerGui")
+function BuildController.start(options: StartOptions?): Controller
+	local opts: StartOptions = options or {}
+	local pluginRef = opts.plugin
 
-	local screenGui = Instance.new("ScreenGui")
-	screenGui.Name = "BuildItTool"
-	screenGui.ResetOnSpawn = false
-	screenGui.IgnoreGuiInset = false
-	screenGui.Parent = playerGui
+	local mOwnScreenGui: ScreenGui? = nil
+	local guiParent: Instance
+	if opts.guiParent ~= nil then
+		guiParent = opts.guiParent :: Instance
+	else
+		local playerGui = (Players.LocalPlayer :: Player):WaitForChild("PlayerGui")
+		local screenGui = Instance.new("ScreenGui")
+		screenGui.Name = "BuildItTool"
+		screenGui.ResetOnSpawn = false
+		screenGui.Parent = playerGui
+		mOwnScreenGui = screenGui
+		guiParent = screenGui
+	end
 
 	local templatesFolder = ReplicatedStorage:FindFirstChild("PartLibrary")
 	if templatesFolder == nil then
@@ -70,16 +107,39 @@ function BuildController.start()
 		templatesFolder = folder
 	end
 
-	local assemblyFolder = workspace:FindFirstChild("Assembly")
-	if assemblyFolder == nil then
+	-- In-game, new parts collect in workspace.Assembly; in Edit mode they
+	-- go directly into workspace alongside imported copies.
+	local function getPlacementParent(): Instance
+		if pluginRef ~= nil then
+			return workspace
+		end
+		local existing = workspace:FindFirstChild("Assembly")
+		if existing ~= nil then
+			return existing
+		end
 		local folder = Instance.new("Folder")
 		folder.Name = "Assembly"
 		folder.Parent = workspace
-		assemblyFolder = folder
+		return folder
 	end
 
 	local mDragState: DragState? = nil
 	local mPalette: PartPalette.PartPalette? = nil
+
+	-- In Edit mode (plugin), placements should be undoable steps.
+	local function recordChange(label: string, fn: () -> ())
+		if pluginRef == nil then
+			fn()
+			return
+		end
+		local recording = ChangeHistoryService:TryBeginRecording(label)
+		fn()
+		if recording then
+			ChangeHistoryService:FinishRecording(recording, Enum.FinishRecordingOperation.Commit)
+		else
+			ChangeHistoryService:SetWaypoint(label)
+		end
+	end
 
 	local function makeMarker(
 		adornee: BasePart,
@@ -109,11 +169,11 @@ function BuildController.start()
 		end
 	end
 
-	local function collectWorldConnectors(markerFolder: Folder): ({ WorldConnector }, { Marker })
+	local function collectWorldConnectors(markerFolder: Folder, ghost: BasePart?): ({ WorldConnector }, { Marker })
 		local worldConnectors: { WorldConnector } = {}
 		local markers: { Marker } = {}
-		for _, part in (assemblyFolder :: Folder):GetChildren() do
-			if not part:IsA("BasePart") then
+		for _, part in workspace:GetDescendants() do
+			if not part:IsA("BasePart") or part == ghost then
 				continue
 			end
 			for _, connector in getConnectors(part) do
@@ -130,7 +190,7 @@ function BuildController.start()
 		return worldConnectors, markers
 	end
 
-	local function endDrag()
+	local function endDrag(canceled: boolean)
 		local state = mDragState
 		if state == nil then
 			return
@@ -141,18 +201,29 @@ function BuildController.start()
 		end
 		state.markerFolder:Destroy()
 		state.ghost:Destroy()
+		if canceled and state.existingPart ~= nil then
+			-- Put a picked-up part back where it was.
+			(state.existingPart :: BasePart).CFrame = state.originalCFrame :: CFrame;
+			(state.existingPart :: BasePart).Parent = state.existingParent
+		end
 	end
 
-	local function updateGhost(state: DragState)
+	local function mouseRay(): Ray
 		local camera = workspace.CurrentCamera
 		local mouse = UserInputService:GetMouseLocation()
 		local inset = GuiService:GetGuiInset()
-		local ray = camera:ViewportPointToRay(mouse.X - inset.X, mouse.Y - inset.Y)
+		return camera:ViewportPointToRay(mouse.X - inset.X, mouse.Y - inset.Y)
+	end
+
+	local function updateGhost(state: DragState)
+		local ray = mouseRay()
 
 		local filterList: { Instance } = { state.ghost }
-		local character = player.Character
-		if character ~= nil then
-			table.insert(filterList, character)
+		if pluginRef == nil then
+			local character = (Players.LocalPlayer :: Player).Character
+			if character ~= nil then
+				table.insert(filterList, character)
+			end
 		end
 		local params = RaycastParams.new()
 		params.FilterType = Enum.RaycastFilterType.Exclude
@@ -168,7 +239,7 @@ function BuildController.start()
 			hitPoint = ray.Origin + ray.Direction * 40
 		end
 
-		local rotation = CFrame.Angles(0, state.rotationIndex * math.pi / 2, 0)
+		local rotation = CFrame.Angles(0, state.rotationIndex * math.pi / 2, 0) * state.baseRotation
 		local baseCFrame = rotation + hitPoint + Vector3.new(0, state.ghost.Size.Y / 2, 0)
 
 		local snap = findSnapPlacement(
@@ -204,17 +275,25 @@ function BuildController.start()
 	end
 
 	local function placeGhost(state: DragState)
-		local placed = state.template:Clone()
-		placed.CFrame = state.ghost.CFrame
-		placed.Anchored = true
-		placed.Parent = assemblyFolder
-		endDrag()
+		recordChange("BuildIt: Place part", function()
+			if state.existingPart ~= nil then
+				local placed = state.existingPart :: BasePart
+				placed.CFrame = state.ghost.CFrame
+				placed.Parent = state.existingParent
+			else
+				local placed = state.template:Clone()
+				placed.Anchored = true
+				placed.CFrame = state.ghost.CFrame
+				placed.Parent = getPlacementParent()
+			end
+		end)
+		endDrag(false)
 	end
 
-	local function beginDrag(template: BasePart)
-		endDrag()
+	local function beginDrag(source: BasePart, isExisting: boolean)
+		endDrag(true)
 
-		local ghost = template:Clone()
+		local ghost = source:Clone()
 		ghost.Anchored = true
 		ghost.CanCollide = false
 		ghost.CanQuery = false
@@ -222,6 +301,18 @@ function BuildController.start()
 		ghost.CastShadow = false
 		ghost.Transparency = kGhostTransparency
 		ghost.Parent = workspace
+
+		local baseRotation = CFrame.identity
+		local existingParent: Instance? = nil
+		local originalCFrame: CFrame? = nil
+		if isExisting then
+			baseRotation = source.CFrame.Rotation
+			existingParent = source.Parent
+			originalCFrame = source.CFrame
+			-- Out of the world while dragging: not a snap target, not a
+			-- raycast obstacle.
+			source.Parent = nil
+		end
 
 		-- Marker adornments live under the camera: always renderable, never
 		-- replicated or saved.
@@ -234,12 +325,16 @@ function BuildController.start()
 		for _, connector in ghostConnectors do
 			table.insert(ghostMarkers, makeMarker(ghost, connector.position, connector.kind, markerFolder))
 		end
-		local worldConnectors, worldMarkers = collectWorldConnectors(markerFolder)
+		local worldConnectors, worldMarkers = collectWorldConnectors(markerFolder, ghost)
 
 		local state: DragState = {
-			template = template,
+			template = source,
 			ghost = ghost,
 			rotationIndex = 0,
+			baseRotation = baseRotation,
+			existingPart = if isExisting then source else nil,
+			existingParent = existingParent,
+			originalCFrame = originalCFrame,
 			ghostConnectors = ghostConnectors,
 			worldConnectors = worldConnectors,
 			ghostMarkers = ghostMarkers,
@@ -253,14 +348,14 @@ function BuildController.start()
 			updateGhost(state)
 		end))
 
-		table.insert(state.connections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		table.insert(state.connections, UserInputService.InputBegan:Connect(function(input, _gameProcessed)
 			if input.KeyCode == Enum.KeyCode.R then
 				state.rotationIndex = (state.rotationIndex + 1) % 4
 			elseif
 				input.KeyCode == Enum.KeyCode.Escape
 				or input.UserInputType == Enum.UserInputType.MouseButton2
 			then
-				endDrag()
+				endDrag(true)
 			end
 		end))
 
@@ -273,7 +368,7 @@ function BuildController.start()
 			local inset = GuiService:GetGuiInset()
 			local screenPosition = Vector2.new(mouse.X - inset.X, mouse.Y - inset.Y)
 			if mPalette ~= nil and (mPalette :: PartPalette.PartPalette).containsPoint(screenPosition) then
-				endDrag()
+				endDrag(true)
 			else
 				placeGhost(state)
 			end
@@ -282,7 +377,54 @@ function BuildController.start()
 		updateGhost(state)
 	end
 
-	mPalette = PartPalette.create(screenGui, templatesFolder :: Folder, beginDrag)
+	-- Picking up placed parts: LMB down over any connector-annotated part.
+	local mPickupConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed then
+			return
+		end
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1 then
+			return
+		end
+		if mDragState ~= nil then
+			return
+		end
+		local ray = mouseRay()
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		local filterList: { Instance } = {}
+		if pluginRef == nil then
+			local character = (Players.LocalPlayer :: Player).Character
+			if character ~= nil then
+				table.insert(filterList, character)
+			end
+		end
+		params.FilterDescendantsInstances = filterList
+		local result = workspace:Raycast(ray.Origin, ray.Direction * kRaycastDistance, params)
+		if result ~= nil and #getConnectors(result.Instance) > 0 then
+			beginDrag(result.Instance, true)
+		end
+	end)
+
+	mPalette = PartPalette.create(guiParent, templatesFolder :: Folder, function(template: BasePart)
+		beginDrag(template, false)
+	end)
+
+	local function stop()
+		endDrag(true)
+		mPickupConnection:Disconnect()
+		if mPalette ~= nil then
+			(mPalette :: PartPalette.PartPalette).destroy()
+			mPalette = nil
+		end
+		if mOwnScreenGui ~= nil then
+			(mOwnScreenGui :: ScreenGui):Destroy()
+			mOwnScreenGui = nil
+		end
+	end
+
+	return {
+		stop = stop,
+	}
 end
 
 return BuildController
