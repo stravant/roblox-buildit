@@ -37,6 +37,11 @@ local PartPalette = require(script.Parent.PartPalette)
 local kMaxSnapDistance = 1.25
 local kGridSize = 1
 local kRaycastDistance = 500
+-- Spatial query bounds: only connectors near the ghost are tested and
+-- shown (a large imported set makes global scans O(n) per frame).
+local kSnapQueryPadding = 6
+local kMaxNearbyParts = 256
+local kMaxNearbyConnectors = 400
 local kGhostTransparency = 0.45
 local kMarkerRadius = 0.13
 local kMarkerRadiusMatched = 0.22
@@ -77,10 +82,11 @@ type DragState = {
 	existingParent: Instance?,
 	originalCFrame: CFrame?,
 	ghostConnectors: { getConnectors.Connector },
-	worldConnectors: { WorldConnector },
 	ghostMarkers: { Marker },
-	worldMarkers: { Marker },
+	-- Pooled adornments reassigned each frame to the nearby connectors.
+	markerPool: { Marker },
 	markerFolder: Folder,
+	overlapParams: OverlapParams,
 	connections: { RBXScriptConnection },
 }
 
@@ -202,27 +208,18 @@ function BuildController.start(options: StartOptions?): Controller
 		end
 	end
 
-	local function collectWorldConnectors(markerFolder: Folder, ghost: BasePart?): ({ WorldConnector }, { Marker })
-		local worldConnectors: { WorldConnector } = {}
-		local markers: { Marker } = {}
-		for _, part in workspace:GetDescendants() do
-			if not part:IsA("BasePart") or part == ghost then
-				continue
-			end
-			for _, connector in getConnectors(part) do
-				table.insert(worldConnectors, {
-					kind = connector.kind,
-					position = part.CFrame:PointToWorldSpace(connector.position),
-					direction = part.CFrame:VectorToWorldSpace(connector.direction),
-					length = connector.length,
-					oneSided = connector.oneSided,
-					part = part,
-					attachment = connector.attachment,
-				})
-				table.insert(markers, makeMarker(part, connector.position, connector.kind, markerFolder))
-			end
+	-- Part-local connectors don't change while dragging: cache per part,
+	-- built lazily for parts that come near the ghost. Cleared per drag so
+	-- edits between drags are picked up and parts can be garbage collected.
+	local mConnectorCache: { [BasePart]: { getConnectors.Connector } } = {}
+
+	local function getCachedConnectors(part: BasePart): { getConnectors.Connector }
+		local cached = mConnectorCache[part]
+		if cached == nil then
+			cached = getConnectors(part)
+			mConnectorCache[part] = cached
 		end
-		return worldConnectors, markers
+		return cached
 	end
 
 	local function endDrag(canceled: boolean)
@@ -234,6 +231,7 @@ function BuildController.start(options: StartOptions?): Controller
 		for _, connection in state.connections do
 			connection:Disconnect()
 		end
+		table.clear(mConnectorCache)
 		state.markerFolder:Destroy()
 		state.ghost:Destroy()
 		if canceled then
@@ -289,10 +287,39 @@ function BuildController.start(options: StartOptions?): Controller
 		)
 		local baseCFrame = rotation + hitPoint + Vector3.new(0, halfHeight, 0)
 
+		-- Spatial query: only connectors near the ghost participate in
+		-- snapping and get markers.
+		state.overlapParams.FilterDescendantsInstances = filterList
+		local queryRadius = state.ghost.Size.Magnitude / 2 + kSnapQueryPadding
+		local nearbyParts = workspace:GetPartBoundsInRadius(baseCFrame.Position, queryRadius, state.overlapParams)
+
+		local worldConnectors: { WorldConnector } = {}
+		local localPositions: { Vector3 } = {}
+		for _, part in nearbyParts do
+			if #worldConnectors >= kMaxNearbyConnectors then
+				break
+			end
+			for _, connector in getCachedConnectors(part) do
+				if #worldConnectors >= kMaxNearbyConnectors then
+					break
+				end
+				table.insert(worldConnectors, {
+					kind = connector.kind,
+					position = part.CFrame:PointToWorldSpace(connector.position),
+					direction = part.CFrame:VectorToWorldSpace(connector.direction),
+					length = connector.length,
+					oneSided = connector.oneSided,
+					part = part,
+					attachment = connector.attachment,
+				})
+				table.insert(localPositions, connector.position)
+			end
+		end
+
 		local snap = findSnapPlacement(
 			baseCFrame,
 			state.ghostConnectors,
-			state.worldConnectors,
+			worldConnectors,
 			kMaxSnapDistance
 		)
 
@@ -307,16 +334,34 @@ function BuildController.start(options: StartOptions?): Controller
 			)
 		end
 
-		for _, marker in state.ghostMarkers do
+		-- Assign the marker pool to this frame's nearby connectors; hide
+		-- any leftover pooled adornments.
+		for index, connector in worldConnectors do
+			local marker = state.markerPool[index]
+			if marker == nil then
+				marker = makeMarker(connector.part :: BasePart, localPositions[index], connector.kind, state.markerFolder)
+				state.markerPool[index] = marker
+			else
+				marker.kind = connector.kind
+				marker.adornment.Adornee = connector.part
+				marker.adornment.CFrame = CFrame.new(localPositions[index])
+			end
 			setMarkerMatched(marker, false)
 		end
-		for _, marker in state.worldMarkers do
+		for index = #worldConnectors + 1, #state.markerPool do
+			state.markerPool[index].adornment.Adornee = nil
+		end
+
+		for _, marker in state.ghostMarkers do
 			setMarkerMatched(marker, false)
 		end
 		if snap ~= nil then
 			for _, pair in snap.matchedPairs do
 				setMarkerMatched(state.ghostMarkers[pair.dragIndex], true)
-				setMarkerMatched(state.worldMarkers[pair.worldIndex], true)
+				local worldMarker = state.markerPool[pair.worldIndex]
+				if worldMarker ~= nil then
+					setMarkerMatched(worldMarker, true)
+				end
 			end
 		end
 	end
@@ -372,7 +417,10 @@ function BuildController.start(options: StartOptions?): Controller
 		for _, connector in ghostConnectors do
 			table.insert(ghostMarkers, makeMarker(ghost, connector.position, connector.kind, markerFolder))
 		end
-		local worldConnectors, worldMarkers = collectWorldConnectors(markerFolder, ghost)
+
+		local overlapParams = OverlapParams.new()
+		overlapParams.FilterType = Enum.RaycastFilterType.Exclude
+		overlapParams.MaxParts = kMaxNearbyParts
 
 		local state: DragState = {
 			template = source,
@@ -384,10 +432,10 @@ function BuildController.start(options: StartOptions?): Controller
 			existingParent = existingParent,
 			originalCFrame = originalCFrame,
 			ghostConnectors = ghostConnectors,
-			worldConnectors = worldConnectors,
 			ghostMarkers = ghostMarkers,
-			worldMarkers = worldMarkers,
+			markerPool = {},
 			markerFolder = markerFolder,
+			overlapParams = overlapParams,
 			connections = {},
 		}
 		mDragState = state
