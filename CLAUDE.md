@@ -90,18 +90,20 @@ instances).
   visualization. Rotation is caller-controlled (yaw only). Point rule:
   Stud<->Socket coincide with anti-parallel directions. Axial rule
   (TechnicPin<->PegHole, Axle<->AxleHole, Axle<->PegHole, Bar<->Clip,
-  Bar<->HollowStud): axes parallel (either sign), centered on the axis,
-  sliding along it by up to half the length difference (equal lengths
-  lock centered — how pins click in). Candidates are ranked by remaining
-  degrees of freedom first (point/locked-axial = 0 beats sliding
-  axial = 1), translation distance as tiebreaker.
+  Bar<->HollowStud, Bar<->BarHole): axes parallel (either sign), centered
+  on the axis, sliding along it by up to half the length difference
+  (equal lengths lock centered — how pins click in). OneSided female
+  bores (hollow studs) use an asymmetric interval instead: bottomed-out
+  flush to half-engaged. Candidates are ranked by remaining degrees of
+  freedom first (point/locked-axial = 0 beats sliding axial = 1),
+  translation distance as tiebreaker.
 - `PartPalette.lua` — panel UI listing PartLibrary templates with
   ViewportFrame thumbnails.
 - `BuildController.lua` — drag/ghost/marker/placement controller. Drag out
   of the palette OR pick up any connector-annotated workspace part;
-  release to place (release over the panel cancels), R rotates 90 degrees
-  (composed on a picked part's existing rotation), RMB/Esc cancels
-  (restores a picked part). Connector markers: studs green, sockets blue,
+  release to place (release over the panel cancels), R yaws 90 degrees,
+  T tilts 90 degrees about world X (both composed on a picked part's
+  existing rotation), RMB/Esc cancels (restores a picked part). Connector markers: studs green, sockets blue,
   mated pairs yellow. New parts go in `workspace.Assembly` in-game or
   workspace in Edit mode; picked parts keep their parent. Runs in two
   contexts: in-game via `src/entry/BuildTool.client.lua`, and in Edit mode

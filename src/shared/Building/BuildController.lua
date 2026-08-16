@@ -7,8 +7,9 @@
 --
 -- Controls:
 --   Hold LMB on a palette entry OR on a placed part, drag, release to
---   place. R rotates the dragged part 90 degrees. Esc or RMB cancels
---   (a picked-up part returns to where it was).
+--   place. R yaws the dragged part 90 degrees, T tilts it 90 degrees
+--   (pitch about world X, so bars/axles can go horizontal). Esc or RMB
+--   cancels (a picked-up part returns to where it was).
 --
 -- ANY workspace part with connector attachments is a snap target and can
 -- be picked up — including the copies the importer drops. New palette
@@ -66,7 +67,8 @@ type DragState = {
 	template: BasePart,
 	ghost: BasePart,
 	rotationIndex: number,
-	-- Rotation the R-key steps compose onto (identity for palette drags,
+	tiltIndex: number,
+	-- Rotation the R/T-key steps compose onto (identity for palette drags,
 	-- the part's own rotation for picked-up parts).
 	baseRotation: CFrame,
 	-- Set when dragging an already-placed part: it is unparented for the
@@ -253,8 +255,17 @@ function BuildController.start(options: StartOptions?): Controller
 			hitPoint = ray.Origin + ray.Direction * 40
 		end
 
-		local rotation = CFrame.Angles(0, state.rotationIndex * math.pi / 2, 0) * state.baseRotation
-		local baseCFrame = rotation + hitPoint + Vector3.new(0, state.ghost.Size.Y / 2, 0)
+		local rotation = CFrame.Angles(0, state.rotationIndex * math.pi / 2, 0)
+			* CFrame.Angles(state.tiltIndex * math.pi / 2, 0, 0)
+			* state.baseRotation
+		-- Rest the rotated bounding box on the hit point.
+		local size = state.ghost.Size
+		local halfHeight = 0.5 * (
+			math.abs(rotation.XVector.Y) * size.X
+			+ math.abs(rotation.YVector.Y) * size.Y
+			+ math.abs(rotation.ZVector.Y) * size.Z
+		)
+		local baseCFrame = rotation + hitPoint + Vector3.new(0, halfHeight, 0)
 
 		local snap = findSnapPlacement(
 			baseCFrame,
@@ -345,6 +356,7 @@ function BuildController.start(options: StartOptions?): Controller
 			template = source,
 			ghost = ghost,
 			rotationIndex = 0,
+			tiltIndex = 0,
 			baseRotation = baseRotation,
 			existingPart = if isExisting then source else nil,
 			existingParent = existingParent,
@@ -365,6 +377,8 @@ function BuildController.start(options: StartOptions?): Controller
 		table.insert(state.connections, UserInputService.InputBegan:Connect(function(input, _gameProcessed)
 			if input.KeyCode == Enum.KeyCode.R then
 				state.rotationIndex = (state.rotationIndex + 1) % 4
+			elseif input.KeyCode == Enum.KeyCode.T then
+				state.tiltIndex = (state.tiltIndex + 1) % 4
 			elseif
 				input.KeyCode == Enum.KeyCode.Escape
 				or input.UserInputType == Enum.UserInputType.MouseButton2

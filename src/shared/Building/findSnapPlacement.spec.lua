@@ -243,6 +243,20 @@ return function(t: TestTypes.TestContext)
 		t.expect(snap.cframe:PointToWorldSpace(Vector3.new(0, -0.3, 0))).toBeCloseTo(Vector3.new(0, 5, 0))
 	end)
 
+	t.test("bar slides through a pin's bar hole", function()
+		local world = {
+			{ kind = "BarHole", position = Vector3.new(0, 3, 0), direction = Vector3.new(1, 0, 0), length = 2 },
+		}
+		local bar = {
+			{ kind = "Bar", position = Vector3.zero, direction = Vector3.new(1, 0, 0), length = 4 },
+		}
+		local snap = findSnapPlacement(CFrame.new(0.4, 3.2, 0.1), bar :: any, world :: any, kMaxSnap) :: any
+		t.expect(snap).toBeTruthy()
+		-- Through-hole: symmetric slide, along-axis position preserved.
+		t.expect(snap.cframe.Position).toBeCloseTo(Vector3.new(0.4, 3, 0))
+		t.expect(#snap.matchedPairs).toBe(1)
+	end)
+
 	t.test("axial axes must be parallel", function()
 		local world = {
 			{ kind = "AxleHole", position = Vector3.new(0, 5, 0), direction = Vector3.new(1, 0, 0), length = 1 },

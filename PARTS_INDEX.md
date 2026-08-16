@@ -22,6 +22,7 @@ descriptions (`head -1 p/<name>.dat`) before extending the table:
 | Technic brick | 3700 (1x2, 1 hole), 3701 (1x4, 3 holes) | `peghole*` mouth per face, paired into through-holes | PegHole (axis + depth) |
 | Technic axle | 3704 (axle 2), 32062 (axle 2 notched), 4519 (axle 3) | `axle.dat`, `axlehol8.dat` shaft segments (ends `axleend*` excluded, so length reads ~5 LDU short) | Axle (axis + length) |
 | Technic pin | 2780 (friction, 2 halves), 3673 (frictionless) | `connect*.dat`, `confric*.dat` pin halves (1.0 = 20 LDU, 0.5 = 10, 2.0 = 40) | TechnicPin per half |
+| Bar bore (hole through a pin, etc.) | 2780, 3673 | INVERTED radius-4 cylinder sections (INVERTNEXT accumulation only — mirroring flips winding, not concavity); pin primitives get an interior-only scan; fragmented slotted bores merge with a 9 LDU gap tolerance, then sub-8 LDU leftovers are culled | BarHole (axis + length, mates Bar) |
 | Gear / axle hole | 3647 (gear 8 tooth) | `axlehole.dat`, `axl2hole`-`axl5hole` scaled segments | AxleHole (axis + length) |
 | Bar / rod | 30374 (bar 4L), 3957 (antenna shaft) | none — geometric: `4-4cyli`/`4-4cylc` at radius 4, length >= 8 | Bar (axis + length) |
 | Clip (vertical) | 4085c (plate 1x1 w/ clip), 2555 (tile w/ clip) | `clip1.dat`, `clip2.dat` (grip center ~8 LDU out along local -Z from the mount origin) | Clip (grips a Bar along local Y) |

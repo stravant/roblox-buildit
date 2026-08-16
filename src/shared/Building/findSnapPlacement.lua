@@ -61,9 +61,10 @@ local kAxialPartners: { [string]: { [string]: boolean } } = {
 	PegHole = { TechnicPin = true, Axle = true },
 	Axle = { AxleHole = true, PegHole = true },
 	AxleHole = { Axle = true },
-	Bar = { Clip = true, HollowStud = true },
+	Bar = { Clip = true, HollowStud = true, BarHole = true },
 	Clip = { Bar = true },
 	HollowStud = { Bar = true },
+	BarHole = { Bar = true },
 }
 
 type MateRule = "point" | "axial"
