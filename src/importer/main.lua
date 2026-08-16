@@ -11,6 +11,7 @@ local Selection = game:GetService("Selection")
 
 local LDrawLibrary = require(script.Parent.Parent.shared.LDraw.LDrawLibrary)
 local importPart = require(script.Parent.importPart)
+local importModel = require(script.Parent.importModel)
 local wsFileProvider = require(script.Parent.wsFileProvider)
 
 local kServerUrl = "ws://localhost:38742"
@@ -62,7 +63,7 @@ local function main(widget: DockWidgetPluginGui)
 	local partNumberBox = Instance.new("TextBox")
 	partNumberBox.LayoutOrder = 1
 	partNumberBox.Size = UDim2.new(1, 0, 0, 28)
-	partNumberBox.PlaceholderText = "Part number (3001) or range (3001,3010)"
+	partNumberBox.PlaceholderText = "Part (3001), range (3001,3010), or set (8880)"
 	partNumberBox.Text = "3001"
 	partNumberBox.ClearTextOnFocus = false
 	partNumberBox.TextColor3 = kTextColor
@@ -290,6 +291,72 @@ local function main(widget: DockWidgetPluginGui)
 		mBusy = false
 	end
 
+	-- Model/set files live in sets/ (e.g. "8880" -> "sets/8880-1.mpd").
+	local function findModelPath(text: string): string?
+		local candidates = {
+			`sets/{text}`,
+			`sets/{text}.mpd`,
+			`sets/{text}.ldr`,
+			`sets/{text}-1.mpd`,
+		}
+		if text:match("^sets/") ~= nil then
+			table.insert(candidates, 1, text)
+		end
+		local provider = mProvider
+		if provider == nil then
+			return nil
+		end
+		for _, candidate in candidates do
+			if candidate:match("%.mpd$") ~= nil or candidate:match("%.ldr$") ~= nil then
+				if provider.readFile(candidate) ~= nil then
+					return candidate
+				end
+			end
+		end
+		return nil
+	end
+
+	local function runModelImport(modelPath: string)
+		mBusy = true
+		setStatus(`Loading {modelPath}...`)
+		local recording = ChangeHistoryService:TryBeginRecording("Import LDraw model")
+		local ok, result, errorMessage = pcall(function()
+			return importModel(
+				getLibrary(),
+				(mProvider :: wsFileProvider.WsFileProvider).readFile,
+				modelPath,
+				getPartLibraryFolder(),
+				setStatus
+			)
+		end)
+		if recording then
+			ChangeHistoryService:FinishRecording(recording, Enum.FinishRecordingOperation.Commit)
+		else
+			ChangeHistoryService:SetWaypoint("Import LDraw model")
+		end
+		if not ok then
+			if mProvider ~= nil then
+				mProvider.close()
+				mProvider = nil
+				mLibrary = nil
+			end
+			setStatus(`Error: {result}`)
+		elseif result == nil then
+			setStatus(`Error: {errorMessage}`)
+		else
+			local summary = result :: importModel.ImportModelResult
+			Selection:Set({ summary.folder })
+			local skippedText = if #summary.skippedRefs > 0
+				then ` Skipped: {table.concat(summary.skippedRefs, ", ")}`
+				else ""
+			setStatus(
+				`Assembled {summary.folder.Name}: {summary.placedCount}/{summary.instanceCount} parts placed, `
+					.. `{summary.uniquePartCount} unique ({summary.importedTemplateCount} new templates).{skippedText}`
+			)
+		end
+		mBusy = false
+	end
+
 	local function doImport()
 		if mBusy then
 			return
@@ -299,7 +366,21 @@ local function main(widget: DockWidgetPluginGui)
 			setStatus(parseError :: string)
 			return
 		end
-		runImport(partNumbers :: { string })
+		local numbers = partNumbers :: { string }
+
+		-- A single token that matches a file in sets/ imports as a model.
+		if #numbers == 1 then
+			local probeOk, modelPath = pcall(function()
+				getLibrary() -- ensure the provider is connected
+				return findModelPath(numbers[1])
+			end)
+			if probeOk and modelPath ~= nil then
+				runModelImport(modelPath :: string)
+				return
+			end
+		end
+
+		runImport(numbers)
 	end
 
 	local function doImportTestSet()

@@ -22,14 +22,21 @@ import websockets
 import websockets.asyncio.server
 
 PORT = 38742
-LDRAW_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ldraw")
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+LDRAW_DIR = os.path.join(PROJECT_DIR, "ldraw")
+SETS_DIR = os.path.join(PROJECT_DIR, "sets")
 
 
 def read_ldraw_file(rel_path: str) -> str | None:
-    """Read a file from the ldraw directory, or None if missing/invalid."""
+    """Read a file from the ldraw directory (or sets/ for model files),
+    or None if missing/invalid."""
     rel_path = rel_path.replace("\\", "/").lstrip("/")
-    full = os.path.normpath(os.path.join(LDRAW_DIR, rel_path))
-    root = os.path.normpath(LDRAW_DIR)
+    if rel_path.startswith("sets/"):
+        root = os.path.normpath(SETS_DIR)
+        rel_path = rel_path[len("sets/"):]
+    else:
+        root = os.path.normpath(LDRAW_DIR)
+    full = os.path.normpath(os.path.join(root, rel_path))
     if not full.startswith(root + os.sep):
         return None
     if not os.path.isfile(full):

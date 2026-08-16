@@ -108,6 +108,9 @@ local function importPart(
 	part.Anchored = true
 	part:SetAttribute("LDrawFile", partRef)
 	part:SetAttribute("PartNumber", partNumber)
+	-- Pivot offset from the LDraw origin (see buildEditableMesh): needed to
+	-- place instances of this part at LDraw model transforms.
+	part:SetAttribute("MeshCenter", meshCenter)
 
 	local regionCells: { Types.RegionCell } = {}
 	for _, connection in connections do

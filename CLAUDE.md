@@ -73,12 +73,20 @@ roblox-nightfall's CLAUDE.md for the war story).
   non-axis-aligned cells fall back to 1x1 regions. Extended connectors
   (bars, axles) will extend this model with a continuous length dimension.
 - `LDrawColors.lua` — LDConfig.ldr !COLOUR parsing.
-- `RobloxConvert.lua` — LDraw->Roblox space conversion.
+- `RobloxConvert.lua` — LDraw->Roblox space conversion. Two frame
+  converters: `cframe()` maps semantic AXES (attachments), while
+  `placementCFrame()` conjugates the rotation to map POINTS (placing
+  model instances) — they differ and using the wrong one flips axes.
+- `loadModel.lua` — .mpd/.ldr model files (e.g. LDraw OMR sets in
+  `sets/`, served under the `sets/` path prefix): splits `0 FILE`
+  sections and flattens to part instances (ref + transform + color).
 - `buildEditableMesh.lua` — FlatMesh -> welded EditableMesh (Studio only).
 
 `src/importer/` — importer plugin modules: `main.lua` (widget UI),
-`importPart.lua` (MeshPart + Attachment annotation), `wsFileProvider.lua`
-(FileProvider over WebSocket). Imports go into
+`importPart.lua` (MeshPart + Attachment annotation), `importModel.lua`
+(whole-set import: templates for every unique part + assembled colored
+clones in a workspace folder; typing "8880" resolves `sets/8880-1.mpd`),
+`wsFileProvider.lua` (FileProvider over WebSocket). Imports go into
 `ReplicatedStorage.PartLibrary` (the build tool's palette source; the
 folder survives rojo syncing since ReplicatedStorage ignores unknown
 instances).
