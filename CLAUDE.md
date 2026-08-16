@@ -108,8 +108,11 @@ instances).
   workspace in Edit mode; picked parts keep their parent. Runs in two
   contexts: in-game via `src/entry/BuildTool.client.lua`, and in Edit mode
   via the plugin's "Build" toolbar button (`start({guiParent, plugin})` —
-  palette in a dock widget, placements wrapped in undo recordings,
-  `plugin:Activate` owns the mouse; deactivation stops the tool).
+  palette in a dock widget, `plugin:Activate` owns the mouse; deactivation
+  stops the tool). Edit-mode undo: each drag is ONE recording spanning
+  pickup to place — committed on place, canceled-with-rollback on abort
+  (aborted drags leave no undo entry); Ctrl+Z mid-drag cancels the drag
+  first.
 
 `src/entry/BuildTool.client.lua` — StarterPlayerScripts bootstrap for the
 build tool (mounted only by default.project.json, never the test plugin).

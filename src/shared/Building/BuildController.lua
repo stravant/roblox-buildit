@@ -140,18 +140,37 @@ function BuildController.start(options: StartOptions?): Controller
 	local mDragState: DragState? = nil
 	local mPalette: PartPalette.PartPalette? = nil
 
-	-- In Edit mode (plugin), placements should be undoable steps.
-	local function recordChange(label: string, fn: () -> ())
+	-- In Edit mode (plugin), each drag is one undo recording spanning from
+	-- pickup to place: committing on place makes the whole move/placement
+	-- a single Ctrl+Z step, and canceling rolls back so aborted drags
+	-- leave no trace in the undo stack.
+	local mRecording: string? = nil
+	local mRecordingLabel = "BuildIt"
+
+	local function beginRecording(label: string)
 		if pluginRef == nil then
-			fn()
 			return
 		end
-		local recording = ChangeHistoryService:TryBeginRecording(label)
-		fn()
-		if recording then
-			ChangeHistoryService:FinishRecording(recording, Enum.FinishRecordingOperation.Commit)
-		else
-			ChangeHistoryService:SetWaypoint(label)
+		mRecordingLabel = label
+		mRecording = ChangeHistoryService:TryBeginRecording(label)
+	end
+
+	local function finishRecording(commit: boolean)
+		if pluginRef == nil then
+			return
+		end
+		if mRecording ~= nil then
+			ChangeHistoryService:FinishRecording(
+				mRecording,
+				if commit
+					then Enum.FinishRecordingOperation.Commit
+					else Enum.FinishRecordingOperation.Cancel
+			)
+			mRecording = nil
+		elseif commit then
+			-- Recording failed to start (e.g. another recording active):
+			-- still mark an undo waypoint for the committed change.
+			ChangeHistoryService:SetWaypoint(mRecordingLabel)
 		end
 	end
 
@@ -217,10 +236,13 @@ function BuildController.start(options: StartOptions?): Controller
 		end
 		state.markerFolder:Destroy()
 		state.ghost:Destroy()
-		if canceled and state.existingPart ~= nil then
-			-- Put a picked-up part back where it was.
-			(state.existingPart :: BasePart).CFrame = state.originalCFrame :: CFrame;
-			(state.existingPart :: BasePart).Parent = state.existingParent
+		if canceled then
+			if state.existingPart ~= nil then
+				-- Put a picked-up part back where it was.
+				(state.existingPart :: BasePart).CFrame = state.originalCFrame :: CFrame;
+				(state.existingPart :: BasePart).Parent = state.existingParent
+			end
+			finishRecording(false)
 		end
 	end
 
@@ -300,23 +322,23 @@ function BuildController.start(options: StartOptions?): Controller
 	end
 
 	local function placeGhost(state: DragState)
-		recordChange("BuildIt: Place part", function()
-			if state.existingPart ~= nil then
-				local placed = state.existingPart :: BasePart
-				placed.CFrame = state.ghost.CFrame
-				placed.Parent = state.existingParent
-			else
-				local placed = state.template:Clone()
-				placed.Anchored = true
-				placed.CFrame = state.ghost.CFrame
-				placed.Parent = getPlacementParent()
-			end
-		end)
+		if state.existingPart ~= nil then
+			local placed = state.existingPart :: BasePart
+			placed.CFrame = state.ghost.CFrame
+			placed.Parent = state.existingParent
+		else
+			local placed = state.template:Clone()
+			placed.Anchored = true
+			placed.CFrame = state.ghost.CFrame
+			placed.Parent = getPlacementParent()
+		end
 		endDrag(false)
+		finishRecording(true)
 	end
 
 	local function beginDrag(source: BasePart, isExisting: boolean)
 		endDrag(true)
+		beginRecording(if isExisting then "BuildIt: Move part" else "BuildIt: Place part")
 
 		local ghost = source:Clone()
 		ghost.Anchored = true
@@ -379,6 +401,16 @@ function BuildController.start(options: StartOptions?): Controller
 				state.rotationIndex = (state.rotationIndex + 1) % 4
 			elseif input.KeyCode == Enum.KeyCode.T then
 				state.tiltIndex = (state.tiltIndex + 1) % 4
+			elseif
+				input.KeyCode == Enum.KeyCode.Z
+				and (
+					UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
+					or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
+				)
+			then
+				-- Ctrl+Z mid-drag: cancel the drag so Studio's undo applies
+				-- to a clean state.
+				endDrag(true)
 			elseif
 				input.KeyCode == Enum.KeyCode.Escape
 				or input.UserInputType == Enum.UserInputType.MouseButton2
