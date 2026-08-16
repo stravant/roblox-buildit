@@ -43,6 +43,9 @@ local kRaycastDistance = 500
 local kSnapQueryPadding = 6
 local kMaxNearbyParts = 256
 local kMaxNearbyConnectors = 400
+-- RMB cancels only on a CLICK: an RMB drag is a camera orbit and must
+-- not cancel the part drag.
+local kRightClickCancelMaxMovement = 5
 local kGhostTransparency = 0.45
 local kMarkerRadius = 0.13
 local kMarkerRadiusMatched = 0.22
@@ -148,6 +151,8 @@ function BuildController.start(options: StartOptions?): Controller
 
 	local mDragState: DragState? = nil
 	local mPalette: PartPalette.PartPalette? = nil
+	-- RMB press position while dragging (click-vs-orbit discrimination).
+	local mRightMouseDownAt: Vector2? = nil
 
 	-- In Edit mode (plugin), each drag is one undo recording spanning from
 	-- pickup to place: committing on place makes the whole move/placement
@@ -476,15 +481,27 @@ function BuildController.start(options: StartOptions?): Controller
 				-- Ctrl+Z mid-drag: cancel the drag so Studio's undo applies
 				-- to a clean state.
 				endDrag(true)
-			elseif
-				input.KeyCode == Enum.KeyCode.Escape
-				or input.UserInputType == Enum.UserInputType.MouseButton2
-			then
+			elseif input.KeyCode == Enum.KeyCode.Escape then
 				endDrag(true)
+			elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
+				-- Defer to release: an RMB DRAG is a camera orbit, only an
+				-- RMB CLICK cancels.
+				mRightMouseDownAt = UserInputService:GetMouseLocation()
 			end
 		end))
 
 		table.insert(state.connections, UserInputService.InputEnded:Connect(function(input, _gameProcessed)
+			if input.UserInputType == Enum.UserInputType.MouseButton2 then
+				local downAt = mRightMouseDownAt
+				mRightMouseDownAt = nil
+				if
+					downAt ~= nil
+					and (UserInputService:GetMouseLocation() - downAt).Magnitude <= kRightClickCancelMaxMovement
+				then
+					endDrag(true)
+				end
+				return
+			end
 			if input.UserInputType ~= Enum.UserInputType.MouseButton1 then
 				return
 			end
