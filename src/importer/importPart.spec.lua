@@ -30,8 +30,9 @@ return function(t: TestTypes.TestContext)
 		t.expect(meshPart:GetAttribute("LDrawFile")).toBe("3001.dat")
 		t.expect(meshPart:GetAttribute("Description")).toBe(nil)
 
-		-- One 4x2 region per side, not 8 attachments each.
-		t.expect(#meshPart:GetChildren()).toBe(2)
+		-- Region attachments: one stud grid, the 4x2 socket cell grid, and
+		-- the 3x1 tube-center socket row (offset placements).
+		t.expect(#meshPart:GetChildren()).toBe(3)
 
 		-- Part pivot is the bbox center: the geometry spans y in [-0.7, 0.7],
 		-- studs base plane at +0.5, sockets on the bottom face at -0.7.
@@ -44,13 +45,16 @@ return function(t: TestTypes.TestContext)
 		t.expect(studs.CFrame.Position).toBeCloseTo(Vector3.new(0, 0.5, 0))
 		t.expect(studs.CFrame.YVector).toBeCloseTo(Vector3.new(0, 1, 0))
 
-		local sockets = findRegion(meshPart, "Socket") :: Attachment
+		local sockets = meshPart:FindFirstChild("Sockets4x2") :: Attachment
 		t.expect(sockets).toBeTruthy()
-		t.expect(sockets.Name).toBe("Sockets4x2")
 		t.expect(sockets:GetAttribute("CountX")).toBe(4)
 		t.expect(sockets:GetAttribute("CountZ")).toBe(2)
 		t.expect(sockets.CFrame.Position).toBeCloseTo(Vector3.new(0, -0.7, 0))
 		t.expect(sockets.CFrame.YVector).toBeCloseTo(Vector3.new(0, -1, 0))
+
+		local tubeSockets = meshPart:FindFirstChild("Sockets3x1") :: Attachment
+		t.expect(tubeSockets).toBeTruthy()
+		t.expect(tubeSockets.CFrame.Position).toBeCloseTo(Vector3.new(0, -0.7, 0))
 
 		folder:Destroy()
 	end)

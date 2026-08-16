@@ -48,14 +48,15 @@ local kAxisDotMin = 0.99
 local kMatedEpsilon = 0.05
 
 -- Axles fit through pin holes too (loose/rotating, but a valid build
--- connection).
+-- connection), and bars insert into hollow studs.
 local kAxialPartners: { [string]: { [string]: boolean } } = {
 	TechnicPin = { PegHole = true },
 	PegHole = { TechnicPin = true, Axle = true },
 	Axle = { AxleHole = true, PegHole = true },
 	AxleHole = { Axle = true },
-	Bar = { Clip = true },
+	Bar = { Clip = true, HollowStud = true },
 	Clip = { Bar = true },
+	HollowStud = { Bar = true },
 }
 
 type MateRule = "point" | "axial"
