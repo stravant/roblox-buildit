@@ -18,7 +18,7 @@ local importButton = toolbar:CreateButton(
 
 local importWidget = plugin:CreateDockWidgetPluginGui(
 	"BuildItImporter",
-	DockWidgetPluginGuiInfo.new(Enum.InitialDockState.Float, false, false, 280, 180, 240, 140)
+	DockWidgetPluginGuiInfo.new(Enum.InitialDockState.Float, false, false, 280, 220, 240, 180)
 )
 importWidget.Title = "BuildIt Importer"
 importWidget.Name = "BuildItImporter"

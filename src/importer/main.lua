@@ -14,6 +14,25 @@ local importPart = require(script.Parent.importPart)
 local wsFileProvider = require(script.Parent.wsFileProvider)
 
 local kServerUrl = "ws://localhost:38742"
+
+-- The representative set from PARTS_INDEX.md: one part per handled
+-- connection category, for playing with every connector type.
+local kTestSet = {
+	"3001", -- Brick 2x4: stud + socket grids
+	"3003", -- Brick 2x2
+	"3005", -- Brick 1x1 (known gap: no underside sockets)
+	"3020", -- Plate 2x4
+	"3623", -- Plate 1x3: pin-derived sockets
+	"3700", -- Technic Brick 1x2: peghole
+	"3701", -- Technic Brick 1x4: 3 pegholes
+	"3704", -- Technic Axle 2
+	"32062", -- Technic Axle 2 Notched
+	"2780", -- Technic Friction Pin
+	"3647", -- Technic Gear 8 Tooth: axle hole
+	"30374", -- Bar 4L
+	"4085c", -- Plate 1x1 with Clip Vertical
+	"3957a", -- Antenna 4H: bar + tube base
+}
 local kBackgroundColor = Color3.fromRGB(46, 46, 46)
 local kTextColor = Color3.fromRGB(220, 220, 220)
 
@@ -64,8 +83,19 @@ local function main(widget: DockWidgetPluginGui)
 	importButton.TextSize = 16
 	importButton.Parent = background
 
+	local testSetButton = Instance.new("TextButton")
+	testSetButton.LayoutOrder = 3
+	testSetButton.Size = UDim2.new(1, 0, 0, 28)
+	testSetButton.Text = `Import Test Set ({#kTestSet} parts)`
+	testSetButton.TextColor3 = kTextColor
+	testSetButton.BackgroundColor3 = Color3.fromRGB(70, 70, 80)
+	testSetButton.BorderSizePixel = 0
+	testSetButton.Font = Enum.Font.SourceSansBold
+	testSetButton.TextSize = 16
+	testSetButton.Parent = background
+
 	local statusLabel = Instance.new("TextLabel")
-	statusLabel.LayoutOrder = 3
+	statusLabel.LayoutOrder = 4
 	statusLabel.Size = UDim2.new(1, 0, 0, 80)
 	statusLabel.BackgroundTransparency = 1
 	statusLabel.TextColor3 = kTextColor
@@ -142,18 +172,8 @@ local function main(widget: DockWidgetPluginGui)
 		return { single }, nil
 	end
 
-	local function doImport()
-		if mBusy then
-			return
-		end
+	local function runImport(numbers: { string })
 		mBusy = true
-		local partNumbers, parseError = parsePartNumbers(partNumberBox.Text)
-		if partNumbers == nil then
-			setStatus(parseError :: string)
-			mBusy = false
-			return
-		end
-		local numbers = partNumbers :: { string }
 		local isRange = #numbers > 1
 
 		local recording = ChangeHistoryService:TryBeginRecording("Import LDraw parts")
@@ -270,12 +290,35 @@ local function main(widget: DockWidgetPluginGui)
 		mBusy = false
 	end
 
+	local function doImport()
+		if mBusy then
+			return
+		end
+		local partNumbers, parseError = parsePartNumbers(partNumberBox.Text)
+		if partNumbers == nil then
+			setStatus(parseError :: string)
+			return
+		end
+		runImport(partNumbers :: { string })
+	end
+
+	local function doImportTestSet()
+		if mBusy then
+			return
+		end
+		runImport(kTestSet)
+	end
+
 	local buttonConnection = importButton.Activated:Connect(function()
 		task.spawn(doImport)
+	end)
+	local testSetConnection = testSetButton.Activated:Connect(function()
+		task.spawn(doImportTestSet)
 	end)
 
 	widget.Destroying:Connect(function()
 		buttonConnection:Disconnect()
+		testSetConnection:Disconnect()
 		if mProvider ~= nil then
 			mProvider.close()
 			mProvider = nil
