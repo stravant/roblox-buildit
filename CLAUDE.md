@@ -86,13 +86,15 @@ instances).
 `src/shared/Building/` — the in-game build (test) tool:
 
 - `getConnectors.lua` — reads connector Attachments off a part.
-- `findSnapPlacement.lua` — pure snap solver, translating the ghost the
-  least; reports all mated pairs for visualization. Rotation is
-  caller-controlled (yaw only). Point rule: Stud<->Socket coincide with
-  anti-parallel directions. Axial rule (TechnicPin<->PegHole,
-  Axle<->AxleHole, Axle<->PegHole, Bar<->Clip): axes parallel (either
-  sign), centered on the axis, sliding along it by up to half the length
-  difference (equal lengths lock centered — how pins click in).
+- `findSnapPlacement.lua` — pure snap solver; reports all mated pairs for
+  visualization. Rotation is caller-controlled (yaw only). Point rule:
+  Stud<->Socket coincide with anti-parallel directions. Axial rule
+  (TechnicPin<->PegHole, Axle<->AxleHole, Axle<->PegHole, Bar<->Clip,
+  Bar<->HollowStud): axes parallel (either sign), centered on the axis,
+  sliding along it by up to half the length difference (equal lengths
+  lock centered — how pins click in). Candidates are ranked by remaining
+  degrees of freedom first (point/locked-axial = 0 beats sliding
+  axial = 1), translation distance as tiebreaker.
 - `PartPalette.lua` — panel UI listing PartLibrary templates with
   ViewportFrame thumbnails.
 - `BuildController.lua` — drag/ghost/marker/placement controller. Drag out

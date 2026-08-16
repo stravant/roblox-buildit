@@ -5,9 +5,15 @@
 --
 -- Given the dragged part's connectors (part-local), the world connectors of
 -- the existing assembly, and the ghost's current (unsnapped) CFrame, finds
--- the placement that mates a compatible connector pair while moving the
--- part the least, then reports every connector pair that ends up mated
--- under that placement (for visualization).
+-- the placement that mates a compatible connector pair, then reports every
+-- connector pair that ends up mated under that placement (for
+-- visualization).
+--
+-- Candidate choice: fewest remaining degrees of freedom first, translation
+-- distance as the tiebreaker. A point mate (stud in socket, 0 DOF) beats
+-- an axial slide (bar in clip, 1 DOF) even when the axial target is
+-- closer; an axial mate whose lengths match (pin clicked into a peghole)
+-- locks fully and counts as 0 DOF too.
 --
 -- Two mating rules:
 --   Point (Stud <-> Socket): positions coincide, directions anti-parallel.
@@ -85,7 +91,8 @@ local function findSnapPlacement(
 	maxSnapDistance: number
 ): SnapResult?
 	local rotation = ghostCFrame.Rotation
-	local bestDistance = maxSnapDistance
+	local bestDegreesOfFreedom = math.huge
+	local bestDistance = math.huge
 	local bestCFrame: CFrame? = nil
 
 	for _, world in worldConnectors do
@@ -98,11 +105,13 @@ local function findSnapPlacement(
 			local dragPosition = ghostCFrame:PointToWorldSpace(drag.position)
 
 			local targetPosition: Vector3
+			local degreesOfFreedom: number
 			if rule == "point" then
 				if dragDirection:Dot(world.direction) > kDirectionDotMax then
 					continue
 				end
 				targetPosition = world.position
+				degreesOfFreedom = 0
 			else -- axial
 				if math.abs(dragDirection:Dot(world.direction)) < kAxisDotMin then
 					continue
@@ -111,10 +120,18 @@ local function findSnapPlacement(
 				local range = slideRange(drag.length, world.length)
 				targetPosition = world.position
 					+ world.direction * math.clamp(along, -range, range)
+				degreesOfFreedom = if range > 0 then 1 else 0
 			end
 
 			local distance = (dragPosition - targetPosition).Magnitude
-			if distance <= bestDistance then
+			if distance > maxSnapDistance then
+				continue
+			end
+			if
+				degreesOfFreedom < bestDegreesOfFreedom
+				or (degreesOfFreedom == bestDegreesOfFreedom and distance < bestDistance)
+			then
+				bestDegreesOfFreedom = degreesOfFreedom
 				bestDistance = distance
 				bestCFrame = rotation
 					+ (ghostCFrame.Position + targetPosition - dragPosition)

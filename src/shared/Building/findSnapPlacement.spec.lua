@@ -193,6 +193,42 @@ return function(t: TestTypes.TestContext)
 		t.expect(#snap.matchedPairs).toBe(1)
 	end)
 
+	t.test("prefers a 0-DOF point mate over a closer 1-DOF axial mate", function()
+		local world = {
+			{ kind = "Socket", position = Vector3.new(0, 5, 0), direction = Vector3.new(0, -1, 0) },
+			{ kind = "Clip", position = Vector3.new(1.1, 4.4, 0), direction = Vector3.new(0, 0, 1), length = 0.4 },
+		}
+		local drag = {
+			{ kind = "Stud", position = Vector3.new(0, 0.5, 0), direction = Vector3.new(0, 1, 0) },
+			{ kind = "Bar", position = Vector3.new(1, 0, 0), direction = Vector3.new(0, 0, 1), length = 2 },
+		}
+		-- Bar-to-clip is closer (0.3) than stud-to-socket (~0.41), but the
+		-- stud mate removes more freedom and must win.
+		local snap = findSnapPlacement(CFrame.new(0.4, 4.4, 0), drag :: any, world :: any, kMaxSnap) :: any
+		t.expect(snap).toBeTruthy()
+		t.expect(snap.cframe.Position).toBeCloseTo(Vector3.new(0, 4.5, 0))
+		t.expect(#snap.matchedPairs).toBe(1)
+		t.expect(snap.matchedPairs[1].dragIndex).toBe(1)
+		t.expect(snap.matchedPairs[1].worldIndex).toBe(1)
+	end)
+
+	t.test("equal-length axial locks count as 0 DOF", function()
+		-- A peghole with both a sliding axle option and a locking pin
+		-- option: the pin (equal lengths, no slide) wins even though the
+		-- axle connector is closer.
+		local world = {
+			{ kind = "PegHole", position = Vector3.new(0, 5, 0), direction = Vector3.new(0, 0, 1), length = 1 },
+		}
+		local drag = {
+			{ kind = "Axle", position = Vector3.new(0, 0.2, 0), direction = Vector3.new(0, 0, 1), length = 2 },
+			{ kind = "TechnicPin", position = Vector3.new(0, -0.3, 0), direction = Vector3.new(0, 0, 1), length = 1 },
+		}
+		local snap = findSnapPlacement(CFrame.new(0, 5, 0.4), drag :: any, world :: any, kMaxSnap) :: any
+		t.expect(snap).toBeTruthy()
+		-- Pin connector lands exactly at the hole center.
+		t.expect(snap.cframe:PointToWorldSpace(Vector3.new(0, -0.3, 0))).toBeCloseTo(Vector3.new(0, 5, 0))
+	end)
+
 	t.test("axial axes must be parallel", function()
 		local world = {
 			{ kind = "AxleHole", position = Vector3.new(0, 5, 0), direction = Vector3.new(1, 0, 0), length = 1 },
