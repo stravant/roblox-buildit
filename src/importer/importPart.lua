@@ -54,6 +54,9 @@ local function addAxialAttachment(parent: MeshPart, connection: Types.Connection
 	if connection.length ~= nil then
 		attachment:SetAttribute("Length", connection.length * RobloxConvert.kDefaultScale)
 	end
+	if connection.oneSided then
+		attachment:SetAttribute("OneSided", true)
+	end
 	attachment.Parent = parent
 end
 

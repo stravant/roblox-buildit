@@ -19,6 +19,8 @@ export type Connector = {
 	-- element axis (sign arbitrary) for axial connectors.
 	direction: Vector3,
 	length: number?, -- extent along direction (axial connectors)
+	-- Blind female bore, open only toward `direction` (hollow studs).
+	oneSided: boolean?,
 	attachment: Attachment, -- the source attachment (shared by grid cells)
 }
 
@@ -45,6 +47,7 @@ local function getConnectors(part: BasePart): { Connector }
 				position = child.CFrame.Position,
 				direction = child.CFrame.YVector,
 				length = if type(length) == "number" then length else nil,
+				oneSided = if child:GetAttribute("OneSided") == true then true else nil,
 				attachment = child,
 			})
 			continue

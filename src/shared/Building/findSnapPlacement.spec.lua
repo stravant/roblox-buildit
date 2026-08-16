@@ -177,9 +177,16 @@ return function(t: TestTypes.TestContext)
 		t.expect(#snap.matchedPairs).toBe(1)
 	end)
 
-	t.test("bar inserts into a hollow stud", function()
+	t.test("bar inserts into a hollow stud and seats flush at the bore floor", function()
+		-- Bore center at y=1.3, depth 0.2 (real bore: 4 LDU): floor at 1.2.
 		local world = {
-			{ kind = "HollowStud", position = Vector3.new(0, 1.3, 0), direction = Vector3.new(0, 1, 0), length = 0.4 },
+			{
+				kind = "HollowStud",
+				position = Vector3.new(0, 1.3, 0),
+				direction = Vector3.new(0, 1, 0),
+				length = 0.2,
+				oneSided = true,
+			},
 		}
 		local bar = {
 			{ kind = "Bar", position = Vector3.new(0, 2, 0), direction = Vector3.new(0, 1, 0), length = 4 },
@@ -191,6 +198,13 @@ return function(t: TestTypes.TestContext)
 		t.expect(barCenter.X).toBeCloseTo(0)
 		t.expect(barCenter.Z).toBeCloseTo(0)
 		t.expect(#snap.matchedPairs).toBe(1)
+
+		-- Pushed down hard: clamps with the bar's end at the bore floor
+		-- (bar center = floor + half length = 1.2 + 2 = 3.2), never lower.
+		local seated = findSnapPlacement(CFrame.new(0.2, 0, 0.1), bar :: any, world :: any, kMaxSnap) :: any
+		t.expect(seated).toBeTruthy()
+		local seatedCenter = seated.cframe:PointToWorldSpace(Vector3.new(0, 2, 0))
+		t.expect(seatedCenter).toBeCloseTo(Vector3.new(0, 3.2, 0))
 	end)
 
 	t.test("prefers a 0-DOF point mate over a closer 1-DOF axial mate", function()

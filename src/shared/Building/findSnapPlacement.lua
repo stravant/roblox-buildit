@@ -35,6 +35,7 @@ export type WorldConnector = {
 	position: Vector3, -- world
 	direction: Vector3, -- world unit, points toward the mating part
 	length: number?, -- extent along direction (axial connectors)
+	oneSided: boolean?, -- blind female bore, open only toward `direction`
 	part: BasePart?,
 	attachment: Attachment?,
 }
@@ -84,6 +85,14 @@ local function slideRange(lengthA: number?, lengthB: number?): number
 	return math.abs((lengthA or 0) - (lengthB or 0)) / 2
 end
 
+-- One-sided (blind bore) mating interval: position of the male element's
+-- center along the female's OPEN direction, from bottomed-out flush at the
+-- bore floor (sMin) to half-engaged in the bore (sMax).
+local function oneSidedInterval(maleLength: number, femaleLength: number): (number, number)
+	local sMin = (maleLength - femaleLength) / 2
+	return sMin, math.max(sMin, maleLength / 2)
+end
+
 local function findSnapPlacement(
 	ghostCFrame: CFrame,
 	dragConnectors: { Connector },
@@ -116,11 +125,27 @@ local function findSnapPlacement(
 				if math.abs(dragDirection:Dot(world.direction)) < kAxisDotMin then
 					continue
 				end
-				local along = (dragPosition - world.position):Dot(world.direction)
-				local range = slideRange(drag.length, world.length)
-				targetPosition = world.position
-					+ world.direction * math.clamp(along, -range, range)
-				degreesOfFreedom = if range > 0 then 1 else 0
+				if world.oneSided or drag.oneSided then
+					local femaleIsWorld = world.oneSided == true
+					local femaleDirection = if femaleIsWorld then world.direction else dragDirection
+					local femaleLength = (if femaleIsWorld then world.length else drag.length) or 0
+					local maleLength = (if femaleIsWorld then drag.length else world.length) or 0
+					local sMin, sMax = oneSidedInterval(maleLength, femaleLength)
+					if femaleIsWorld then
+						local s = math.clamp((dragPosition - world.position):Dot(femaleDirection), sMin, sMax)
+						targetPosition = world.position + femaleDirection * s
+					else
+						local s = math.clamp((world.position - dragPosition):Dot(femaleDirection), sMin, sMax)
+						targetPosition = world.position - femaleDirection * s
+					end
+					degreesOfFreedom = if sMax > sMin then 1 else 0
+				else
+					local along = (dragPosition - world.position):Dot(world.direction)
+					local range = slideRange(drag.length, world.length)
+					targetPosition = world.position
+						+ world.direction * math.clamp(along, -range, range)
+					degreesOfFreedom = if range > 0 then 1 else 0
+				end
 			end
 
 			local distance = (dragPosition - targetPosition).Magnitude
@@ -155,12 +180,29 @@ local function findSnapPlacement(
 				mated = (dragPosition - world.position).Magnitude <= kMatedEpsilon
 					and dragDirection:Dot(world.direction) <= kDirectionDotMax
 			elseif rule == "axial" then
-				local delta = dragPosition - world.position
-				local along = delta:Dot(world.direction)
-				local perpendicular = (delta - world.direction * along).Magnitude
-				mated = math.abs(dragDirection:Dot(world.direction)) >= kAxisDotMin
-					and perpendicular <= kMatedEpsilon
-					and math.abs(along) <= slideRange(drag.length, world.length) + kMatedEpsilon
+				if math.abs(dragDirection:Dot(world.direction)) >= kAxisDotMin then
+					if world.oneSided or drag.oneSided then
+						local femaleIsWorld = world.oneSided == true
+						local femaleDirection = if femaleIsWorld then world.direction else dragDirection
+						local femaleLength = (if femaleIsWorld then world.length else drag.length) or 0
+						local maleLength = (if femaleIsWorld then drag.length else world.length) or 0
+						local sMin, sMax = oneSidedInterval(maleLength, femaleLength)
+						local delta = if femaleIsWorld
+							then dragPosition - world.position
+							else world.position - dragPosition
+						local s = delta:Dot(femaleDirection)
+						local perpendicular = (delta - femaleDirection * s).Magnitude
+						mated = perpendicular <= kMatedEpsilon
+							and s >= sMin - kMatedEpsilon
+							and s <= sMax + kMatedEpsilon
+					else
+						local delta = dragPosition - world.position
+						local along = delta:Dot(world.direction)
+						local perpendicular = (delta - world.direction * along).Magnitude
+						mated = perpendicular <= kMatedEpsilon
+							and math.abs(along) <= slideRange(drag.length, world.length) + kMatedEpsilon
+					end
+				end
 			end
 			if mated then
 				table.insert(matchedPairs, { dragIndex = dragIndex, worldIndex = worldIndex })

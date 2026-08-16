@@ -194,6 +194,7 @@ function BuildController.start(options: StartOptions?): Controller
 					position = part.CFrame:PointToWorldSpace(connector.position),
 					direction = part.CFrame:VectorToWorldSpace(connector.direction),
 					length = connector.length,
+					oneSided = connector.oneSided,
 					part = part,
 					attachment = connector.attachment,
 				})
