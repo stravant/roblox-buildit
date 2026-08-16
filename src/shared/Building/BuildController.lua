@@ -7,9 +7,10 @@
 --
 -- Controls:
 --   Hold LMB on a palette entry OR on a placed part, drag, release to
---   place. R yaws the dragged part 90 degrees, T tilts it 90 degrees
---   (pitch about world X, so bars/axles can go horizontal). Esc or RMB
---   cancels (a picked-up part returns to where it was).
+--   place. R yaws the dragged part 90 degrees; T tilts it 90 degrees
+--   toward the camera (about the nearest cardinal axis at press time,
+--   accumulating per press). Esc or RMB cancels (a picked-up part
+--   returns to where it was).
 --
 -- ANY workspace part with connector attachments is a snap target and can
 -- be picked up — including the copies the importer drops. New palette
@@ -72,7 +73,9 @@ type DragState = {
 	template: BasePart,
 	ghost: BasePart,
 	rotationIndex: number,
-	tiltIndex: number,
+	-- Accumulated T-key tilts (each press adds a 90-degree tip toward the
+	-- camera about the cardinal axis captured at press time).
+	tiltRotation: CFrame,
 	-- Rotation the R/T-key steps compose onto (identity for palette drags,
 	-- the part's own rotation for picked-up parts).
 	baseRotation: CFrame,
@@ -276,7 +279,7 @@ function BuildController.start(options: StartOptions?): Controller
 		end
 
 		local rotation = CFrame.Angles(0, state.rotationIndex * math.pi / 2, 0)
-			* CFrame.Angles(state.tiltIndex * math.pi / 2, 0, 0)
+			* state.tiltRotation
 			* state.baseRotation
 		-- Rest the rotated bounding box on the hit point.
 		local size = state.ghost.Size
@@ -426,7 +429,7 @@ function BuildController.start(options: StartOptions?): Controller
 			template = source,
 			ghost = ghost,
 			rotationIndex = 0,
-			tiltIndex = 0,
+			tiltRotation = CFrame.identity,
 			baseRotation = baseRotation,
 			existingPart = if isExisting then source else nil,
 			existingParent = existingParent,
@@ -448,7 +451,21 @@ function BuildController.start(options: StartOptions?): Controller
 			if input.KeyCode == Enum.KeyCode.R then
 				state.rotationIndex = (state.rotationIndex + 1) % 4
 			elseif input.KeyCode == Enum.KeyCode.T then
-				state.tiltIndex = (state.tiltIndex + 1) % 4
+				-- Tip the part toward the camera: rotate 90 degrees about
+				-- the horizontal axis perpendicular to the camera's look
+				-- direction snapped to the nearest cardinal.
+				local look = workspace.CurrentCamera.CFrame.LookVector
+				local cardinal: Vector3
+				if math.abs(look.X) > math.abs(look.Z) then
+					cardinal = Vector3.new(math.sign(look.X), 0, 0)
+				else
+					cardinal = Vector3.new(0, 0, math.sign(look.Z))
+				end
+				if cardinal.Magnitude < 0.5 then
+					cardinal = Vector3.zAxis -- camera looking straight up/down
+				end
+				local axis = cardinal:Cross(Vector3.yAxis)
+				state.tiltRotation = CFrame.fromAxisAngle(axis, math.pi / 2) * state.tiltRotation
 			elseif
 				input.KeyCode == Enum.KeyCode.Z
 				and (

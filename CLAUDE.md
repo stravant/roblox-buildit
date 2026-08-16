@@ -110,8 +110,9 @@ instances).
 - `BuildController.lua` — drag/ghost/marker/placement controller. Drag out
   of the palette OR pick up any connector-annotated workspace part;
   release to place (release over the panel cancels), R yaws 90 degrees,
-  T tilts 90 degrees about world X (both composed on a picked part's
-  existing rotation), RMB/Esc cancels (restores a picked part). Connector markers: studs green, sockets blue,
+  T tilts 90 degrees toward the camera (nearest cardinal axis at press
+  time, accumulating; both composed on a picked part's existing
+  rotation), RMB/Esc cancels (restores a picked part). Connector markers: studs green, sockets blue,
   mated pairs yellow. New parts go in `workspace.Assembly` in-game or
   workspace in Edit mode; picked parts keep their parent. Runs in two
   contexts: in-game via `src/entry/BuildTool.client.lua`, and in Edit mode
