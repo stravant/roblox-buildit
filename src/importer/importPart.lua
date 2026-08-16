@@ -1,11 +1,13 @@
 --!strict
 
--- Imports one LDraw part as a MeshPart annotated with connection point
--- Attachments:
---   - "StudN" attachments (ConnectorType="Stud"): male studs
---   - "SocketN" attachments (ConnectorType="Socket"): derived anti-stud cells
--- Attachment UpVector points OUT of the part toward where the mating part
--- sits. The part is named from the LDraw description ("Brick 2 x 4");
+-- Imports one LDraw part as a MeshPart annotated with connection REGION
+-- Attachments (one per coalesced grid, not one per cell):
+--   - Name "Studs4x2" / "Sockets4x2" (kind + dimensions, may repeat)
+--   - Attributes: ConnectorType ("Stud"/"Socket"), CountX, CountZ, Pitch
+--     (Roblox studs between cells)
+--   - CFrame: region center; UpVector points OUT of the part toward the
+--     mating part, XVector/ZVector are the grid axes.
+-- The part is named from the LDraw description ("Brick 2 x 4");
 -- attributes: PartNumber ("3001"), LDrawFile ("3001.dat").
 --
 -- No undo recording here: the caller owns the undo waypoint.
@@ -18,6 +20,7 @@ local Types = require(LDrawFolder.Types)
 local flattenMesh = require(LDrawFolder.flattenMesh)
 local findConnections = require(LDrawFolder.findConnections)
 local deriveSockets = require(LDrawFolder.deriveSockets)
+local coalesceRegions = require(LDrawFolder.coalesceRegions)
 local buildEditableMesh = require(LDrawFolder.buildEditableMesh)
 local RobloxConvert = require(LDrawFolder.RobloxConvert)
 
@@ -30,29 +33,16 @@ local function cleanDescription(description: string?): string?
 	return if #cleaned > 0 then cleaned else nil
 end
 
--- Orthonormal frame with the given up vector (for Attachment CFrames).
-local function frameWithUp(position: Vector3, up: Vector3): CFrame
-	local reference = if math.abs(up.Y) > 0.9 then Vector3.xAxis else Vector3.yAxis
-	local right = reference:Cross(up).Unit
-	return CFrame.fromMatrix(position, right, up, right:Cross(up))
-end
-
-local function addConnectorAttachment(
-	parent: MeshPart,
-	name: string,
-	connectorType: string,
-	ldrawPosition: Vector3,
-	ldrawDirection: Vector3,
-	meshCenter: Vector3
-)
+local function addRegionAttachment(parent: MeshPart, region: Types.ConnectionRegion, meshCenter: Vector3)
 	local attachment = Instance.new("Attachment")
-	attachment.Name = name
+	attachment.Name = `{region.kind}s{region.countX}x{region.countZ}`
 	-- The MeshPart pivot is the geometry bbox center, not the LDraw origin.
-	attachment.CFrame = frameWithUp(
-		RobloxConvert.position(ldrawPosition) - meshCenter,
-		RobloxConvert.direction(ldrawDirection)
-	)
-	attachment:SetAttribute("ConnectorType", connectorType)
+	attachment.CFrame = RobloxConvert.cframe(region.frame).Rotation
+		+ (RobloxConvert.position(region.frame.Position) - meshCenter)
+	attachment:SetAttribute("ConnectorType", region.kind)
+	attachment:SetAttribute("CountX", region.countX)
+	attachment:SetAttribute("CountZ", region.countZ)
+	attachment:SetAttribute("Pitch", region.pitch * RobloxConvert.kDefaultScale)
 	attachment.Parent = parent
 end
 
@@ -92,15 +82,25 @@ local function importPart(
 	part:SetAttribute("LDrawFile", partRef)
 	part:SetAttribute("PartNumber", partNumber)
 
-	local studCount = 0
+	local regionCells: { Types.RegionCell } = {}
 	for _, connection in connections do
 		if connection.type == "Stud" then
-			studCount += 1
-			addConnectorAttachment(part, `Stud{studCount}`, "Stud", connection.position, connection.direction, meshCenter)
+			table.insert(regionCells, {
+				kind = "Stud",
+				position = connection.position,
+				direction = connection.direction,
+			})
 		end
 	end
-	for index, socket in sockets do
-		addConnectorAttachment(part, `Socket{index}`, "Socket", socket.position, socket.direction, meshCenter)
+	for _, socket in sockets do
+		table.insert(regionCells, {
+			kind = "Socket",
+			position = socket.position,
+			direction = socket.direction,
+		})
+	end
+	for _, region in coalesceRegions(regionCells) do
+		addRegionAttachment(part, region, meshCenter)
 	end
 
 	part.Parent = parent

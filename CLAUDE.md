@@ -58,6 +58,11 @@ roblox-nightfall's CLAUDE.md for the war story).
 - `deriveSockets.lua` — derives stud-sized "anti-stud" cells from tubes
   (4 diagonal neighbors) and pins (2 neighbors; phantom candidates culled
   by mesh bounds).
+- `coalesceRegions.lua` — merges connection cells into maximal rectangular
+  grid regions (type + frame + dimension). Grouped by kind, snapped
+  direction, plane, and lattice residual; greedy rectangle extraction;
+  non-axis-aligned cells fall back to 1x1 regions. Extended connectors
+  (bars, axles) will extend this model with a continuous length dimension.
 - `LDrawColors.lua` — LDConfig.ldr !COLOUR parsing.
 - `RobloxConvert.lua` — LDraw->Roblox space conversion.
 - `buildEditableMesh.lua` — FlatMesh -> welded EditableMesh (Studio only).
@@ -103,12 +108,17 @@ build tool (mounted only by default.project.json, never the test plugin).
   edges, type 5 conditional lines mark SMOOTH (curved) edges.
   buildEditableMesh uses these for normal generation, with a 40-degree
   crease-angle fallback for unmarked edges (e.g. across subfile seams).
-- Connection annotations on imported MeshParts: Attachments (UpVector =
-  direction) named `StudN`/`SocketN` with a `ConnectorType` attribute.
-  Parts are named from the LDraw description ("Brick 2 x 4"); attributes
-  `PartNumber` ("3001") and `LDrawFile` ("3001.dat"). Importing drops the
-  template in PartLibrary (replacing any previous template with the same
-  PartNumber) plus a selected copy in workspace in front of the camera.
+- Connection annotations on imported MeshParts: one Attachment per REGION
+  (e.g. `Studs4x2`), not per cell. Attributes `ConnectorType`
+  ("Stud"/"Socket"), `CountX`, `CountZ`, `Pitch` (Roblox studs); CFrame at
+  the region center with UpVector = mating direction and XVector/ZVector
+  the grid axes. `Building/getConnectors.lua` expands regions to cells
+  (attachments without counts read as 1x1, so legacy per-cell annotations
+  still work). Parts are named from the LDraw description ("Brick 2 x 4");
+  attributes `PartNumber` ("3001") and `LDrawFile` ("3001.dat"). Importing
+  drops the template in PartLibrary (replacing any previous template with
+  the same PartNumber) plus a selected copy in workspace in front of the
+  camera.
 
 ### Known v1 limitations
 
