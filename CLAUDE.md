@@ -92,3 +92,6 @@ roblox-nightfall's CLAUDE.md for the war story).
 - Studs are classified by name prefix; exotic stud primitives (Technic,
   Duplo) may need a curated table.
 - No texture/pattern (printed parts) or flexible part support.
+- buildEditableMesh welds all vertices by position, so normals smooth
+  across sharp edges (soft shading gradient on brick sides). Fix: split
+  vertices when the face angle exceeds a crease threshold.
