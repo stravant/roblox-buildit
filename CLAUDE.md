@@ -120,7 +120,10 @@ instances).
   stops the tool). Edit-mode undo: each drag is ONE recording spanning
   pickup to place — committed on place, canceled-with-rollback on abort
   (aborted drags leave no undo entry); Ctrl+Z mid-drag cancels the drag
-  first.
+  first. Performance: snapping/markers never scan the whole place — a
+  per-frame GetPartBoundsInRadius query around the ghost picks candidate
+  parts (lazy per-part connector cache, cleared per drag), and markers
+  come from a bounded pool reassigned to whatever is in range.
 
 `src/entry/BuildTool.client.lua` — StarterPlayerScripts bootstrap for the
 build tool (mounted only by default.project.json, never the test plugin).
