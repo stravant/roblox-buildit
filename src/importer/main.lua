@@ -1,7 +1,12 @@
 --!strict
 
 -- Importer UI: a part number box and an Import button. Talks to
--- ldrawserver.py (ws://localhost:38742) for LDraw file data.
+-- ldrawserver.py (ws://localhost:38742) for LDraw file data. Imported
+-- parts go into ReplicatedStorage.PartLibrary, the palette source for the
+-- in-game build tool.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Selection = game:GetService("Selection")
 
 local LDrawLibrary = require(script.Parent.Parent.shared.LDraw.LDrawLibrary)
 local importPart = require(script.Parent.importPart)
@@ -75,6 +80,17 @@ local function main(widget: DockWidgetPluginGui)
 		statusLabel.Text = text
 	end
 
+	local function getPartLibraryFolder(): Folder
+		local existing = ReplicatedStorage:FindFirstChild("PartLibrary")
+		if existing ~= nil and existing:IsA("Folder") then
+			return existing
+		end
+		local folder = Instance.new("Folder")
+		folder.Name = "PartLibrary"
+		folder.Parent = ReplicatedStorage
+		return folder
+	end
+
 	local function getLibrary(): LDrawLibrary.LDrawLibrary
 		if mLibrary == nil then
 			local provider = wsFileProvider(kServerUrl)
@@ -98,7 +114,7 @@ local function main(widget: DockWidgetPluginGui)
 		setStatus(`Importing {partNumber}...`)
 
 		local ok, result, errorMessage = pcall(function()
-			return importPart(getLibrary(), partNumber .. ".dat", workspace)
+			return importPart(getLibrary(), partNumber .. ".dat", getPartLibraryFolder())
 		end)
 		if not ok then
 			-- Connection failure: force a fresh provider on the next try.
@@ -112,7 +128,7 @@ local function main(widget: DockWidgetPluginGui)
 			setStatus(`Error: {errorMessage}`)
 		else
 			local part = result :: MeshPart
-			part.CFrame = CFrame.new(0, 10, 0)
+			Selection:Set({ part })
 			local studs = 0
 			local sockets = 0
 			for _, child in part:GetChildren() do
@@ -126,7 +142,7 @@ local function main(widget: DockWidgetPluginGui)
 				end
 			end
 			setStatus(
-				`Imported {part.Name} ({part:GetAttribute("Description")}): {studs} studs, {sockets} sockets`
+				`Imported {part.Name} ({part:GetAttribute("Description")}) into ReplicatedStorage.PartLibrary: {studs} studs, {sockets} sockets`
 			)
 		end
 		mBusy = false

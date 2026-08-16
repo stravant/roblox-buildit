@@ -9,6 +9,17 @@
 			"BuildIt": {
 				"$path": "src/shared"
 			}
+		},
+		"StarterPlayer": {
+			"$className": "StarterPlayer",
+			"$ignoreUnknownInstances": true,
+			"StarterPlayerScripts": {
+				"$className": "StarterPlayerScripts",
+				"$ignoreUnknownInstances": true,
+				"BuildTool": {
+					"$path": "src/entry/BuildTool.client.lua"
+				}
+			}
 		}
 	}
 }

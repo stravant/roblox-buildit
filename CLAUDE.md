@@ -64,7 +64,26 @@ roblox-nightfall's CLAUDE.md for the war story).
 
 `src/importer/` — importer plugin modules: `main.lua` (widget UI),
 `importPart.lua` (MeshPart + Attachment annotation), `wsFileProvider.lua`
-(FileProvider over WebSocket).
+(FileProvider over WebSocket). Imports go into
+`ReplicatedStorage.PartLibrary` (the build tool's palette source; the
+folder survives rojo syncing since ReplicatedStorage ignores unknown
+instances).
+
+`src/shared/Building/` — the in-game build (test) tool:
+
+- `getConnectors.lua` — reads connector Attachments off a part.
+- `findSnapPlacement.lua` — pure snap solver: mates Stud<->Socket pairs
+  (anti-parallel directions) translating the ghost the least; reports all
+  mated pairs for visualization. Rotation is caller-controlled (yaw only).
+- `PartPalette.lua` — panel UI listing PartLibrary templates with
+  ViewportFrame thumbnails.
+- `BuildController.lua` — drag/ghost/marker/placement controller. Drag out
+  of the palette, release to place (release over the panel cancels), R
+  rotates 90 degrees, RMB cancels. Connector markers: studs green, sockets
+  blue, mated pairs yellow. Placed parts go in `workspace.Assembly`.
+
+`src/entry/BuildTool.client.lua` — StarterPlayerScripts bootstrap for the
+build tool (mounted only by default.project.json, never the test plugin).
 
 ## LDraw facts (verified against the library)
 

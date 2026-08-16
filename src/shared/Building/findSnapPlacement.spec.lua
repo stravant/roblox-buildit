@@ -1,0 +1,102 @@
+--!strict
+
+local TestTypes = require(script.Parent.Parent.Parent.TestTypes)
+local findSnapPlacement = require(script.Parent.findSnapPlacement)
+
+-- Connector layout of an imported 2x4 brick (part-local, pivot at bbox
+-- center, size 4 x 1.4 x 2): studs on the stud base plane y=+0.5, sockets
+-- on the bottom face y=-0.7.
+local function brickConnectors(): { any }
+	local connectors = {}
+	for _, x in { -1.5, -0.5, 0.5, 1.5 } do
+		for _, z in { -0.5, 0.5 } do
+			table.insert(connectors, {
+				kind = "Stud",
+				position = Vector3.new(x, 0.5, z),
+				direction = Vector3.new(0, 1, 0),
+			})
+			table.insert(connectors, {
+				kind = "Socket",
+				position = Vector3.new(x, -0.7, z),
+				direction = Vector3.new(0, -1, 0),
+			})
+		end
+	end
+	return connectors
+end
+
+local function toWorld(connectors: { any }, cframe: CFrame): { any }
+	local world = {}
+	for _, connector in connectors do
+		table.insert(world, {
+			kind = connector.kind,
+			position = cframe:PointToWorldSpace(connector.position),
+			direction = cframe:VectorToWorldSpace(connector.direction),
+		})
+	end
+	return world
+end
+
+-- A brick resting on the ground (bottom at y=0) has its center at y=0.7;
+-- a brick stacked directly on it has its center at y=1.9.
+local kGroundBrick = CFrame.new(0, 0.7, 0)
+local kStackedY = 1.9
+
+return function(t: TestTypes.TestContext)
+	local kMaxSnap = 1.25
+
+	t.test("snaps an aligned stack and mates all 8 pairs", function()
+		local world = toWorld(brickConnectors(), kGroundBrick)
+		local ghost = CFrame.new(0.2, 2.0, -0.1)
+		local snap = findSnapPlacement(ghost, brickConnectors() :: any, world, kMaxSnap) :: any
+		t.expect(snap).toBeTruthy()
+		t.expect(snap.cframe.Position).toBeCloseTo(Vector3.new(0, kStackedY, 0))
+		t.expect(#snap.matchedPairs).toBe(8)
+	end)
+
+	t.test("snaps an offset stack with partial overlap", function()
+		local world = toWorld(brickConnectors(), kGroundBrick)
+		local ghost = CFrame.new(1.2, 2.0, 0)
+		local snap = findSnapPlacement(ghost, brickConnectors() :: any, world, kMaxSnap) :: any
+		t.expect(snap).toBeTruthy()
+		t.expect(snap.cframe.Position).toBeCloseTo(Vector3.new(1, kStackedY, 0))
+		-- 3x2 stud overlap when shifted one module along the length.
+		t.expect(#snap.matchedPairs).toBe(6)
+	end)
+
+	t.test("solves translation only, keeping the ghost rotation", function()
+		local world = toWorld(brickConnectors(), kGroundBrick)
+		local rotation = CFrame.Angles(0, math.pi / 2, 0)
+		local ghost = rotation + Vector3.new(0.1, 2.0, 0)
+		local snap = findSnapPlacement(ghost, brickConnectors() :: any, world, kMaxSnap) :: any
+		t.expect(snap).toBeTruthy()
+		t.expect(snap.cframe.Position).toBeCloseTo(Vector3.new(0, kStackedY, 0))
+		t.expect(snap.cframe.XVector).toBeCloseTo(rotation.XVector)
+		-- Crossed 2x4s overlap in a 2x2 patch.
+		t.expect(#snap.matchedPairs).toBe(4)
+	end)
+
+	t.test("returns nil when nothing is in range", function()
+		local world = toWorld(brickConnectors(), kGroundBrick)
+		local ghost = CFrame.new(0, 8, 0)
+		t.expect(findSnapPlacement(ghost, brickConnectors() :: any, world, kMaxSnap)).toBeFalsy()
+	end)
+
+	t.test("requires anti-parallel directions", function()
+		local world = { { kind = "Stud", position = Vector3.new(0, 1.2, 0), direction = Vector3.new(0, 1, 0) } }
+		local sideways = {
+			{ kind = "Socket", position = Vector3.new(0, -0.7, 0), direction = Vector3.new(1, 0, 0) },
+		}
+		local snap = findSnapPlacement(CFrame.new(0, 1.9, 0), sideways :: any, world :: any, kMaxSnap)
+		t.expect(snap).toBeFalsy()
+	end)
+
+	t.test("requires compatible kinds (no stud-to-stud)", function()
+		local world = { { kind = "Stud", position = Vector3.new(0, 1.2, 0), direction = Vector3.new(0, 1, 0) } }
+		local studDown = {
+			{ kind = "Stud", position = Vector3.new(0, -0.7, 0), direction = Vector3.new(0, -1, 0) },
+		}
+		local snap = findSnapPlacement(CFrame.new(0, 1.9, 0), studDown :: any, world :: any, kMaxSnap)
+		t.expect(snap).toBeFalsy()
+	end)
+end

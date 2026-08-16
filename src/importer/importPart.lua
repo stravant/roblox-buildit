@@ -31,12 +31,14 @@ local function addConnectorAttachment(
 	name: string,
 	connectorType: string,
 	ldrawPosition: Vector3,
-	ldrawDirection: Vector3
+	ldrawDirection: Vector3,
+	meshCenter: Vector3
 )
 	local attachment = Instance.new("Attachment")
 	attachment.Name = name
+	-- The MeshPart pivot is the geometry bbox center, not the LDraw origin.
 	attachment.CFrame = frameWithUp(
-		RobloxConvert.position(ldrawPosition),
+		RobloxConvert.position(ldrawPosition) - meshCenter,
 		RobloxConvert.direction(ldrawDirection)
 	)
 	attachment:SetAttribute("ConnectorType", connectorType)
@@ -61,10 +63,11 @@ local function importPart(
 	local connections = findConnections(library, partRef) :: { Types.Connection }
 	local sockets = deriveSockets(connections, mesh)
 
-	local okBuild, editableMesh: any = pcall(buildEditableMesh, mesh)
+	local okBuild, editableMesh: any, buildStats: any = pcall(buildEditableMesh, mesh)
 	if not okBuild then
 		return nil, `Failed to build mesh: {editableMesh}`
 	end
+	local meshCenter = buildStats.meshCenter :: Vector3
 	local okCreate, part: any = pcall(function()
 		return AssetService:CreateMeshPartAsync(Content.fromObject(editableMesh))
 	end)
@@ -86,11 +89,11 @@ local function importPart(
 	for _, connection in connections do
 		if connection.type == "Stud" then
 			studCount += 1
-			addConnectorAttachment(part, `Stud{studCount}`, "Stud", connection.position, connection.direction)
+			addConnectorAttachment(part, `Stud{studCount}`, "Stud", connection.position, connection.direction, meshCenter)
 		end
 	end
 	for index, socket in sockets do
-		addConnectorAttachment(part, `Socket{index}`, "Socket", socket.position, socket.direction)
+		addConnectorAttachment(part, `Socket{index}`, "Socket", socket.position, socket.direction, meshCenter)
 	end
 
 	part.Parent = parent
