@@ -28,8 +28,11 @@ return function(t: TestTypes.TestContext)
 		local meshPart = part :: MeshPart
 
 		t.expect(meshPart.Size).toBeCloseTo(Vector3.new(4, 1.4, 2), 0.01)
+		-- Named from the description (whitespace collapsed); id in attributes.
+		t.expect(meshPart.Name).toBe("Brick 2 x 4")
 		t.expect(meshPart:GetAttribute("PartNumber")).toBe("3001")
-		t.expect(meshPart:GetAttribute("Description")).toBe("Brick  2 x  4")
+		t.expect(meshPart:GetAttribute("LDrawFile")).toBe("3001.dat")
+		t.expect(meshPart:GetAttribute("Description")).toBe(nil)
 
 		local studs = 0
 		local sockets = 0

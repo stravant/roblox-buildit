@@ -5,6 +5,7 @@
 -- parts go into ReplicatedStorage.PartLibrary, the palette source for the
 -- in-game build tool.
 
+local ChangeHistoryService = game:GetService("ChangeHistoryService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Selection = game:GetService("Selection")
 
@@ -113,8 +114,10 @@ local function main(widget: DockWidgetPluginGui)
 		end
 		setStatus(`Importing {partNumber}...`)
 
+		local recording = ChangeHistoryService:TryBeginRecording("Import LDraw part")
+		local folder = getPartLibraryFolder()
 		local ok, result, errorMessage = pcall(function()
-			return importPart(getLibrary(), partNumber .. ".dat", getPartLibraryFolder())
+			return importPart(getLibrary(), partNumber .. ".dat", folder)
 		end)
 		if not ok then
 			-- Connection failure: force a fresh provider on the next try.
@@ -128,7 +131,22 @@ local function main(widget: DockWidgetPluginGui)
 			setStatus(`Error: {errorMessage}`)
 		else
 			local part = result :: MeshPart
-			Selection:Set({ part })
+
+			-- Re-import: replace any previous template for this part.
+			for _, child in folder:GetChildren() do
+				if child ~= part and child:GetAttribute("PartNumber") == partNumber then
+					child.Parent = nil
+				end
+			end
+
+			-- Drop a visible copy in front of the camera, resting on y=0.
+			local copy = part:Clone()
+			local camera = workspace.CurrentCamera
+			local ahead = camera.CFrame.Position + camera.CFrame.LookVector * 20
+			copy.CFrame = CFrame.new(math.round(ahead.X), copy.Size.Y / 2, math.round(ahead.Z))
+			copy.Parent = workspace
+			Selection:Set({ copy })
+
 			local studs = 0
 			local sockets = 0
 			for _, child in part:GetChildren() do
@@ -142,8 +160,13 @@ local function main(widget: DockWidgetPluginGui)
 				end
 			end
 			setStatus(
-				`Imported {part.Name} ({part:GetAttribute("Description")}) into ReplicatedStorage.PartLibrary: {studs} studs, {sockets} sockets`
+				`Imported {part.Name} ({partNumber}) into PartLibrary + workspace copy: {studs} studs, {sockets} sockets`
 			)
+		end
+		if recording then
+			ChangeHistoryService:FinishRecording(recording, Enum.FinishRecordingOperation.Commit)
+		else
+			ChangeHistoryService:SetWaypoint("Import LDraw part")
 		end
 		mBusy = false
 	end

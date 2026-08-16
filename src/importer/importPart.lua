@@ -5,10 +5,12 @@
 --   - "StudN" attachments (ConnectorType="Stud"): male studs
 --   - "SocketN" attachments (ConnectorType="Socket"): derived anti-stud cells
 -- Attachment UpVector points OUT of the part toward where the mating part
--- sits. Part attributes: PartNumber, Description, LDrawFile.
+-- sits. The part is named from the LDraw description ("Brick 2 x 4");
+-- attributes: PartNumber ("3001"), LDrawFile ("3001.dat").
+--
+-- No undo recording here: the caller owns the undo waypoint.
 
 local AssetService = game:GetService("AssetService")
-local ChangeHistoryService = game:GetService("ChangeHistoryService")
 
 local LDrawFolder = script.Parent.Parent.shared.LDraw
 local LDrawLibrary = require(LDrawFolder.LDrawLibrary)
@@ -18,6 +20,15 @@ local findConnections = require(LDrawFolder.findConnections)
 local deriveSockets = require(LDrawFolder.deriveSockets)
 local buildEditableMesh = require(LDrawFolder.buildEditableMesh)
 local RobloxConvert = require(LDrawFolder.RobloxConvert)
+
+-- LDraw descriptions pad with alignment spaces ("Brick  2 x  4").
+local function cleanDescription(description: string?): string?
+	if description == nil then
+		return nil
+	end
+	local cleaned = (description:gsub("%s+", " "):gsub("^ ", ""):gsub(" $", ""))
+	return if #cleaned > 0 then cleaned else nil
+end
 
 -- Orthonormal frame with the given up vector (for Attachment CFrames).
 local function frameWithUp(position: Vector3, up: Vector3): CFrame
@@ -75,15 +86,11 @@ local function importPart(
 		return nil, `CreateMeshPartAsync failed: {part}`
 	end
 
-	local recording = ChangeHistoryService:TryBeginRecording("Import LDraw part")
-
-	part.Name = (partRef:gsub("%.dat$", ""))
+	local partNumber = (partRef:gsub("%.dat$", ""))
+	part.Name = cleanDescription(file.description) or partNumber
 	part.Anchored = true
 	part:SetAttribute("LDrawFile", partRef)
-	part:SetAttribute("PartNumber", (partRef:gsub("%.dat$", "")))
-	if file.description ~= nil then
-		part:SetAttribute("Description", file.description)
-	end
+	part:SetAttribute("PartNumber", partNumber)
 
 	local studCount = 0
 	for _, connection in connections do
@@ -97,12 +104,6 @@ local function importPart(
 	end
 
 	part.Parent = parent
-
-	if recording then
-		ChangeHistoryService:FinishRecording(recording, Enum.FinishRecordingOperation.Commit)
-	else
-		ChangeHistoryService:SetWaypoint("Import LDraw part")
-	end
 
 	return part, nil
 end

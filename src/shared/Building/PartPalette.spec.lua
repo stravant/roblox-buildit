@@ -12,13 +12,13 @@ return function(t: TestTypes.TestContext)
 		local folder = Instance.new("Folder")
 
 		local template = Instance.new("Part")
-		template.Name = "3001"
+		template.Name = "Brick 2 x 4"
 		template.Size = Vector3.new(4, 1.4, 2)
-		template:SetAttribute("Description", "Brick  2 x  4")
+		template:SetAttribute("PartNumber", "3001")
 		template.Parent = folder
 
 		local palette = PartPalette.create(screen, folder, function() end)
-		local entry = palette.frame:FindFirstChild("Entry_3001", true)
+		local entry = palette.frame:FindFirstChild("Entry_Brick 2 x 4", true)
 		t.expect(entry).toBeTruthy()
 		t.expect((entry :: Instance):FindFirstChildOfClass("ViewportFrame")).toBeTruthy()
 

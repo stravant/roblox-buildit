@@ -137,8 +137,8 @@ function PartPalette.create(
 			label.Font = Enum.Font.SourceSans
 			label.TextSize = 15
 			label.TextTruncate = Enum.TextTruncate.AtEnd
-			local description = template:GetAttribute("Description")
-			label.Text = if description ~= nil then `{template.Name} - {description}` else template.Name
+			local partNumber = template:GetAttribute("PartNumber")
+			label.Text = if partNumber ~= nil then `{template.Name} ({partNumber})` else template.Name
 			label.Parent = entry
 
 			table.insert(mEntryConnections, entry.MouseButton1Down:Connect(function()

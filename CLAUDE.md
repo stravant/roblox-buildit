@@ -104,8 +104,11 @@ build tool (mounted only by default.project.json, never the test plugin).
   buildEditableMesh uses these for normal generation, with a 40-degree
   crease-angle fallback for unmarked edges (e.g. across subfile seams).
 - Connection annotations on imported MeshParts: Attachments (UpVector =
-  direction) named `StudN`/`SocketN` with a `ConnectorType` attribute;
-  part attributes `PartNumber`, `Description`, `LDrawFile`.
+  direction) named `StudN`/`SocketN` with a `ConnectorType` attribute.
+  Parts are named from the LDraw description ("Brick 2 x 4"); attributes
+  `PartNumber` ("3001") and `LDrawFile` ("3001.dat"). Importing drops the
+  template in PartLibrary (replacing any previous template with the same
+  PartNumber) plus a selected copy in workspace in front of the camera.
 
 ### Known v1 limitations
 
