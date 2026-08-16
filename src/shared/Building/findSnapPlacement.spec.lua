@@ -99,4 +99,79 @@ return function(t: TestTypes.TestContext)
 		local snap = findSnapPlacement(CFrame.new(0, 1.9, 0), studDown :: any, world :: any, kMaxSnap)
 		t.expect(snap).toBeFalsy()
 	end)
+
+	-- Axial mating (lengths in Roblox studs; 1 module = 1).
+
+	t.test("axle slides in an axle hole within the length difference", function()
+		local world = {
+			{ kind = "AxleHole", position = Vector3.new(0, 5, 0), direction = Vector3.new(1, 0, 0), length = 1 },
+		}
+		local axle = {
+			{ kind = "Axle", position = Vector3.zero, direction = Vector3.new(1, 0, 0), length = 2 },
+		}
+		-- Within range: along-axis offset preserved, perpendicular snapped out.
+		local snap = findSnapPlacement(CFrame.new(0.3, 5.2, -0.1), axle :: any, world :: any, kMaxSnap) :: any
+		t.expect(snap).toBeTruthy()
+		t.expect(snap.cframe.Position).toBeCloseTo(Vector3.new(0.3, 5, 0))
+		t.expect(#snap.matchedPairs).toBe(1)
+
+		-- Beyond range: clamped to +-(2-1)/2.
+		local clamped = findSnapPlacement(CFrame.new(1.1, 5.2, 0), axle :: any, world :: any, kMaxSnap) :: any
+		t.expect(clamped).toBeTruthy()
+		t.expect(clamped.cframe.Position).toBeCloseTo(Vector3.new(0.5, 5, 0))
+		t.expect(#clamped.matchedPairs).toBe(1)
+	end)
+
+	t.test("axial mating accepts either axis sign", function()
+		local world = {
+			{ kind = "AxleHole", position = Vector3.new(0, 5, 0), direction = Vector3.new(1, 0, 0), length = 1 },
+		}
+		local flipped = {
+			{ kind = "Axle", position = Vector3.zero, direction = Vector3.new(-1, 0, 0), length = 2 },
+		}
+		local snap = findSnapPlacement(CFrame.new(0, 5.2, 0), flipped :: any, world :: any, kMaxSnap)
+		t.expect(snap).toBeTruthy()
+	end)
+
+	t.test("pin locks centered in a through peghole (equal lengths)", function()
+		local world = {
+			{ kind = "PegHole", position = Vector3.new(2, 3, 0), direction = Vector3.new(0, 0, 1), length = 1 },
+		}
+		local pin = {
+			{ kind = "TechnicPin", position = Vector3.new(0.5, 0, 0), direction = Vector3.new(0, 0, 1), length = 1 },
+		}
+		local snap = findSnapPlacement(CFrame.new(1.4, 3.2, 0.4), pin :: any, world :: any, kMaxSnap) :: any
+		t.expect(snap).toBeTruthy()
+		-- Pin connector must land exactly at the hole center.
+		t.expect(snap.cframe:PointToWorldSpace(Vector3.new(0.5, 0, 0))).toBeCloseTo(Vector3.new(2, 3, 0))
+		t.expect(#snap.matchedPairs).toBe(1)
+	end)
+
+	t.test("clip slides along a long bar", function()
+		local world = {
+			{ kind = "Bar", position = Vector3.new(0, 2, 0), direction = Vector3.new(0, 1, 0), length = 4 },
+		}
+		local clip = {
+			{ kind = "Clip", position = Vector3.zero, direction = Vector3.new(0, 1, 0), length = 0.4 },
+		}
+		local snap = findSnapPlacement(CFrame.new(0.2, 3, 0), clip :: any, world :: any, kMaxSnap) :: any
+		t.expect(snap).toBeTruthy()
+		t.expect(snap.cframe.Position).toBeCloseTo(Vector3.new(0, 3, 0))
+
+		-- Past the bar end: clamped to the end of the slide range.
+		local clamped = findSnapPlacement(CFrame.new(0.2, 4.5, 0), clip :: any, world :: any, kMaxSnap) :: any
+		t.expect(clamped).toBeTruthy()
+		t.expect(clamped.cframe.Position).toBeCloseTo(Vector3.new(0, 3.8, 0))
+	end)
+
+	t.test("axial axes must be parallel", function()
+		local world = {
+			{ kind = "AxleHole", position = Vector3.new(0, 5, 0), direction = Vector3.new(1, 0, 0), length = 1 },
+		}
+		local crossways = {
+			{ kind = "Axle", position = Vector3.zero, direction = Vector3.new(0, 0, 1), length = 2 },
+		}
+		local snap = findSnapPlacement(CFrame.new(0, 5.1, 0), crossways :: any, world :: any, kMaxSnap)
+		t.expect(snap).toBeFalsy()
+	end)
 end

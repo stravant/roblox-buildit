@@ -1,12 +1,15 @@
 --!strict
 
--- Imports one LDraw part as a MeshPart annotated with connection REGION
--- Attachments (one per coalesced grid, not one per cell):
---   - Name "Studs4x2" / "Sockets4x2" (kind + dimensions, may repeat)
---   - Attributes: ConnectorType ("Stud"/"Socket"), CountX, CountZ, Pitch
---     (Roblox studs between cells)
---   - CFrame: region center; UpVector points OUT of the part toward the
---     mating part, XVector/ZVector are the grid axes.
+-- Imports one LDraw part as a MeshPart annotated with connection
+-- Attachments:
+--   - Stud/socket grids: one REGION attachment per coalesced grid (name
+--     "Studs4x2" / "Sockets4x2"; attributes ConnectorType, CountX, CountZ,
+--     Pitch; CFrame at the region center, UpVector = mating direction,
+--     XVector/ZVector = grid axes).
+--   - Axial/point connectors (PegHole, AxleHole, Axle, TechnicPin, Bar,
+--     Clip): one attachment each, named by type; attributes ConnectorType
+--     and Length (Roblox studs, when the connector has an extent);
+--     UpVector = connector axis.
 -- The part is named from the LDraw description ("Brick 2 x 4");
 -- attributes: PartNumber ("3001"), LDrawFile ("3001.dat").
 --
@@ -31,6 +34,27 @@ local function cleanDescription(description: string?): string?
 	end
 	local cleaned = (description:gsub("%s+", " "):gsub("^ ", ""):gsub(" $", ""))
 	return if #cleaned > 0 then cleaned else nil
+end
+
+-- Orthonormal frame with the given up vector.
+local function frameWithUp(position: Vector3, up: Vector3): CFrame
+	local reference = if math.abs(up.Y) > 0.9 then Vector3.xAxis else Vector3.yAxis
+	local right = reference:Cross(up).Unit
+	return CFrame.fromMatrix(position, right, up, right:Cross(up))
+end
+
+local function addAxialAttachment(parent: MeshPart, connection: Types.Connection, meshCenter: Vector3)
+	local attachment = Instance.new("Attachment")
+	attachment.Name = connection.type
+	attachment.CFrame = frameWithUp(
+		RobloxConvert.position(connection.position) - meshCenter,
+		RobloxConvert.direction(connection.direction)
+	)
+	attachment:SetAttribute("ConnectorType", connection.type)
+	if connection.length ~= nil then
+		attachment:SetAttribute("Length", connection.length * RobloxConvert.kDefaultScale)
+	end
+	attachment.Parent = parent
 end
 
 local function addRegionAttachment(parent: MeshPart, region: Types.ConnectionRegion, meshCenter: Vector3)
@@ -90,6 +114,10 @@ local function importPart(
 				position = connection.position,
 				direction = connection.direction,
 			})
+		elseif connection.type ~= "Tube" and connection.type ~= "Pin" then
+			-- Tubes/pins become Socket regions via deriveSockets; everything
+			-- else is annotated individually.
+			addAxialAttachment(part, connection, meshCenter)
 		end
 	end
 	for _, socket in sockets do

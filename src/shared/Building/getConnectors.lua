@@ -1,21 +1,30 @@
 --!strict
 
--- Reads the connector region Attachments (created by the importer) off a
--- part and expands them into individual cells for snapping and display.
+-- Reads the connector Attachments (created by the importer) off a part.
 --
--- Region attachments carry ConnectorType ("Stud"/"Socket") plus CountX,
--- CountZ, and Pitch attributes; the attachment CFrame is the region center
--- with UpVector pointing out of the part and XVector/ZVector as the grid
--- axes. Attachments without count attributes are treated as 1x1 regions
--- (which also covers legacy per-cell annotations).
+-- Stud/Socket region attachments (ConnectorType + CountX/CountZ/Pitch)
+-- expand into individual cells; attachments without counts read as 1x1
+-- regions (covers legacy per-cell annotations). Axial connectors
+-- (PegHole, AxleHole, Axle, TechnicPin, Bar, Clip) pass through as single
+-- connectors with their Length attribute (Roblox studs).
 
-export type ConnectorKind = "Stud" | "Socket"
+-- "Stud" | "Socket" | "PegHole" | "AxleHole" | "Axle" | "TechnicPin"
+-- | "Bar" | "Clip"
+export type ConnectorKind = string
 
 export type Connector = {
 	kind: ConnectorKind,
-	position: Vector3, -- part-local (cell center on the mating plane)
-	direction: Vector3, -- part-local unit, points toward the mating part
-	attachment: Attachment, -- the region attachment (shared by its cells)
+	position: Vector3, -- part-local (cell center / element center)
+	-- Part-local unit: points toward the mating part for point connectors,
+	-- element axis (sign arbitrary) for axial connectors.
+	direction: Vector3,
+	length: number?, -- extent along direction (axial connectors)
+	attachment: Attachment, -- the source attachment (shared by grid cells)
+}
+
+local kGridKinds: { [string]: boolean } = {
+	Stud = true,
+	Socket = true,
 }
 
 local function getConnectors(part: BasePart): { Connector }
@@ -25,9 +34,22 @@ local function getConnectors(part: BasePart): { Connector }
 			continue
 		end
 		local kind = child:GetAttribute("ConnectorType")
-		if kind ~= "Stud" and kind ~= "Socket" then
+		if type(kind) ~= "string" then
 			continue
 		end
+
+		if not kGridKinds[kind] then
+			local length = child:GetAttribute("Length")
+			table.insert(connectors, {
+				kind = kind,
+				position = child.CFrame.Position,
+				direction = child.CFrame.YVector,
+				length = if type(length) == "number" then length else nil,
+				attachment = child,
+			})
+			continue
+		end
+
 		local countX = child:GetAttribute("CountX") or 1
 		local countZ = child:GetAttribute("CountZ") or 1
 		local pitch = child:GetAttribute("Pitch") or 1
@@ -45,9 +67,10 @@ local function getConnectors(part: BasePart): { Connector }
 					(j - (countZ + 1) / 2) * pitch
 				)
 				table.insert(connectors, {
-					kind = kind :: ConnectorKind,
+					kind = kind,
 					position = regionCFrame:PointToWorldSpace(offset),
 					direction = direction,
+					length = nil,
 					attachment = child,
 				})
 			end

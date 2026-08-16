@@ -41,7 +41,19 @@ local kMarkerRadius = 0.13
 local kMarkerRadiusMatched = 0.22
 local kStudColor = Color3.fromRGB(90, 220, 90)
 local kSocketColor = Color3.fromRGB(80, 170, 255)
+-- Axial connectors (pegholes, axles, bars, clips...).
+local kAxialColor = Color3.fromRGB(255, 140, 60)
 local kMatchedColor = Color3.fromRGB(255, 220, 40)
+
+local function baseMarkerColor(kind: string): Color3
+	if kind == "Stud" then
+		return kStudColor
+	elseif kind == "Socket" then
+		return kSocketColor
+	else
+		return kAxialColor
+	end
+end
 
 type WorldConnector = findSnapPlacement.WorldConnector
 
@@ -151,7 +163,7 @@ function BuildController.start(options: StartOptions?): Controller
 		adornment.Adornee = adornee
 		adornment.CFrame = CFrame.new(localPosition)
 		adornment.Radius = kMarkerRadius
-		adornment.Color3 = if kind == "Stud" then kStudColor else kSocketColor
+		adornment.Color3 = baseMarkerColor(kind)
 		adornment.Transparency = 0.25
 		adornment.Parent = parent
 		return { adornment = adornment, kind = kind }
@@ -163,7 +175,7 @@ function BuildController.start(options: StartOptions?): Controller
 			marker.adornment.Radius = kMarkerRadiusMatched
 			marker.adornment.Transparency = 0
 		else
-			marker.adornment.Color3 = if marker.kind == "Stud" then kStudColor else kSocketColor
+			marker.adornment.Color3 = baseMarkerColor(marker.kind)
 			marker.adornment.Radius = kMarkerRadius
 			marker.adornment.Transparency = 0.25
 		end
@@ -181,6 +193,7 @@ function BuildController.start(options: StartOptions?): Controller
 					kind = connector.kind,
 					position = part.CFrame:PointToWorldSpace(connector.position),
 					direction = part.CFrame:VectorToWorldSpace(connector.direction),
+					length = connector.length,
 					part = part,
 					attachment = connector.attachment,
 				})

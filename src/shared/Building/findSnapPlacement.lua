@@ -5,10 +5,17 @@
 --
 -- Given the dragged part's connectors (part-local), the world connectors of
 -- the existing assembly, and the ghost's current (unsnapped) CFrame, finds
--- the placement that mates a compatible connector pair (Stud <-> Socket,
--- directions opposed) while moving the part the least, then reports every
--- connector pair that ends up mated under that placement (for
--- visualization).
+-- the placement that mates a compatible connector pair while moving the
+-- part the least, then reports every connector pair that ends up mated
+-- under that placement (for visualization).
+--
+-- Two mating rules:
+--   Point (Stud <-> Socket): positions coincide, directions anti-parallel.
+--   Axial (TechnicPin <-> PegHole, Axle <-> AxleHole, Bar <-> Clip): axes
+--     parallel (either sign), centers on the same line, with the dragged
+--     element free to slide along the axis by up to half the length
+--     difference (a 2-long axle in a 1-long hole slides +-0.5; equal
+--     lengths lock centered, which is how pins click in).
 --
 -- The candidate placement keeps the ghost's rotation: only translation is
 -- solved, so the caller controls orientation (e.g. yaw stepping with R).
@@ -21,6 +28,7 @@ export type WorldConnector = {
 	kind: getConnectors.ConnectorKind,
 	position: Vector3, -- world
 	direction: Vector3, -- world unit, points toward the mating part
+	length: number?, -- extent along direction (axial connectors)
 	part: BasePart?,
 	attachment: Attachment?,
 }
@@ -31,14 +39,38 @@ export type SnapResult = {
 	matchedPairs: { { dragIndex: number, worldIndex: number } },
 }
 
--- Directions must be anti-parallel (a stud points up into a socket that
--- points down at it).
+-- Point mates: directions must be anti-parallel (a stud points up into a
+-- socket that points down at it). Axial mates: |dot| must exceed the
+-- threshold (sign-free).
 local kDirectionDotMax = -0.99
+local kAxisDotMin = 0.99
 -- How close two mated connectors must be under the final placement.
 local kMatedEpsilon = 0.05
 
-local function isCompatible(a: string, b: string): boolean
-	return (a == "Stud" and b == "Socket") or (a == "Socket" and b == "Stud")
+local kAxialPartner: { [string]: string } = {
+	TechnicPin = "PegHole",
+	PegHole = "TechnicPin",
+	Axle = "AxleHole",
+	AxleHole = "Axle",
+	Bar = "Clip",
+	Clip = "Bar",
+}
+
+type MateRule = "point" | "axial"
+
+local function mateRule(a: string, b: string): MateRule?
+	if (a == "Stud" and b == "Socket") or (a == "Socket" and b == "Stud") then
+		return "point"
+	elseif kAxialPartner[a] == b then
+		return "axial"
+	end
+	return nil
+end
+
+-- The dragged element may slide along the axis by half the length
+-- difference before it would poke out of / lose its partner.
+local function slideRange(lengthA: number?, lengthB: number?): number
+	return math.abs((lengthA or 0) - (lengthB or 0)) / 2
 end
 
 local function findSnapPlacement(
@@ -53,18 +85,34 @@ local function findSnapPlacement(
 
 	for _, world in worldConnectors do
 		for _, drag in dragConnectors do
-			if not isCompatible(drag.kind, world.kind) then
+			local rule = mateRule(drag.kind, world.kind)
+			if rule == nil then
 				continue
 			end
 			local dragDirection = rotation:VectorToWorldSpace(drag.direction)
-			if dragDirection:Dot(world.direction) > kDirectionDotMax then
-				continue
-			end
 			local dragPosition = ghostCFrame:PointToWorldSpace(drag.position)
-			local distance = (dragPosition - world.position).Magnitude
+
+			local targetPosition: Vector3
+			if rule == "point" then
+				if dragDirection:Dot(world.direction) > kDirectionDotMax then
+					continue
+				end
+				targetPosition = world.position
+			else -- axial
+				if math.abs(dragDirection:Dot(world.direction)) < kAxisDotMin then
+					continue
+				end
+				local along = (dragPosition - world.position):Dot(world.direction)
+				local range = slideRange(drag.length, world.length)
+				targetPosition = world.position
+					+ world.direction * math.clamp(along, -range, range)
+			end
+
+			local distance = (dragPosition - targetPosition).Magnitude
 			if distance <= bestDistance then
 				bestDistance = distance
-				bestCFrame = rotation + (world.position - rotation:VectorToWorldSpace(drag.position))
+				bestCFrame = rotation
+					+ (ghostCFrame.Position + targetPosition - dragPosition)
 			end
 		end
 	end
@@ -79,11 +127,20 @@ local function findSnapPlacement(
 		local dragPosition = snappedCFrame:PointToWorldSpace(drag.position)
 		local dragDirection = snappedCFrame:VectorToWorldSpace(drag.direction)
 		for worldIndex, world in worldConnectors do
-			if
-				isCompatible(drag.kind, world.kind)
-				and (dragPosition - world.position).Magnitude <= kMatedEpsilon
-				and dragDirection:Dot(world.direction) <= kDirectionDotMax
-			then
+			local rule = mateRule(drag.kind, world.kind)
+			local mated = false
+			if rule == "point" then
+				mated = (dragPosition - world.position).Magnitude <= kMatedEpsilon
+					and dragDirection:Dot(world.direction) <= kDirectionDotMax
+			elseif rule == "axial" then
+				local delta = dragPosition - world.position
+				local along = delta:Dot(world.direction)
+				local perpendicular = (delta - world.direction * along).Magnitude
+				mated = math.abs(dragDirection:Dot(world.direction)) >= kAxisDotMin
+					and perpendicular <= kMatedEpsilon
+					and math.abs(along) <= slideRange(drag.length, world.length) + kMatedEpsilon
+			end
+			if mated then
 				table.insert(matchedPairs, { dragIndex = dragIndex, worldIndex = worldIndex })
 				break
 			end

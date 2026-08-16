@@ -55,6 +55,28 @@ return function(t: TestTypes.TestContext)
 		folder:Destroy()
 	end)
 
+	t.test("imports 3700 with a PegHole attachment", function()
+		local folder = Instance.new("Folder")
+		local part = importPart(library, "3700.dat", folder) :: MeshPart
+		t.expect(part).toBeTruthy()
+
+		local pegHole: Attachment? = nil
+		for _, child in part:GetChildren() do
+			if child:IsA("Attachment") and child:GetAttribute("ConnectorType") == "PegHole" then
+				pegHole = child
+			end
+		end
+		t.expect(pegHole).toBeTruthy()
+		local attachment = pegHole :: Attachment
+		t.expect(attachment:GetAttribute("Length")).toBeCloseTo(1)
+		-- Hole center: LDraw (0, 10, 0); part spans y -4..24 so the bbox
+		-- center offset lands it at local origin, axis along Z.
+		t.expect(attachment.CFrame.Position).toBeCloseTo(Vector3.new(0, 0, 0), 0.01)
+		t.expect(math.abs(attachment.CFrame.YVector.Z)).toBeCloseTo(1)
+
+		folder:Destroy()
+	end)
+
 	t.test("reports missing parts", function()
 		local folder = Instance.new("Folder")
 		local part, errorMessage = importPart(library, "notarealpart.dat", folder)

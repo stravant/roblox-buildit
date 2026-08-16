@@ -52,9 +52,18 @@ roblox-nightfall's CLAUDE.md for the war story).
   triangle soup in root-part space. Winding flips (mirror transforms XOR
   BFC INVERTNEXT) are applied at emit; non-certified geometry is emitted
   double-sided.
-- `findConnections.lua` — discovers connector primitives by name during
-  recursion: `stud*` = male stud, `stud3*` = underside pin, `stud4*` =
-  underside tube. Recursion handles stud groups (`stug*`) for free.
+- `connectorPrimitives.lua` — the curated connector primitive table
+  (exact names + geometry conventions). Primitive names are traps
+  (`axlehole` = hole, `axlehol8` = shaft, `axlehol2` = edge lines only);
+  see PARTS_INDEX.md for representative parts and survey commands.
+- `findConnections.lua` — discovers connectors during recursion via
+  connectorPrimitives: stud families (prefix-safe), `peghole*` mouths
+  (opposed pairs merged into through-holes with depth), `axlehole`-family
+  and axle-shaft unit segments (colinear/notched segments merged),
+  `connect*`/`confric*` Technic pin halves, `clip1`/`clip2` vertical
+  clips, and radius-4 cylinders as Bars (geometric rule). Axial
+  connectors carry center + axis + length; direction sign is arbitrary
+  for them.
 - `deriveSockets.lua` — derives stud-sized "anti-stud" cells from tubes
   (4 diagonal neighbors) and pins (2 neighbors; phantom candidates culled
   by mesh bounds).
@@ -77,9 +86,13 @@ instances).
 `src/shared/Building/` — the in-game build (test) tool:
 
 - `getConnectors.lua` — reads connector Attachments off a part.
-- `findSnapPlacement.lua` — pure snap solver: mates Stud<->Socket pairs
-  (anti-parallel directions) translating the ghost the least; reports all
-  mated pairs for visualization. Rotation is caller-controlled (yaw only).
+- `findSnapPlacement.lua` — pure snap solver, translating the ghost the
+  least; reports all mated pairs for visualization. Rotation is
+  caller-controlled (yaw only). Point rule: Stud<->Socket coincide with
+  anti-parallel directions. Axial rule (TechnicPin<->PegHole,
+  Axle<->AxleHole, Bar<->Clip): axes parallel (either sign), centered on
+  the axis, sliding along it by up to half the length difference (equal
+  lengths lock centered — how pins click in).
 - `PartPalette.lua` — panel UI listing PartLibrary templates with
   ViewportFrame thumbnails.
 - `BuildController.lua` — drag/ghost/marker/placement controller. Drag out
