@@ -1,0 +1,21 @@
+{
+	"name": "BuildIt",
+	"tree": {
+		"$className": "Folder",
+		"Src": {
+			"$className": "Folder",
+			"shared": {
+				"$path": "src/shared"
+			},
+			"importer": {
+				"$path": "src/importer"
+			},
+			"TestTypes": {
+				"$path": "src/TestTypes.lua"
+			}
+		},
+		"Loader": {
+			"$path": "runtests.server.lua"
+		}
+	}
+}

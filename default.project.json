@@ -1,0 +1,14 @@
+{
+	"name": "BuildIt",
+	"servePort": 34873,
+	"globIgnorePaths": ["**/*.spec.lua"],
+	"tree": {
+		"$className": "DataModel",
+		"ReplicatedStorage": {
+			"$ignoreUnknownInstances": true,
+			"BuildIt": {
+				"$path": "src/shared"
+			}
+		}
+	}
+}

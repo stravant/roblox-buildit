@@ -1,0 +1,19 @@
+{
+	"name": "BuildIt Importer",
+	"globIgnorePaths": ["**/*.spec.lua"],
+	"tree": {
+		"$className": "Folder",
+		"Src": {
+			"$className": "Folder",
+			"shared": {
+				"$path": "src/shared"
+			},
+			"importer": {
+				"$path": "src/importer"
+			}
+		},
+		"Loader": {
+			"$path": "importer-loader.server.lua"
+		}
+	}
+}
