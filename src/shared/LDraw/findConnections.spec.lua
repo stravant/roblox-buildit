@@ -557,10 +557,12 @@ return function(t: TestTypes.TestContext)
 	t.test("crossing and roller coaster tracks: end counts", function()
 		local crossing = findConnections(library, "32087.dat") :: any
 		t.expect(countByType(crossing).TrackEnd).toBe(4)
-		for _, ref in { "25059.dat", "26022.dat", "25061.dat" } do
+		for _, ref in { "25059.dat", "26022.dat", "25061.dat", "26561.dat", "26559.dat", "26560.dat" } do
 			local connections = findConnections(library, ref) :: any
 			t.expect(countByType(connections).CoasterEnd).toBe(2)
 		end
+		local paddleWheel = findConnections(library, "4788.dat") :: any
+		t.expect(countByType(paddleWheel).AxleHole).toBe(1)
 	end)
 
 	t.test("vertex-analyzed batch: arms, pivot ladder, stove door", function()

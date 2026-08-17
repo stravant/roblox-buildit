@@ -94,6 +94,14 @@ return function(t: TestTypes.TestContext)
 			world = "4624.dat",
 			expected = Vector3.new(0, 0, 0),
 		},
+		{
+			-- Ramp's level end onto a straight's +x end: ramp origin
+			-- lands at (160+10, 0, 0).
+			name = "coaster ramp joins a straight at ground level",
+			drag = "26561.dat",
+			world = "25059.dat",
+			expected = Vector3.new(170, 0, 0),
+		},
 	}
 
 	for _, case in kCases do

@@ -544,6 +544,32 @@ connectorPrimitives.partOverrides = {
 		{ type = "CoasterEnd", position = Vector3.new(240, 0, 0), direction = Vector3.new(0, 0, -1) },
 		{ type = "CoasterEnd", position = Vector3.new(0, 0, 240), direction = Vector3.new(-1, 0, 0) },
 	},
+	-- Coaster ramps: end frames located from the clip pins (which sit
+	-- 10 LDU inside each abutment plane at track-surface level, the
+	-- same convention the straights calibrate). Level end at (-10,0),
+	-- raised end 144 up. Both S-ramps share the same end frames.
+	["26561.dat"] = {
+		{ type = "CoasterEnd", position = Vector3.new(-10, 0, 0), direction = Vector3.new(-1, 0, 0) },
+		{ type = "CoasterEnd", position = Vector3.new(150, 144, 0), direction = Vector3.new(1, 0, 0) },
+	},
+	["26559.dat"] = {
+		{ type = "CoasterEnd", position = Vector3.new(-10, 0, 0), direction = Vector3.new(-1, 0, 0) },
+		{ type = "CoasterEnd", position = Vector3.new(310, 144, 0), direction = Vector3.new(1, 0, 0) },
+	},
+	["26560.dat"] = {
+		{ type = "CoasterEnd", position = Vector3.new(-10, 0, 0), direction = Vector3.new(-1, 0, 0) },
+		{ type = "CoasterEnd", position = Vector3.new(310, 144, 0), direction = Vector3.new(1, 0, 0) },
+	},
+	-- Fabuland Paddle Wheeler Wheel: hand-built axle cross bore
+	-- through the full hub width.
+	["4788.dat"] = {
+		{
+			type = "AxleHole",
+			position = Vector3.new(0, 0, 0),
+			direction = Vector3.new(0, 0, 1),
+			length = 35,
+		},
+	},
 	-- Old arm pieces with hand-built fingers (vertex-ring located):
 	-- 795's two-finger knuckle and 4221 grab jaw's single finger both
 	-- pivot on Y-axis barrels; they interleave the arm1/arm2 system.

@@ -141,4 +141,7 @@ return {
 	"745", -- Roadsign Base Round Type 1: knob neck
 	"3350", -- Roadsign Round: clamp + stacking post
 	"4207a", -- Ladder 2.6x14 with Stops: rungs as bars
+	"26561", -- Roller Coaster Ramp Straight 4x8x6
+	"26559", -- Roller Coaster Ramp S-Shape Lower
+	"4788", -- Fabuland Paddle Wheel: axle bore
 }
