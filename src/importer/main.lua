@@ -123,6 +123,8 @@ local kTestSet = {
 	"851a", -- Fire ladder middle section: both slide interfaces
 	"420", -- Classic 2x12 ladder bottom: slide groove
 	"421", -- Classic 2x12 ladder top: slide rail
+	"837", -- Homemaker Cupboard 4x4x4: corner hinge bores
+	"838", -- Homemaker Cupboard Door: hinge rod
 }
 local kBackgroundColor = Color3.fromRGB(46, 46, 46)
 local kTextColor = Color3.fromRGB(220, 220, 220)
