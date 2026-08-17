@@ -780,9 +780,18 @@ connectorPrimitives.partOverrides = {
 			length = 72,
 		},
 	},
+	-- The roof's knuckle barrel doubles as the mount: holder plate
+	-- 4315's inward bumps (auto-detected HingePins at x=+-36) enter
+	-- the barrel's bore ends.
 	["2349a.dat"] = {
 		{
 			type = "HingeFinger",
+			position = Vector3.new(0, 4, 36),
+			direction = Vector3.new(1, 0, 0),
+			length = 72,
+		},
+		{
+			type = "HingeSocket",
 			position = Vector3.new(0, 4, 36),
 			direction = Vector3.new(1, 0, 0),
 			length = 72,
@@ -791,6 +800,12 @@ connectorPrimitives.partOverrides = {
 	["2349b.dat"] = {
 		{
 			type = "HingeFinger",
+			position = Vector3.new(0, 4, 36),
+			direction = Vector3.new(1, 0, 0),
+			length = 72,
+		},
+		{
+			type = "HingeSocket",
 			position = Vector3.new(0, 4, 36),
 			direction = Vector3.new(1, 0, 0),
 			length = 72,

@@ -144,4 +144,5 @@ return {
 	"26561", -- Roller Coaster Ramp Straight 4x8x6
 	"26559", -- Roller Coaster Ramp S-Shape Lower
 	"4788", -- Fabuland Paddle Wheel: axle bore
+	"4315", -- Hinge Plate 1x4 Car Roof Holder: bump pins
 }

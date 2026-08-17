@@ -639,11 +639,17 @@ return function(t: TestTypes.TestContext)
 		t.expect((countByType(rim).WheelHole or 0) >= 1).toBe(true)
 	end)
 
-	t.test("car sunroof (2348a/2349a): hinge line pair", function()
+	t.test("car sunroof (2348a/2349a/4315): glass, roof, holder chain", function()
 		local glass = findConnections(library, "2348a.dat") :: any
 		t.expect(countByType(glass).HingeFinger).toBe(1)
 		local roof = findConnections(library, "2349a.dat") :: any
-		t.expect(countByType(roof).HingeFinger).toBe(1)
+		local roofCounts = countByType(roof)
+		t.expect(roofCounts.HingeFinger).toBe(1)
+		t.expect(roofCounts.HingeSocket).toBe(1)
+		-- Holder plate's inward bumps auto-detect as pins for the
+		-- roof's barrel bore.
+		local holder = findConnections(library, "4315.dat") :: any
+		t.expect(countByType(holder).HingePin).toBe(2)
 	end)
 
 	t.test("hand-built finger rows (3937/2440/3314/3433/2347)", function()
