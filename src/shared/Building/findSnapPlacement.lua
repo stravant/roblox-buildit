@@ -108,6 +108,8 @@ local function mateRule(a: string, b: string): MateRule?
 	elseif a == "TrackEnd" and b == "TrackEnd" then
 		-- Track ends join face-to-face, same shape as magnets.
 		return "point"
+	elseif a == "CoasterEnd" and b == "CoasterEnd" then
+		return "point"
 	elseif (a == "Towball" and b == "TowballSocket") or (a == "TowballSocket" and b == "Towball") then
 		return "ball"
 	elseif (a == "Stud" and b == "PegHole") or (a == "PegHole" and b == "Stud") then

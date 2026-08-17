@@ -112,4 +112,8 @@ return {
 	"53401", -- Train Track RC Straight: track ends
 	"74747", -- Train Track 9V Curved: R800 x 22.5 degree ends
 	"53400", -- Train Track RC Curved: same arc
+	"32087", -- Train Track 9V Crossing: four ends
+	"25059", -- Roller Coaster Straight 4x16
+	"26022", -- Roller Coaster Straight 4x8
+	"25061", -- Roller Coaster Curve 90 R12
 }
