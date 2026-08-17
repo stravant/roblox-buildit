@@ -589,6 +589,16 @@ connectorPrimitives.partOverrides = {
 			length = 10.5,
 		},
 	},
+	-- Windscreen 4x6x4 Canopy with Click Hinge: the click finger is
+	-- hand-built (r3 knuckle at the rear bottom edge, axis X).
+	["30633.dat"] = {
+		{
+			type = "ClickFinger",
+			position = Vector3.new(0, -1.5, 0),
+			direction = Vector3.new(1, 0, 0),
+			length = 4,
+		},
+	},
 	-- Hinge hook (crane latch): base 2650 carries an r4 bar; arm
 	-- 2651's hook is a C-jaw that latches over it — plain Bar/Clip.
 	["2650.dat"] = {
