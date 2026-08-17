@@ -102,6 +102,10 @@ local kTestSet = {
 	"3024", -- Plate 1x1: box pocket socket
 	"4073", -- Plate 1x1 Round: base tube center grip
 	"3062b", -- Brick 1x1 Round: hollow stud + base tube grip
+	"92198", -- Friends Head: neck bar hole + hair stud
+	"1006030", -- Friends Girl Torso: neck bar + hip receivers
+	"1015152", -- Friends Hips (thin hinge): curated D-posts
+	"2645", -- Friends Hair: pin hole for the head stud
 }
 local kBackgroundColor = Color3.fromRGB(46, 46, 46)
 local kTextColor = Color3.fromRGB(220, 220, 220)
