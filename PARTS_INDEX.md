@@ -23,7 +23,10 @@ descriptions (`head -1 p/<name>.dat`) before extending the table:
 | Technic axle | 3704 (axle 2), 32062 (axle 2 notched), 4519 (axle 3) | `axle.dat`, `axlehol8.dat` shaft segments (ends `axleend*` excluded, so length reads ~5 LDU short) | Axle (axis + length) |
 | Technic pin | 2780 (friction, 2 halves), 3673 (frictionless) | `connect*.dat`, `confric*.dat` pin halves (1.0 = 20 LDU, 0.5 = 10, 2.0 = 40) | TechnicPin per half |
 | Bar bore (hole through a pin, etc.) | 2780, 3673 | INVERTED radius-4 cylinder sections (INVERTNEXT accumulation only — mirroring flips winding, not concavity); pin primitives get an interior-only scan; fragmented slotted bores merge with a 9 LDU gap tolerance, then sub-8 LDU leftovers are culled | BarHole (axis + length, mates Bar) |
-| Gear / axle hole | 3647 (gear 8 tooth) | `axlehole.dat`, `axl2hole`-`axl5hole` scaled segments | AxleHole (axis + length) |
+| Gear / axle hole | 3647 (gear 8 tooth) | `axlehole.dat`, `axl2hole`-`axl5hole`, `axlehol4/5` (open-side walls), `axl2/3/5hol8` ("Hole ... Perimeter" = female; bare "Axle Perimeter" `axlehol8` = male!) | AxleHole (axis + length) |
+| Bush / sleeve axle hole | 3713 (bush), 6553 (axle hub, hole perpendicular to its axle) | `bush.dat` (local Z -6..10), `bush0.dat` (local Z +-6) | AxleHole through |
+| Blind axle hole | 3651 (pin/bush connector w/ 2 studs) | `axl2end`/`axl3end`/`axl5end` "End Surface" caps (hole extends along cap local -Y); the cap's short oneSided segment merges with adjacent hole/bush segments | AxleHole with OneSided |
+| Connector pin hole | 3651 | `connhole.dat` (20 LDU through segment along local Y) | PegHole |
 | Bar / rod | 30374 (bar 4L), 3957 (antenna shaft) | none — geometric: `4-4cyli`/`4-4cylc` at radius 4, length >= 8 | Bar (axis + length) |
 | Clip (vertical) | 4085c (plate 1x1 w/ clip), 2555 (tile w/ clip) | `clip1.dat`, `clip2.dat` (grip center ~8 LDU out along local -Z from the mount origin) | Clip (grips a Bar along local Y) |
 | 1x1 underside pockets | 3005, 3024, 4085c | `box5.dat`/`box4t.dat` cavity boxes at stud-pocket size (half-extents 5.5-10.5 LDU; larger placements are wall shells and ignored) | Socket via Pocket |

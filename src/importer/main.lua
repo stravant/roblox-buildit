@@ -37,6 +37,9 @@ local kTestSet = {
 	"2736", -- Technic Axle Towball
 	"3170", -- Plate 1x2 with Ball Joint-8 on Both Ends
 	"14418", -- Plate 1x2 with Socket Joint-8
+	"6553", -- Axle hub: through axle hole perpendicular to a 1.5 axle
+	"3651", -- Pin/bush connector: blind axle hole + pin hole + 2 studs
+	"3713", -- Technic Bush
 }
 local kBackgroundColor = Color3.fromRGB(46, 46, 46)
 local kTextColor = Color3.fromRGB(220, 220, 220)
