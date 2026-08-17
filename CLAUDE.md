@@ -198,9 +198,6 @@ build tool (mounted only by default.project.json, never the test plugin).
 
 ### Known v1 limitations
 
-- Parts whose underside pocket has no tube/pin primitive get no sockets
-  (e.g. 1x1 bricks/plates — their pocket is a bare cylinder). Needs
-  geometric detection or a special-case table later.
 - Studs are classified by name prefix; exotic stud primitives (Technic,
   Duplo) may need a curated table.
 - No texture/pattern (printed parts) or flexible part support.

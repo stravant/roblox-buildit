@@ -99,6 +99,9 @@ local kTestSet = {
 	"11208", -- Wheel Rim 10x14 with Fake Bolts
 	"2607bc01", -- Magnet Holder Technic Brick with magnet
 	"2609bc01", -- Magnet Holder Tile with magnet
+	"3024", -- Plate 1x1: box pocket socket
+	"4073", -- Plate 1x1 Round: base tube center grip
+	"3062b", -- Brick 1x1 Round: hollow stud + base tube grip
 }
 local kBackgroundColor = Color3.fromRGB(46, 46, 46)
 local kTextColor = Color3.fromRGB(220, 220, 220)
