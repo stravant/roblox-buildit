@@ -1,10 +1,12 @@
 --!strict
 
 -- Edit-mode Rotate tool: click and hold a composite segment, then drag
--- to swing it about its joint. The joint is the one where the clicked
--- segment is the CHILD (JointPivot attachment with JointRole="child");
--- the joint's downstream subtree moves along, so rotating an arm carries
--- its hand. Release commits (one undo recording); RMB/Esc cancels.
+-- to swing it about a joint. Joint choice: of all the composite's
+-- joints, pick the one whose cut leaves the clicked segment in the
+-- SMALLEST connected component — that component rotates. Clicking a
+-- hand turns just the hand (wrist); clicking an arm turns arm+hand
+-- (shoulder); either side of a lone hinge can be rotated. Release
+-- commits (one undo recording); RMB/Esc cancels.
 
 local ChangeHistoryService = game:GetService("ChangeHistoryService")
 local GuiService = game:GetService("GuiService")
@@ -75,25 +77,45 @@ local function collectJoints(model: Model): { [number]: JointInfo }
 	return joints
 end
 
--- The set of parts that move when `joint` articulates: the child segment
--- plus everything jointed downstream of it.
-local function movingParts(joints: { [number]: JointInfo }, joint: JointInfo): { BasePart }
-	local moving: { [BasePart]: boolean } = { [joint.childPart] = true }
+-- Connected component of the joint graph containing `start` when the
+-- joint `cutIndex` is removed.
+local function componentContaining(
+	joints: { [number]: JointInfo },
+	cutIndex: number,
+	start: BasePart
+): { BasePart }
+	local component: { [BasePart]: boolean } = { [start] = true }
 	local grew = true
 	while grew do
 		grew = false
-		for _, other in joints do
-			if moving[other.parentPart] and not moving[other.childPart] then
-				moving[other.childPart] = true
+		for index, info in joints do
+			if index == cutIndex then
+				continue
+			end
+			if component[info.parentPart] and not component[info.childPart] then
+				component[info.childPart] = true
+				grew = true
+			end
+			if component[info.childPart] and not component[info.parentPart] then
+				component[info.parentPart] = true
 				grew = true
 			end
 		end
 	end
 	local list = {}
-	for part in moving do
+	for part in component do
 		table.insert(list, part)
 	end
 	return list
+end
+
+local function componentVolume(parts: { BasePart }): number
+	local volume = 0
+	for _, part in parts do
+		local size = part.Size
+		volume += size.X * size.Y * size.Z
+	end
+	return volume
 end
 
 function RotateController.start(options: StartOptions?): Controller
@@ -165,19 +187,33 @@ function RotateController.start(options: StartOptions?): Controller
 
 	local function beginSession(hit: BasePart, model: Model)
 		local joints = collectJoints(model)
-		local joint: JointInfo? = nil
-		for _, info in joints do
-			if info.childPart == hit then
-				joint = info
-				break
+		-- Rotate the SMALLEST component containing the clicked segment:
+		-- clicking a hand turns the hand, clicking the arm turns arm+hand.
+		local chosen: JointInfo? = nil
+		local moving: { BasePart }? = nil
+		local bestCount = math.huge
+		local bestVolume = math.huge
+		for index, info in joints do
+			local component = componentContaining(joints, index, hit)
+			-- Cutting an unrelated joint leaves the whole model connected
+			-- through other joints; only proper splits are candidates.
+			if #component == 0 or table.find(component, info.parentPart) and table.find(component, info.childPart) then
+				continue
+			end
+			local volume = componentVolume(component)
+			if #component < bestCount or (#component == bestCount and volume < bestVolume) then
+				bestCount = #component
+				bestVolume = volume
+				chosen = info
+				moving = component
 			end
 		end
-		if joint == nil then
-			return -- clicked the root segment: nothing to hinge
+		if chosen == nil or moving == nil then
+			return -- no joint separates this segment from the rest
 		end
-		local chosen = joint :: JointInfo
+		local joint = chosen :: JointInfo
 
-		local pivotWorld = chosen.childPart.CFrame * chosen.childPivot.CFrame
+		local pivotWorld = joint.childPart.CFrame * joint.childPivot.CFrame
 		local session: Session = {
 			pivotPosition = pivotWorld.Position,
 			axis = pivotWorld.YVector,
@@ -186,7 +222,7 @@ function RotateController.start(options: StartOptions?): Controller
 			recording = nil,
 			connections = {},
 		}
-		for _, part in movingParts(joints, chosen) do
+		for _, part in moving :: { BasePart } do
 			session.initialCFrames[part] = part.CFrame
 		end
 		local start = planeVector(session)
