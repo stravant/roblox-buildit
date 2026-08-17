@@ -50,6 +50,9 @@ local function addAxialAttachment(parent: MeshPart, connection: Types.Connection
 	if connection.oneSided then
 		attachment:SetAttribute("OneSided", true)
 	end
+	if connection.radius ~= nil then
+		attachment:SetAttribute("Radius", connection.radius * RobloxConvert.kDefaultScale)
+	end
 	attachment.Parent = parent
 end
 

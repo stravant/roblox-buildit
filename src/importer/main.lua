@@ -93,6 +93,10 @@ local kTestSet = {
 	"44302", -- Hinge Plate 1x2 Locking, dual click fork
 	"412", -- Arm Piece with 2 and 3 Fingers Rotated
 	"3612", -- Arm Piece with 2 and 3 Fingers Aligned
+	"3641", -- Tyre 6/50x8 (fits rim 4624)
+	"4624", -- Wheel Rim 6.4x8
+	"11209", -- Tyre 10/32x14 (fits rim 11208)
+	"11208", -- Wheel Rim 10x14 with Fake Bolts
 }
 local kBackgroundColor = Color3.fromRGB(46, 46, 46)
 local kTextColor = Color3.fromRGB(220, 220, 220)

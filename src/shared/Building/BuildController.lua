@@ -172,6 +172,7 @@ local function unitConnectors(unit: PVInstance): { UnitConnector }
 				direction = pivot:VectorToObjectSpace(worldDirection),
 				length = connector.length,
 				oneSided = connector.oneSided,
+				radius = connector.radius,
 				part = part,
 				partLocalPosition = connector.position,
 			})
@@ -415,6 +416,7 @@ function BuildController.start(options: StartOptions?): Controller
 					direction = part.CFrame:VectorToWorldSpace(connector.direction),
 					length = connector.length,
 					oneSided = connector.oneSided,
+					radius = connector.radius,
 					part = part,
 					attachment = connector.attachment,
 				})

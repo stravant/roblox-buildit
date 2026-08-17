@@ -21,6 +21,8 @@ export type Connector = {
 	length: number?, -- extent along direction (axial connectors)
 	-- Blind female bore, open only toward `direction` (hollow studs).
 	oneSided: boolean?,
+	-- Mating radius (studs) for size-keyed interfaces (TyreBore/RimSeat).
+	radius: number?,
 	attachment: Attachment, -- the source attachment (shared by grid cells)
 }
 
@@ -42,12 +44,14 @@ local function getConnectors(part: BasePart): { Connector }
 
 		if not kGridKinds[kind] then
 			local length = child:GetAttribute("Length")
+			local radius = child:GetAttribute("Radius")
 			table.insert(connectors, {
 				kind = kind,
 				position = child.CFrame.Position,
 				direction = child.CFrame.YVector,
 				length = if type(length) == "number" then length else nil,
 				oneSided = if child:GetAttribute("OneSided") == true then true else nil,
+				radius = if type(radius) == "number" then radius else nil,
 				attachment = child,
 			})
 			continue

@@ -89,6 +89,8 @@ local kAxialPartners: { [string]: { [string]: boolean } } = {
 	ClickFinger = { ClickFork = true },
 	ClickFork = { ClickFinger = true },
 	ArmFinger = { ArmFinger = true },
+	TyreBore = { RimSeat = true },
+	RimSeat = { TyreBore = true },
 }
 
 type MateRule = "point" | "axial" | "ball" | "mouth"
@@ -106,6 +108,21 @@ local function mateRule(a: string, b: string): MateRule?
 		return "axial"
 	end
 	return nil
+end
+
+-- Size-keyed interfaces (TyreBore/RimSeat) carry a mating radius; a
+-- candidate pair only mates when both radii agree within tolerance
+-- (0.15 studs = 3 LDU covers the mm rounding in official part names).
+local kRadiusTolerance = 0.15
+
+local function radiusCompatible(a: { radius: number? }, b: { radius: number? }): boolean
+	if a.radius == nil and b.radius == nil then
+		return true
+	end
+	if a.radius == nil or b.radius == nil then
+		return false
+	end
+	return math.abs((a.radius :: number) - (b.radius :: number)) <= kRadiusTolerance
 end
 
 -- Both mouths of a hole connector (its segment ends; a bare mouth with
@@ -175,7 +192,7 @@ local function findSnapPlacement(
 	for _, world in worldConnectors do
 		for _, drag in dragConnectors do
 			local rule = mateRule(drag.kind, world.kind)
-			if rule == nil then
+			if rule == nil or not radiusCompatible(drag, world) then
 				continue
 			end
 			local baseDirection = rotation:VectorToWorldSpace(drag.direction)
@@ -292,6 +309,9 @@ local function findSnapPlacement(
 		local dragDirection = snappedCFrame:VectorToWorldSpace(drag.direction)
 		for worldIndex, world in worldConnectors do
 			local rule = mateRule(drag.kind, world.kind)
+			if rule ~= nil and not radiusCompatible(drag, world) then
+				rule = nil
+			end
 			local mated = false
 			if rule == "point" then
 				mated = (dragPosition - world.position).Magnitude <= kMatedEpsilon
