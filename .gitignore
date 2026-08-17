@@ -1,4 +1,7 @@
-ldraw/
+# Root-anchored: the unpacked LDraw part library download only. (A bare
+# "ldraw/" also matched src/shared/LDraw/ on case-insensitive systems and
+# kept the entire Lua library out of version control.)
+/ldraw/
 *.rbxl*
 *.rbxmx
 sourcemap.json
