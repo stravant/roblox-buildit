@@ -98,6 +98,9 @@ type MateRule = "point" | "axial" | "ball" | "mouth"
 local function mateRule(a: string, b: string): MateRule?
 	if (a == "Stud" and b == "Socket") or (a == "Socket" and b == "Stud") then
 		return "point"
+	elseif a == "Magnet" and b == "Magnet" then
+		-- Pole faces couple coincident and anti-parallel, same as studs.
+		return "point"
 	elseif (a == "Towball" and b == "TowballSocket") or (a == "TowballSocket" and b == "Towball") then
 		return "ball"
 	elseif (a == "Stud" and b == "PegHole") or (a == "PegHole" and b == "Stud") then
