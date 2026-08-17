@@ -76,6 +76,13 @@ type Marker = {
 	kind: string,
 }
 
+type HiddenProperties = {
+	transparency: number,
+	canQuery: boolean,
+	canCollide: boolean,
+	canTouch: boolean,
+}
+
 -- A draggable unit is a BasePart or a composite Model of rigid segments;
 -- its connectors are expressed in the unit's PIVOT space so the solver
 -- works identically for both.
@@ -99,10 +106,12 @@ type DragState = {
 	-- Rotation the R/T-key steps compose onto (identity for palette drags,
 	-- the part's own rotation for picked-up parts).
 	baseRotation: CFrame,
-	-- Set when dragging an already-placed unit: it is unparented for the
-	-- duration of the drag and restored on place/cancel.
+	-- Set when dragging an already-placed unit: it stays PARENTED but is
+	-- hidden in place (see beginDrag — unparenting breaks undo recordings
+	-- and loses the part entirely if the plugin reloads mid-drag), and is
+	-- restored on place/cancel.
 	existingPart: PVInstance?,
-	existingParent: Instance?,
+	hiddenProperties: { [BasePart]: HiddenProperties }?,
 	originalCFrame: CFrame?,
 	ghostConnectors: { UnitConnector },
 	ghostMarkers: { Marker },
@@ -294,6 +303,21 @@ function BuildController.start(options: StartOptions?): Controller
 		return cached
 	end
 
+	-- Un-hide a picked-up unit (restore the properties saved at pickup).
+	local function restoreHidden(state: DragState)
+		local saved = state.hiddenProperties
+		if saved == nil then
+			return
+		end
+		for part, properties in saved do
+			part.Transparency = properties.transparency
+			part.CanQuery = properties.canQuery
+			part.CanCollide = properties.canCollide
+			part.CanTouch = properties.canTouch
+		end
+		state.hiddenProperties = nil
+	end
+
 	local function endDrag(canceled: boolean)
 		local state = mDragState
 		if state == nil then
@@ -309,8 +333,8 @@ function BuildController.start(options: StartOptions?): Controller
 		if canceled then
 			if state.existingPart ~= nil then
 				-- Put a picked-up unit back where it was.
-				(state.existingPart :: PVInstance):PivotTo(state.originalCFrame :: CFrame);
-				(state.existingPart :: PVInstance).Parent = state.existingParent
+				restoreHidden(state);
+				(state.existingPart :: PVInstance):PivotTo(state.originalCFrame :: CFrame)
 			end
 			finishRecording(false)
 		end
@@ -442,8 +466,8 @@ function BuildController.start(options: StartOptions?): Controller
 		local ghostPivot = state.ghost:GetPivot()
 		if state.existingPart ~= nil then
 			local placed = state.existingPart :: PVInstance
+			restoreHidden(state)
 			placed:PivotTo(ghostPivot)
-			placed.Parent = state.existingParent
 		else
 			local placed = state.template:Clone()
 			forEachUnitPart(placed, function(part)
@@ -472,15 +496,29 @@ function BuildController.start(options: StartOptions?): Controller
 		ghost.Parent = workspace
 
 		local baseRotation = CFrame.identity
-		local existingParent: Instance? = nil
 		local originalCFrame: CFrame? = nil
+		local hiddenProperties: { [BasePart]: HiddenProperties }? = nil
 		if isExisting then
 			baseRotation = source:GetPivot().Rotation
-			existingParent = source.Parent
 			originalCFrame = source:GetPivot()
-			-- Out of the world while dragging: not a snap target, not a
-			-- raycast obstacle.
-			source.Parent = nil
+			-- Hide in place while dragging: CanQuery=false removes it from
+			-- snapping/raycasts. NEVER unparent — undo recordings lose
+			-- instances that leave the DataModel mid-recording, and a
+			-- plugin reload mid-drag would orphan the part entirely.
+			local saved: { [BasePart]: HiddenProperties } = {}
+			forEachUnitPart(source, function(part)
+				saved[part] = {
+					transparency = part.Transparency,
+					canQuery = part.CanQuery,
+					canCollide = part.CanCollide,
+					canTouch = part.CanTouch,
+				}
+				part.Transparency = 1
+				part.CanQuery = false
+				part.CanCollide = false
+				part.CanTouch = false
+			end)
+			hiddenProperties = saved
 		end
 
 		-- Marker adornments live under the camera: always renderable, never
@@ -509,7 +547,7 @@ function BuildController.start(options: StartOptions?): Controller
 			tiltRotation = CFrame.identity,
 			baseRotation = baseRotation,
 			existingPart = if isExisting then source else nil,
-			existingParent = existingParent,
+			hiddenProperties = hiddenProperties,
 			originalCFrame = originalCFrame,
 			ghostConnectors = ghostConnectors,
 			ghostMarkers = ghostMarkers,
