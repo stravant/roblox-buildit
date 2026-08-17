@@ -81,7 +81,7 @@ local function importPart(
 	if #mesh.triangles == 0 then
 		return nil, `{partRef} contains no geometry`
 	end
-	local connections = findConnections(library, partRef) :: { Types.Connection }
+	local connections = findConnections(library, partRef, mesh) :: { Types.Connection }
 	local sockets = deriveSockets(connections, mesh)
 
 	local okBuild, editableMesh: any, buildStats: any = pcall(buildEditableMesh, mesh)

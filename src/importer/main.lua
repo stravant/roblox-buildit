@@ -51,6 +51,7 @@ local kTestSet = {
 	"2739a", -- Technic Steering Link 6L: two towball sockets
 	"6538a", -- Technic Axle Joiner: axle hole + slip surface
 	"6539", -- Technic Transmission Driving Ring: slips onto 6538a
+	"6573", -- Technic Differential: gear post bar in the cage
 }
 local kBackgroundColor = Color3.fromRGB(46, 46, 46)
 local kTextColor = Color3.fromRGB(220, 220, 220)

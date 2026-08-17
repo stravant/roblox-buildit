@@ -310,6 +310,20 @@ return function(t: TestTypes.TestContext)
 		t.expect(rightGrab.cframe.Position).toBeCloseTo(Vector3.new(-1, 5.7, 0))
 	end)
 
+	t.test("axle hole sits on a bar (bevel gear on the differential post)", function()
+		local world = {
+			{ kind = "Bar", position = Vector3.new(0, 3, 0), direction = Vector3.new(0, 1, 0), length = 0.4 },
+		}
+		local gearHole = {
+			{ kind = "AxleHole", position = Vector3.zero, direction = Vector3.new(0, 1, 0), length = 0.28 },
+		}
+		local snap = findSnapPlacement(CFrame.new(0.2, 3.05, 0.1), gearHole :: any, world :: any, kMaxSnap) :: any
+		t.expect(snap).toBeTruthy()
+		t.expect(snap.cframe.Position.X).toBeCloseTo(0)
+		t.expect(snap.cframe.Position.Z).toBeCloseTo(0)
+		t.expect(#snap.matchedPairs).toBe(1)
+	end)
+
 	t.test("axial axes must be parallel", function()
 		local world = {
 			{ kind = "AxleHole", position = Vector3.new(0, 5, 0), direction = Vector3.new(1, 0, 0), length = 1 },

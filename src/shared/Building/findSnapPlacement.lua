@@ -62,13 +62,14 @@ local kAxisDotMin = 0.99
 local kMatedEpsilon = 0.05
 
 -- Axles fit through pin holes too (loose/rotating, but a valid build
--- connection), and bars insert into hollow studs.
+-- connection), bars insert into hollow studs, and bars pass through
+-- axle holes (a bevel gear sits on the differential cage's post).
 local kAxialPartners: { [string]: { [string]: boolean } } = {
 	TechnicPin = { PegHole = true },
 	PegHole = { TechnicPin = true, Axle = true },
 	Axle = { AxleHole = true, PegHole = true },
-	AxleHole = { Axle = true },
-	Bar = { Clip = true, HollowStud = true, BarHole = true },
+	AxleHole = { Axle = true, Bar = true },
+	Bar = { Clip = true, HollowStud = true, BarHole = true, AxleHole = true },
 	Clip = { Bar = true },
 	HollowStud = { Bar = true },
 	BarHole = { Bar = true },
