@@ -122,6 +122,48 @@ return function(t: TestTypes.TestContext)
 		t.expect(#clamped.matchedPairs).toBe(1)
 	end)
 
+	t.test("finger hinges self-mate and lock centered", function()
+		local world = {
+			{ kind = "HingeFinger", position = Vector3.new(0, 5, 0), direction = Vector3.new(1, 0, 0), length = 0.8 },
+		}
+		local drag = {
+			{ kind = "HingeFinger", position = Vector3.zero, direction = Vector3.new(1, 0, 0), length = 0.8 },
+		}
+		local snap = findSnapPlacement(CFrame.new(0.3, 5.2, 0), drag :: any, world :: any, kMaxSnap) :: any
+		t.expect(snap).toBeTruthy()
+		t.expect(snap.cframe.Position).toBeCloseTo(Vector3.new(0, 5, 0))
+		t.expect(#snap.matchedPairs).toBe(1)
+	end)
+
+	t.test("tyres only mate rims with matching radius", function()
+		local smallRim = {
+			{ kind = "RimSeat", position = Vector3.new(0, 5, 0), direction = Vector3.new(0, 0, 1), length = 0.2, radius = 0.5 },
+		}
+		local bigRim = {
+			{ kind = "RimSeat", position = Vector3.new(0, 5, 0), direction = Vector3.new(0, 0, 1), length = 0.2, radius = 1.4 },
+		}
+		local tyre = {
+			{ kind = "TyreBore", position = Vector3.zero, direction = Vector3.new(0, 0, 1), length = 0.2, radius = 0.5 },
+		}
+		local fits = findSnapPlacement(CFrame.new(0.2, 5.1, 0), tyre :: any, smallRim :: any, kMaxSnap) :: any
+		t.expect(fits).toBeTruthy()
+		t.expect(fits.cframe.Position).toBeCloseTo(Vector3.new(0, 5, 0))
+		local wrongSize = findSnapPlacement(CFrame.new(0.2, 5.1, 0), tyre :: any, bigRim :: any, kMaxSnap)
+		t.expect(wrongSize).toBe(nil)
+	end)
+
+	t.test("magnets couple face to face", function()
+		local world = {
+			{ kind = "Magnet", position = Vector3.new(0, 5, 0), direction = Vector3.new(0, 0, 1) },
+		}
+		local drag = {
+			{ kind = "Magnet", position = Vector3.new(0, 0, 0.4), direction = Vector3.new(0, 0, -1) },
+		}
+		local snap = findSnapPlacement(CFrame.new(0.1, 5.2, 0.2), drag :: any, world :: any, kMaxSnap) :: any
+		t.expect(snap).toBeTruthy()
+		t.expect(snap.cframe:PointToWorldSpace(Vector3.new(0, 0, 0.4))).toBeCloseTo(Vector3.new(0, 5, 0))
+	end)
+
 	t.test("axial mating accepts either axis sign", function()
 		local world = {
 			{ kind = "AxleHole", position = Vector3.new(0, 5, 0), direction = Vector3.new(1, 0, 0), length = 1 },
