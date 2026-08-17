@@ -108,4 +108,8 @@ return {
 	"421", -- Classic 2x12 ladder top: slide rail
 	"837", -- Homemaker Cupboard 4x4x4: corner hinge bores
 	"838", -- Homemaker Cupboard Door: hinge rod
+	"74746", -- Train Track 9V Straight: track ends
+	"53401", -- Train Track RC Straight: track ends
+	"74747", -- Train Track 9V Curved: R800 x 22.5 degree ends
+	"53400", -- Train Track RC Curved: same arc
 }
