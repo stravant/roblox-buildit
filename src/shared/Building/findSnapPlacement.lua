@@ -85,6 +85,7 @@ local kAxialPartners: { [string]: { [string]: boolean } } = {
 	WheelHole = { WheelPin = true },
 	SlideRail = { SlideGroove = true },
 	SlideGroove = { SlideRail = true },
+	MinidollHinge = { MinidollHinge = true },
 	SlipAxle = { SlipRing = true },
 	SlipRing = { SlipAxle = true },
 	HingePin = { HingeSocket = true },

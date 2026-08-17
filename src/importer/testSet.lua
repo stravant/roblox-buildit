@@ -123,4 +123,6 @@ return {
 	"2861", -- Train Track 9V Switch Left: three ends
 	"2859", -- Train Track 9V Switch Right: three ends
 	"50945", -- =Tyre 6/30x11: alias-prefixed description gate
+	"1023035", -- Friends Legs Cargo Pants (thin hinge knuckle)
+	"1022657", -- Friends Legs Shorts (same shared hinge subpart)
 }
