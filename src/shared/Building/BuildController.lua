@@ -7,10 +7,11 @@
 --
 -- Controls:
 --   Hold LMB on a palette entry OR on a placed part, drag, release to
---   place. R yaws the dragged part 90 degrees; T tilts it 90 degrees
---   toward the camera (about the nearest cardinal axis at press time,
---   accumulating per press). Esc or RMB cancels (a picked-up part
---   returns to where it was).
+--   place. R yaws the dragged part 90 degrees about world Y; T tips it
+--   90 degrees toward the camera (nearest cardinal axis at press time).
+--   Both are WORLD-space steps premultiplied onto the accumulated
+--   orientation, so they compose intuitively in any order. Esc or RMB
+--   cancels (a picked-up part returns to where it was).
 --
 -- ANY workspace part with connector attachments is a snap target and can
 -- be picked up — including the copies the importer drops. New palette
@@ -99,12 +100,12 @@ type UnitConnector = {
 type DragState = {
 	template: PVInstance,
 	ghost: PVInstance,
-	rotationIndex: number,
-	-- Accumulated T-key tilts (each press adds a 90-degree tip toward the
-	-- camera about the cardinal axis captured at press time).
-	tiltRotation: CFrame,
-	-- Rotation the R/T-key steps compose onto (identity for palette drags,
-	-- the part's own rotation for picked-up parts).
+	-- Accumulated R/T rotations. Every keypress PREMULTIPLIES a world-space
+	-- 90-degree step (yaw for R, tip-toward-camera for T), so both keys act
+	-- in world space regardless of the order they were pressed in.
+	orientation: CFrame,
+	-- Rotation the steps compose onto (identity for palette drags, the
+	-- unit's own rotation for picked-up parts).
 	baseRotation: CFrame,
 	-- Set when dragging an already-placed unit: it stays PARENTED but is
 	-- hidden in place (see beginDrag — unparenting breaks undo recordings
@@ -371,9 +372,7 @@ function BuildController.start(options: StartOptions?): Controller
 			hitPoint = ray.Origin + ray.Direction * 40
 		end
 
-		local rotation = CFrame.Angles(0, state.rotationIndex * math.pi / 2, 0)
-			* state.tiltRotation
-			* state.baseRotation
+		local rotation = state.orientation * state.baseRotation
 		-- Rest the rotated bounding box on the hit point.
 		local size = unitExtents(state.ghost)
 		local halfHeight = 0.5 * (
@@ -543,8 +542,7 @@ function BuildController.start(options: StartOptions?): Controller
 		local state: DragState = {
 			template = source,
 			ghost = ghost,
-			rotationIndex = 0,
-			tiltRotation = CFrame.identity,
+			orientation = CFrame.identity,
 			baseRotation = baseRotation,
 			existingPart = if isExisting then source else nil,
 			hiddenProperties = hiddenProperties,
@@ -564,11 +562,11 @@ function BuildController.start(options: StartOptions?): Controller
 
 		table.insert(state.connections, UserInputService.InputBegan:Connect(function(input, _gameProcessed)
 			if input.KeyCode == Enum.KeyCode.R then
-				state.rotationIndex = (state.rotationIndex + 1) % 4
+				state.orientation = CFrame.Angles(0, math.pi / 2, 0) * state.orientation
 			elseif input.KeyCode == Enum.KeyCode.T then
-				-- Tip the part toward the camera: rotate 90 degrees about
-				-- the horizontal axis perpendicular to the camera's look
-				-- direction snapped to the nearest cardinal.
+				-- Tip the part toward the camera: a WORLD-space 90-degree
+				-- rotation about the horizontal axis perpendicular to the
+				-- camera's look direction snapped to the nearest cardinal.
 				local look = workspace.CurrentCamera.CFrame.LookVector
 				local cardinal: Vector3
 				if math.abs(look.X) > math.abs(look.Z) then
@@ -580,7 +578,7 @@ function BuildController.start(options: StartOptions?): Controller
 					cardinal = Vector3.zAxis -- camera looking straight up/down
 				end
 				local axis = cardinal:Cross(Vector3.yAxis)
-				state.tiltRotation = CFrame.fromAxisAngle(axis, math.pi / 2) * state.tiltRotation
+				state.orientation = CFrame.fromAxisAngle(axis, math.pi / 2) * state.orientation
 			elseif
 				input.KeyCode == Enum.KeyCode.Z
 				and (

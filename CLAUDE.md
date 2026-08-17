@@ -119,9 +119,10 @@ instances).
   ViewportFrame thumbnails.
 - `BuildController.lua` — drag/ghost/marker/placement controller. Drag out
   of the palette OR pick up any connector-annotated workspace part;
-  release to place (release over the panel cancels), R yaws 90 degrees,
-  T tilts 90 degrees toward the camera (nearest cardinal axis at press
-  time, accumulating; both composed on a picked part's existing
+  release to place (release over the panel cancels), R yaws 90 degrees
+  about world Y, T tips 90 degrees toward the camera (nearest cardinal
+  axis at press time) — both WORLD-space steps premultiplied onto the
+  accumulated orientation (composed on a picked part's existing
   rotation), RMB/Esc cancels (restores a picked part). Connector markers: studs green, sockets blue,
   mated pairs yellow. New parts go in `workspace.Assembly` in-game or
   workspace in Edit mode; picked parts keep their parent. Runs in two
