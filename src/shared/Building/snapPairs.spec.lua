@@ -64,6 +64,36 @@ return function(t: TestTypes.TestContext)
 			world = "53401.dat",
 			expected = Vector3.new(320, 0, 0),
 		},
+		{
+			name = "homemaker door hangs in cupboard 837 (near side)",
+			drag = "838.dat",
+			world = "837.dat",
+			expected = Vector3.new(0, 0, 0),
+		},
+		{
+			name = "shutter hangs on window 3853's lower tab",
+			drag = "3856.dat",
+			world = "3853.dat",
+			expected = Vector3.new(-40, -0.5, -12),
+		},
+		{
+			name = "monorail straights join end to end",
+			drag = "2670.dat",
+			world = "2670.dat",
+			expected = Vector3.new(160, 0, 0),
+		},
+		{
+			name = "coaster curve joins a straight (no rotation end)",
+			drag = "25061.dat",
+			world = "25059.dat",
+			expected = Vector3.new(160, 0, -240),
+		},
+		{
+			name = "tyre seats on its rim (radius-gated)",
+			drag = "3641.dat",
+			world = "4624.dat",
+			expected = Vector3.new(0, 0, 0),
+		},
 	}
 
 	for _, case in kCases do
