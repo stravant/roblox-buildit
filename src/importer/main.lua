@@ -66,6 +66,7 @@ local kTestSet = {
 	"2855", -- Technic Turntable Type 1 (virtual assembly composite)
 	"791", -- Window shutter 1x3x5: bump hinge pins
 	"671", -- Door 1x6x10: full-height hinge rod
+	"670", -- Door 1x6x10 Frame: hinge sockets both sides
 }
 local kBackgroundColor = Color3.fromRGB(46, 46, 46)
 local kTextColor = Color3.fromRGB(220, 220, 220)

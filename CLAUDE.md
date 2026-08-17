@@ -37,6 +37,20 @@ the repo root, NOT under `src/`, because Script instances in a .rbxmx plugin
 execute in every open place — `src/` must contain only ModuleScripts (see
 roblox-nightfall's CLAUDE.md for the war story).
 
+## Part database / survey tooling
+
+- `part_index.tsv` — prebuilt index of all 24k+ parts (regenerate with
+  `python scripts/build_part_index.py`). Columns: id, !LDRAW_ORG type,
+  description, moved-to target, keywords (includes BrickLink alternate
+  ids), referenced subfile basenames, approx bbox size. ALWAYS grep this
+  instead of scanning `ldraw/parts/*.dat` (globbing 22k files times out):
+  `grep -iE "\tDoor" part_index.tsv`, `grep bump5000 part_index.tsv`
+  (which parts use a primitive), `grep -i x547 part_index.tsv`
+  (BrickLink id lookup).
+- `scripts/probe_part.py <id> [name-filter]` — dump a part's top-level
+  subfile references grouped by primitive with origins and rotation rows
+  (for working out connector positions).
+
 ## Architecture
 
 `src/shared/LDraw/` — the LDraw library (pure, provider-based):
