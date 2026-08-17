@@ -160,8 +160,10 @@ function BuildController.start(options: StartOptions?): Controller
 
 	local mDragState: DragState? = nil
 	local mPalette: PartPalette.PartPalette? = nil
-	-- RMB press position while dragging (click-vs-orbit discrimination).
-	local mRightMouseDownAt: Vector2? = nil
+	-- RMB press state while dragging (click-vs-orbit discrimination). The
+	-- camera CFrame matters: orbiting locks the cursor and RESTORES its
+	-- position on release, so mouse movement alone reads as zero.
+	local mRightMouseDown: { position: Vector2, cameraCFrame: CFrame }? = nil
 
 	-- In Edit mode (plugin), each drag is one undo recording spanning from
 	-- pickup to place: committing on place makes the whole move/placement
@@ -495,18 +497,28 @@ function BuildController.start(options: StartOptions?): Controller
 			elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
 				-- Defer to release: an RMB DRAG is a camera orbit, only an
 				-- RMB CLICK cancels.
-				mRightMouseDownAt = UserInputService:GetMouseLocation()
+				mRightMouseDown = {
+					position = UserInputService:GetMouseLocation(),
+					cameraCFrame = workspace.CurrentCamera.CFrame,
+				}
 			end
 		end))
 
 		table.insert(state.connections, UserInputService.InputEnded:Connect(function(input, _gameProcessed)
 			if input.UserInputType == Enum.UserInputType.MouseButton2 then
-				local downAt = mRightMouseDownAt
-				mRightMouseDownAt = nil
-				if
-					downAt ~= nil
-					and (UserInputService:GetMouseLocation() - downAt).Magnitude <= kRightClickCancelMaxMovement
-				then
+				local down = mRightMouseDown
+				mRightMouseDown = nil
+				if down == nil then
+					return
+				end
+				local moved = (UserInputService:GetMouseLocation() - down.position).Magnitude
+					> kRightClickCancelMaxMovement
+				-- Any camera rotation means this was an orbit, even though
+				-- the restored cursor position reads as unmoved.
+				local camera = workspace.CurrentCamera
+				local rotated = camera.CFrame.LookVector:Dot(down.cameraCFrame.LookVector) < 0.99995
+					or (camera.CFrame.Position - down.cameraCFrame.Position).Magnitude > 0.01
+				if not moved and not rotated then
 					endDrag(true)
 				end
 				return
