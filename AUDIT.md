@@ -41,6 +41,24 @@ delete the enable file.
 | ~~2855/2856 turntable~~ | done | Virtual assembly support added to compositeParts (inline segment list + transforms); 2855c imports as a two-segment composite. |
 | ~~3491/3613/3730/3779 towball sockets~~ | done | Curated (approximate cup centers from housing geometry). |
 
+## Zero-connector shortlist (Aug 2026 full re-audit, 156/1000)
+
+Most are legitimately connectionless (glass panes, capes, food,
+minifig accessories that wrap/drape). Headgear was the big fixable
+family (now handled via the wearable boundary-rule exemption).
+Genuinely remaining, by family:
+
+- Hand-built finger hinges: 2440 radar, 654 joining ring, 2650/2651
+  hinge hook, 4318 boat mast, excavator buckets 3314/3433/2347,
+  795/4221 arm pieces.
+- Doors/drawers with rail or lip mounts: 4533/4535 cupboard doors,
+  4536/3 drawers, 2874 sliding door, 838/843 Homemaker doors,
+  821a Mursten garage door (sliding channel class).
+- Ladder clutch family: 420/421, 850/851a/852, 4207a, 4000
+  (+ modern 15118/11299 back clips).
+- Misc: 745/746/3350 roadsign posts/clips, 2686 monorail wheel
+  chassis, 4788 Fabuland paddle wheel (axle bore is square?).
+
 ## Notes
 
 - 3937 (hinge base) shows zero connectors in RAW audit output by design:
