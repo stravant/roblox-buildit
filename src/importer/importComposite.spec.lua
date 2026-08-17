@@ -53,6 +53,23 @@ return function(t: TestTypes.TestContext)
 		folder:Destroy()
 	end)
 
+	t.test("imports the virtual 2855 turntable assembly", function()
+		local folder = Instance.new("Folder")
+		local model, errorMessage = importComposite(library, "virtual:2855.dat", folder)
+		t.expect(errorMessage).toBeFalsy()
+		local turntable = model :: Model
+		t.expect(turntable.Name).toBe("Technic Turntable Type 1")
+		t.expect(turntable:GetAttribute("PartNumber")).toBe("2855c")
+		local segments = 0
+		for _, child in turntable:GetChildren() do
+			if child:IsA("MeshPart") then
+				segments += 1
+			end
+		end
+		t.expect(segments).toBe(2)
+		folder:Destroy()
+	end)
+
 	t.test("imports the minifig torso assembly with four joints", function()
 		local folder = Instance.new("Folder")
 		local model, errorMessage = importComposite(library, "973c01.dat", folder)

@@ -38,7 +38,7 @@ delete the enable file.
 | Finger hinges on arms/brackets | ~10 | 412/795 "Arm Piece with N Fingers", exo-force style. Finger knuckles are hand-built; per-family overrides or a finger-stack composite concept. |
 | Tyres/wheels | ~15 | Tyre<->rim interface is its own system (Tyre/Rim pair); wheels' axle/pin holes mostly already detect. |
 | Ladders/rails/misc | rest | 420/421 ladder clutch, train drive rods (crank pins = Bar candidates), magnet holders (Magnet pair?), roadsign fingers. Case-by-case. |
-| 2855/2856 turntable | 2 | No LDraw assembly file exists; compositeParts would need inline "virtual assembly" support (segment list + transforms in the table). |
+| ~~2855/2856 turntable~~ | done | Virtual assembly support added to compositeParts (inline segment list + transforms); 2855c imports as a two-segment composite. |
 | ~~3491/3613/3730/3779 towball sockets~~ | done | Curated (approximate cup centers from housing geometry). |
 
 ## Notes

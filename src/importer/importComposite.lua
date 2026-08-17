@@ -35,9 +35,25 @@ local function importComposite(
 	if composite == nil then
 		return nil, `Not a known composite: {assemblyRef}`
 	end
-	local assembly = library:getFile(assemblyRef)
-	if assembly == nil then
-		return nil, `Assembly file not found: {assemblyRef}`
+
+	-- Segment list: from the curated virtual assembly, or the LDraw
+	-- assembly file.
+	local segmentRefs: { { fileName: string, transform: CFrame } } = {}
+	local description: string? = nil
+	if composite.segments ~= nil then
+		for _, segment in composite.segments :: { compositeParts.VirtualSegment } do
+			table.insert(segmentRefs, { fileName = segment.ref, transform = segment.transform })
+		end
+		description = composite.name
+	else
+		local assembly = library:getFile(assemblyRef)
+		if assembly == nil then
+			return nil, `Assembly file not found: {assemblyRef}`
+		end
+		for _, ref in assembly.subfiles do
+			table.insert(segmentRefs, { fileName = ref.fileName, transform = ref.transform })
+		end
+		description = assembly.description
 	end
 
 	local jointCFrames: { CFrame } = {}
@@ -50,7 +66,7 @@ local function importComposite(
 
 	local model = Instance.new("Model")
 	local segmentIndex = 0
-	for _, ref in assembly.subfiles do
+	for _, ref in segmentRefs do
 		local segment, errorMessage = importPart(library, ref.fileName, model)
 		if segment == nil then
 			model:Destroy()
@@ -86,8 +102,8 @@ local function importComposite(
 		return nil, `{assemblyRef} has no segments`
 	end
 
-	local partNumber = (assemblyRef:gsub("%.dat$", ""))
-	model.Name = cleanDescription(assembly.description) or partNumber
+	local partNumber = composite.partNumber or (assemblyRef:gsub("%.dat$", ""))
+	model.Name = cleanDescription(description) or partNumber
 	model:SetAttribute("LDrawFile", assemblyRef)
 	model:SetAttribute("PartNumber", partNumber)
 	model:SetAttribute("JointType", composite.joints[1].type)
