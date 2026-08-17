@@ -99,6 +99,7 @@ local function importPart(
 	local partNumber = (partRef:gsub("%.dat$", ""))
 	part.Name = cleanDescription(file.description) or partNumber
 	part.Anchored = true
+	part.Material = Enum.Material.SmoothPlastic
 	part:SetAttribute("LDrawFile", partRef)
 	part:SetAttribute("PartNumber", partNumber)
 	-- Pivot offset from the LDraw origin (see buildEditableMesh): needed to

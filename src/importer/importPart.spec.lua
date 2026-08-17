@@ -24,6 +24,7 @@ return function(t: TestTypes.TestContext)
 		local meshPart = part :: MeshPart
 
 		t.expect(meshPart.Size).toBeCloseTo(Vector3.new(4, 1.4, 2), 0.01)
+		t.expect(meshPart.Material).toBe(Enum.Material.SmoothPlastic)
 		-- Named from the description (whitespace collapsed); id in attributes.
 		t.expect(meshPart.Name).toBe("Brick 2 x 4")
 		t.expect(meshPart:GetAttribute("PartNumber")).toBe("3001")
