@@ -40,7 +40,6 @@ descriptions (`head -1 p/<name>.dat`) before extending the table:
 | Round 1x1 underside pockets | 4073, 3062 | Pocket walls are cylinders, not box5/box4t cavity boxes |
 | Classic towball socket | 3183 (plate 1x4 w/ socket) | Socket is two flexible rect walls, no keyable primitive or sphere |
 | Hand-built towballs | 30082, 30396, 30395 | Ball/socket modeled from raw quads, no sphere primitives |
-| Technic bush | 3713 | Axle hole built from raw chords/rects, no `axlehole` primitive |
 | Horizontal clips | 4623 (plate 1x1 w/ horiz. clip), 48729 | `clip3`-`clip16` have per-primitive orientations; needs per-name table entries |
 | Bar-into-hollow-stud | 3957 antenna into 4070 etc. | Hollow studs (`stud2*`) accept bars; needs a female "HollowStud" facet on stud2 |
 | Minifig neck/head | 973 (torso), 3626 (head) | Neck post/head socket are bespoke geometry, no primitives |
