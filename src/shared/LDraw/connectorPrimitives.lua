@@ -321,6 +321,30 @@ connectorPrimitives.partOverrides = {
 	["3613.dat"] = {
 		{ type = "TowballSocket", position = Vector3.new(0, 0, -14), direction = Vector3.new(0, 0, -1) },
 	},
+	-- Classic Container Drawers 4x4x4 (part 2) + Drawer 4x4x2 (part 3):
+	-- two stacked slots, drawer slides on Z and locks flush.
+	["3.dat"] = {
+		{
+			type = "SlideRail",
+			position = Vector3.new(0, 20, 0),
+			direction = Vector3.new(0, 0, 1),
+			length = 72,
+		},
+	},
+	["2.dat"] = {
+		{
+			type = "SlideGroove",
+			position = Vector3.new(0, 28, 0),
+			direction = Vector3.new(0, 0, 1),
+			length = 72,
+		},
+		{
+			type = "SlideGroove",
+			position = Vector3.new(0, 68, 0),
+			direction = Vector3.new(0, 0, 1),
+			length = 72,
+		},
+	},
 	-- Container Cupboard 2x3x2 drawer slide: the drawer tray rides the
 	-- cupboard cavity along Z; equal lengths lock at the closed
 	-- position. (SlideRail/SlideGroove is the generic sliding class —

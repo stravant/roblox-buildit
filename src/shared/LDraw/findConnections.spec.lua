@@ -608,6 +608,13 @@ return function(t: TestTypes.TestContext)
 		t.expect(countByType(tall).HingeSocket).toBe(2)
 	end)
 
+	t.test("container drawers (2/3): two slots, one rail", function()
+		local cabinet = findConnections(library, "2.dat") :: any
+		t.expect(countByType(cabinet).SlideGroove).toBe(2)
+		local drawer = findConnections(library, "3.dat") :: any
+		t.expect(countByType(drawer).SlideRail).toBe(1)
+	end)
+
 	t.test("cupboard drawer slide (4532/4536)", function()
 		local cupboard = findConnections(library, "4532.dat") :: any
 		t.expect(countByType(cupboard).SlideGroove).toBe(1)

@@ -136,4 +136,6 @@ return {
 	"4000", -- Ladder 4x15.6: semi-circular pivot bar
 	"841", -- Homemaker Stove: oven door hinge grip
 	"843", -- Homemaker Stove Door: fold-down rod
+	"2", -- Container Drawers 4x4x4: two slots
+	"3", -- Container Drawer 4x4x2: slide rail
 }
