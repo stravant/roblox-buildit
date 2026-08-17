@@ -53,6 +53,8 @@ local kStudColor = Color3.fromRGB(90, 220, 90)
 local kSocketColor = Color3.fromRGB(80, 170, 255)
 -- Axial connectors (pegholes, axles, bars, clips...).
 local kAxialColor = Color3.fromRGB(255, 140, 60)
+-- Ball joints (towballs and their sockets).
+local kBallColor = Color3.fromRGB(220, 90, 220)
 local kMatchedColor = Color3.fromRGB(255, 220, 40)
 
 local function baseMarkerColor(kind: string): Color3
@@ -60,6 +62,8 @@ local function baseMarkerColor(kind: string): Color3
 		return kStudColor
 	elseif kind == "Socket" then
 		return kSocketColor
+	elseif kind == "Towball" or kind == "TowballSocket" then
+		return kBallColor
 	else
 		return kAxialColor
 	end

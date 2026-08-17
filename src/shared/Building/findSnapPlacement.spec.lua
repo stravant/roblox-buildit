@@ -257,6 +257,37 @@ return function(t: TestTypes.TestContext)
 		t.expect(#snap.matchedPairs).toBe(1)
 	end)
 
+	t.test("towball mates a socket at any rotation", function()
+		local world = {
+			{ kind = "TowballSocket", position = Vector3.new(2, 3, 1), direction = Vector3.new(0, 0, 1) },
+		}
+		local ball = {
+			{ kind = "Towball", position = Vector3.new(0.5, 0, 0), direction = Vector3.new(0, 1, 0) },
+		}
+		-- Arbitrary rotation: ball joints ignore direction entirely.
+		local rotation = CFrame.Angles(0.3, 1.1, 0.7)
+		local ghost = rotation + Vector3.new(1.8, 2.9, 0.9)
+		local snap = findSnapPlacement(ghost, ball :: any, world :: any, kMaxSnap) :: any
+		t.expect(snap).toBeTruthy()
+		t.expect(snap.cframe:PointToWorldSpace(Vector3.new(0.5, 0, 0))).toBeCloseTo(Vector3.new(2, 3, 1))
+		t.expect(#snap.matchedPairs).toBe(1)
+	end)
+
+	t.test("point mates outrank ball mates", function()
+		local world = {
+			{ kind = "Socket", position = Vector3.new(0, 5, 0), direction = Vector3.new(0, -1, 0) },
+			{ kind = "TowballSocket", position = Vector3.new(1.1, 4.5, 0), direction = Vector3.new(0, 1, 0) },
+		}
+		local drag = {
+			{ kind = "Stud", position = Vector3.new(0, 0.5, 0), direction = Vector3.new(0, 1, 0) },
+			{ kind = "Towball", position = Vector3.new(1, 0, 0), direction = Vector3.new(0, 1, 0) },
+		}
+		-- The ball target is closer, but the stud's 0-DOF lock wins.
+		local snap = findSnapPlacement(CFrame.new(0.3, 4.4, 0), drag :: any, world :: any, kMaxSnap) :: any
+		t.expect(snap).toBeTruthy()
+		t.expect(snap.cframe.Position).toBeCloseTo(Vector3.new(0, 4.5, 0))
+	end)
+
 	t.test("axial axes must be parallel", function()
 		local world = {
 			{ kind = "AxleHole", position = Vector3.new(0, 5, 0), direction = Vector3.new(1, 0, 0), length = 1 },

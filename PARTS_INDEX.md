@@ -27,12 +27,16 @@ descriptions (`head -1 p/<name>.dat`) before extending the table:
 | Bar / rod | 30374 (bar 4L), 3957 (antenna shaft) | none — geometric: `4-4cyli`/`4-4cylc` at radius 4, length >= 8 | Bar (axis + length) |
 | Clip (vertical) | 4085c (plate 1x1 w/ clip), 2555 (tile w/ clip) | `clip1.dat`, `clip2.dat` (grip center ~8 LDU out along local -Z from the mount origin) | Clip (grips a Bar along local Y) |
 | 1x1 underside pockets | 3005, 3024, 4085c | `box5.dat`/`box4t.dat` cavity boxes at stud-pocket size (half-extents 5.5-10.5 LDU; larger placements are wall shells and ignored) | Socket via Pocket |
+| Towball | 3184 (plate 1x4 w/ ball), 2736 (axle towball), 2508 | geometric: `N-Msphe` sphere sections at uniform radius 8, ball center = placement origin (also catches `joint8ball` via recursion) | Towball (position-only mate, rotation free) |
+| Ball socket (joint-8) | 14418, 14704 (plates w/ socket) | `joint8socket1/2/3.dat`, gripped ball center = primitive origin (verified by sphere-fitting the cup: 440/606 verts at r 7-9) | TowballSocket |
 
 ## Known gaps (not yet handled)
 
 | Category | Representative parts | Why |
 |---|---|---|
 | Round 1x1 underside pockets | 4073, 3062 | Pocket walls are cylinders, not box5/box4t cavity boxes |
+| Classic towball socket | 3183 (plate 1x4 w/ socket) | Socket is two flexible rect walls, no keyable primitive or sphere |
+| Hand-built towballs | 30082, 30396, 30395 | Ball/socket modeled from raw quads, no sphere primitives |
 | Technic bush | 3713 | Axle hole built from raw chords/rects, no `axlehole` primitive |
 | Horizontal clips | 4623 (plate 1x1 w/ horiz. clip), 48729 | `clip3`-`clip16` have per-primitive orientations; needs per-name table entries |
 | Bar-into-hollow-stud | 3957 antenna into 4070 etc. | Hollow studs (`stud2*`) accept bars; needs a female "HollowStud" facet on stud2 |

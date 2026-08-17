@@ -15,13 +15,15 @@
 -- closer; an axial mate whose lengths match (pin clicked into a peghole)
 -- locks fully and counts as 0 DOF too.
 --
--- Two mating rules:
+-- Three mating rules:
 --   Point (Stud <-> Socket): positions coincide, directions anti-parallel.
 --   Axial (TechnicPin <-> PegHole, Axle <-> AxleHole, Bar <-> Clip): axes
 --     parallel (either sign), centers on the same line, with the dragged
 --     element free to slide along the axis by up to half the length
 --     difference (a 2-long axle in a 1-long hole slides +-0.5; equal
 --     lengths lock centered, which is how pins click in).
+--   Ball (Towball <-> TowballSocket): centers coincide, NO direction
+--     constraint — ball joints mate at any rotation.
 --
 -- The candidate placement keeps the ghost's rotation: only translation is
 -- solved, so the caller controls orientation (e.g. yaw stepping with R).
@@ -67,11 +69,13 @@ local kAxialPartners: { [string]: { [string]: boolean } } = {
 	BarHole = { Bar = true },
 }
 
-type MateRule = "point" | "axial"
+type MateRule = "point" | "axial" | "ball"
 
 local function mateRule(a: string, b: string): MateRule?
 	if (a == "Stud" and b == "Socket") or (a == "Socket" and b == "Stud") then
 		return "point"
+	elseif (a == "Towball" and b == "TowballSocket") or (a == "TowballSocket" and b == "Towball") then
+		return "ball"
 	end
 	local partners = kAxialPartners[a]
 	if partners ~= nil and partners[b] then
@@ -122,6 +126,12 @@ local function findSnapPlacement(
 				end
 				targetPosition = world.position
 				degreesOfFreedom = 0
+			elseif rule == "ball" then
+				-- Rotation-free: translationally locked, but rank between
+				-- point locks and axial slides (it constrains orientation
+				-- less than a stud).
+				targetPosition = world.position
+				degreesOfFreedom = 0.5
 			else -- axial
 				if math.abs(dragDirection:Dot(world.direction)) < kAxisDotMin then
 					continue
@@ -180,6 +190,8 @@ local function findSnapPlacement(
 			if rule == "point" then
 				mated = (dragPosition - world.position).Magnitude <= kMatedEpsilon
 					and dragDirection:Dot(world.direction) <= kDirectionDotMax
+			elseif rule == "ball" then
+				mated = (dragPosition - world.position).Magnitude <= kMatedEpsilon
 			elseif rule == "axial" then
 				if math.abs(dragDirection:Dot(world.direction)) >= kAxisDotMin then
 					if world.oneSided or drag.oneSided then

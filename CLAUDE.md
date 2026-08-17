@@ -102,8 +102,9 @@ instances).
   on the axis, sliding along it by up to half the length difference
   (equal lengths lock centered — how pins click in). OneSided female
   bores (hollow studs) use an asymmetric interval instead: bottomed-out
-  flush to half-engaged. Candidates are ranked by remaining degrees of
-  freedom first (point/locked-axial = 0 beats sliding axial = 1),
+  flush to half-engaged. Ball rule (Towball<->TowballSocket): centers
+  coincide, rotation free. Candidates are ranked by remaining degrees of
+  freedom first (point/locked-axial = 0, ball = 0.5, sliding axial = 1),
   translation distance as tiebreaker.
 - `PartPalette.lua` — panel UI listing PartLibrary templates with
   ViewportFrame thumbnails.
