@@ -102,13 +102,22 @@ return function(t: TestTypes.TestContext)
 			world = "25059.dat",
 			expected = Vector3.new(170, 0, 0),
 		},
+		{
+			-- Sliding mate: start with no offset along the bar axis
+			-- (the solver correctly preserves along-axis position).
+			name = "hinge hook arm latches over the base bar",
+			drag = "2651.dat",
+			world = "2650.dat",
+			expected = Vector3.new(-8.8, 8, 0),
+			startOffset = Vector3.new(3, -2, 0),
+		},
 	}
 
 	for _, case in kCases do
 		t.test(case.name, function()
 			local world = toConnectors(findConnections(library, case.world) :: any)
 			local drag = toConnectors(findConnections(library, case.drag) :: any)
-			local start = CFrame.new(case.expected + Vector3.new(3, -2, 1))
+			local start = CFrame.new(case.expected + ((case :: any).startOffset or Vector3.new(3, -2, 1)))
 			local snap = findSnapPlacement(start, drag :: any, world :: any, 10) :: any
 			t.expect(snap).toBeTruthy()
 			local position = snap.cframe.Position

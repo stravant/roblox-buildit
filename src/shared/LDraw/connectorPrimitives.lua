@@ -589,6 +589,24 @@ connectorPrimitives.partOverrides = {
 			length = 10.5,
 		},
 	},
+	-- Hinge hook (crane latch): base 2650 carries an r4 bar; arm
+	-- 2651's hook is a C-jaw that latches over it — plain Bar/Clip.
+	["2650.dat"] = {
+		{
+			type = "Bar",
+			position = Vector3.new(0, 0, 0),
+			direction = Vector3.new(0, 0, 1),
+			length = 20,
+		},
+	},
+	["2651.dat"] = {
+		{
+			type = "Clip",
+			position = Vector3.new(8.8, -8, 0),
+			direction = Vector3.new(0, 0, 1),
+			length = 8,
+		},
+	},
 	-- Ladder 4x15.6 with Semi-Circular Pivot: the pivot is an r4 bar
 	-- along Z at the origin.
 	["4000.dat"] = {
