@@ -579,7 +579,7 @@ connectorPrimitives.partOverrides = {
 	["843.dat"] = {
 		{
 			type = "HingePin",
-			position = Vector3.new(0, 57.8, -42),
+			position = Vector3.new(0, 57.5, -42),
 			direction = Vector3.new(1, 0, 0),
 			length = 71,
 		},
