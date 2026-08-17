@@ -61,6 +61,8 @@ local kTestSet = {
 	"3820", -- Minifig hand: bar grip
 	"3815", -- Minifig hips+legs (imports the 3815c01 two-joint composite)
 	"3624", -- Minifig police hat: tube grips the head stud
+	"3730", -- Plate 2x2 with towball socket (tow hitch)
+	"3779", -- Plate 2x4 with towball socket on top
 }
 local kBackgroundColor = Color3.fromRGB(46, 46, 46)
 local kTextColor = Color3.fromRGB(220, 220, 220)
