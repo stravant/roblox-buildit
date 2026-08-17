@@ -149,6 +149,7 @@ add({ "bump5000" }, { type = "HingePin", geometry = "span", axis = "Y", spanMin 
 -- the placement origin — minidolls stand on adjacent studs. axisY
 -- puts the socket direction at local +Y (down).
 add({ "1023035s04" }, { type = "Pocket", geometry = "axisY" })
+add({ "25727s03" }, { type = "Pocket", geometry = "axisY" }) -- thick-hinge legs' foot underside
 
 -- Figure Friends legs hinge: the shared "Legs Thin Hinge" subpart
 -- (raw-geometry knuckle barrel, r2.5 along X at (0, -46.4, 2.7)) is

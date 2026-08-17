@@ -630,6 +630,10 @@ return function(t: TestTypes.TestContext)
 		local legsSockets = deriveSockets(legs, legsMesh)
 		t.expect(hasSocketAt(legsSockets, Vector3.new(10, 0, 0))).toBe(true)
 		t.expect(hasSocketAt(legsSockets, Vector3.new(-10, 0, 0))).toBe(true)
+
+		-- Thick-hinge legs share a different foot subpart, same pitch.
+		local thick = findConnections(library, "25727.dat") :: any
+		t.expect(countByType(thick).Pocket).toBe(2)
 	end)
 
 	t.test("tile with clip (2555): clip override, no phantom bar hole", function()
