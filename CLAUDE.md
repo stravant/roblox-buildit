@@ -196,6 +196,28 @@ build tool (mounted only by default.project.json, never the test plugin).
   the same PartNumber) plus a selected copy in workspace in front of the
   camera.
 
+### Connector taxonomy
+
+~30 connection types across five mate rules (see PARTS_INDEX.md for the
+part-by-part table, findSnapPlacement.lua for the rules):
+
+- point (coincide + anti-parallel): Stud<->Socket, Magnet, TrackEnd,
+  CoasterEnd, MonoEnd, MonoRampJoint (each rail system self-mates only
+  with itself — incompatible systems never cross-snap).
+- axial (parallel axes, slide by half the length difference; equal
+  lengths lock): TechnicPin/PegHole, Axle/AxleHole, Bar vs
+  Clip/HollowStud/BarHole/AxleHole, WheelPin/WheelHole(+BarHole),
+  SlipAxle/SlipRing, HingePin/HingeSocket, HingeFinger, ClickFinger/
+  ClickFork, ArmFinger, MinidollHinge, SlideRail/SlideGroove,
+  TyreBore/RimSeat (also gated by a mating radius within 0.15 studs).
+- ball: Towball<->TowballSocket. mouth: Stud<->PegHole.
+- Composites (compositeParts.lua) carry articulation joints instead:
+  hinge plates, turntables, minifig torso/hips assemblies.
+
+Snap-level assembly of curated pairs is verified end to end by
+src/shared/Building/snapPairs.spec.lua — add a row there when curating
+a new pair.
+
 ### Known v1 limitations
 
 - Studs are classified by name prefix; exotic stud primitives (Technic,

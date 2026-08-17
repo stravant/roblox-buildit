@@ -55,15 +55,43 @@ descriptions (`head -1 p/<name>.dat`) before extending the table:
 | Horizontal clips | 4623 (plate 1x1 w/ horiz. clip), 48729 | `clip3`-`clip16` have per-primitive orientations; needs per-name table entries |
 | Bar-into-hollow-stud | 3957 antenna into 4070 etc. | Hollow studs (`stud2*`) accept bars; needs a female "HollowStud" facet on stud2 |
 | Minifig neck/head | 973 (torso), 3626 (head) | Neck post/head socket are bespoke geometry, no primitives |
-| Minifig hands/arms | 983/3820 (hand), 981/982 (arms) | Hand grip is a C-shape of raw geometry (functionally a Clip); wrist/arm sockets bespoke |
-| Minifig hips/legs | 970, 971/972 | Bespoke geometry |
-| Hinges, turntables, ball joints | 3937/3938, 3679/3680, towballs | Paired special geometry, no shared connector primitives |
-| Wheels/tyres | 4624 + 3641 | Rim/tyre interface is its own system |
+| Minifig hands/arms | 983/3820 (hand), 973c01 (torso+arms composite) | Hand grip C-shape reads as BarHole; shoulders/wrists are composite joints | BarHole / Composite |
+| Minifig hips/legs | 3815c01 composite (3815+3816+3817) | Bespoke geometry; per-leg hinge joints in the composite | Composite |
+| Minifig headgear | 3624, 3833, hair family | `stud4*` grip tube recessed in the brim; "Minifig" parts are exempt from the anti-stud boundary rule | Tube (socket via center grip) |
+| Hinge plates/bars (finger rows) | 4275a/4276a, 2433, 2923 | `h1.dat` (2 fingers) / `h2.dat` (3 fingers): pivot along local Z through (0,10,0); self-mates | HingeFinger |
+| Hand-built finger rows | 2440 radar, 3314/3433/2347 excavator, 2348/2349 sunroof | Curated 40-72 LDU rows (partOverrides) | HingeFinger |
+| Click-lock hinges | 30364/30365, 44301/44302, 30633 canopy | `clh1/2/3/6/6d/6u/8/9/12/13` single fingers vs `clh4/5/7/10/11/14` fork halves (coincident pairs merge); axis local Z | ClickFinger <-> ClickFork |
+| Arm-scale fingers (grab jaws) | 412/3612, 4220 family, 795/4221 curated | `arm1/arm2/arm3` rows, axis local Y at (0,0,-10) | ArmFinger (self-mates) |
+| Classic pin hinges (doors/windows/shutters) | 671+670, 3644+30179, 2657+2656, 3853+3856, 838+837, 4533/4535+4532/4534, 841+843 stove | `bump5000` nubs auto-detect (span -0.5..0 local Y); `42205s01`/`2656s01` hole subparts keyed; rods/bores curated per part | HingePin <-> HingeSocket |
+| Roadsigns | 745/746 base + 3350 sign | r2 neck/clamp (curated); signs stack on their own r2 posts | HingePin <-> HingeSocket |
+| Turntables / swivels | 3403c01, 30516c01, 73983 (2429+2430), 2855c virtual | Composite assemblies with vertical Hinge joints | Composite |
+| Ball joints | 3183a family, 2736 towball, joint8 sockets | r8 spheres / inverted r8 cup cylinders / `joint8socket*` | Towball <-> TowballSocket |
+| Transmission slip | 6538a + 6539 | Curated (partOverrides) | SlipAxle <-> SlipRing |
+| Tyres and rims | 3641+4624, 11209+11208, aliases | Description-keyed ("Wheel Rim W x D" / "Tyre S/ O x D", trailing number = fit diameter in mm, axis Z at origin); connections carry a mating radius the solver gates on | TyreBore <-> RimSeat |
+| Wheel pins | 4870, 2926, 21445 + 30027 rims | `wpin*` shafts (local -Y, ~12 LDU) vs `wpinhole`/`wpinhol2` bores; old hand-built rim bores read BarHole, which WheelPin also mates | WheelPin <-> WheelHole/BarHole |
+| Magnets | 2607/2609/30159 holder combos | Casing `2959b.dat` pole faces at z=+-8.5 (all combos nest through 2959bc01) | Magnet (self-mates, point rule) |
+| Drawers / slides | 2+3, 4532+4536, 850/851a/852, 420/421 | Curated rail/groove lines along the slide axis; equal lengths lock at the closed/nested position | SlideRail <-> SlideGroove |
+| Train track | 74746/74747 (9V), 53401/53400 (RC), 2861/2859 switches, 32087 crossing | Curated TrackEnds (centerline, outward); curves are 22.5 deg of R=800 | TrackEnd (self-mates, point rule) |
+| Roller coaster track | 25059/26022/25061, ramps 26559/26560/26561 | Curated ends; clip pins sit 10 LDU inside each abutment plane (ring-search calibrated) | CoasterEnd (self-mates) |
+| Monorail track | 2670/2671/2672, ramps 2677+2678 | Curated ends (genderless); ramp halves lap-join via vertical pegs | MonoEnd / MonoRampJoint |
+| Friends minidolls | 92198 head, 1006030 torso, 1015152 hips, legs variants | Neck/hips are r4 bar-standard (auto); legs hinge subpart `1023035s02` keyed (axis X knuckle); foot subparts `1023035s04`/`25727s03` keyed as Pockets (stud pitch) | Bar/BarHole + MinidollHinge + Pocket |
+| Ladders | 15118/11299/4207a rungs, 850-852/420/421 slides, 4000 pivot | Rungs are r4 bars (curated rows); sections slide; pivot is a bar | Bar / SlideRail+Groove |
+| Hinge hook (crane latch) | 2650 + 2651 | r4 bar on the base, C-jaw clip on the arm | Bar <-> Clip |
+
+## Audit status
+
+Three disjoint 1000-part audit samples (sets/audit_parts*.txt) show no
+remaining undetected connection systems. Partner-less parts (mate never
+made as an LDraw part): 2874 sliding door, 4318 boat mast, 27448 flat
+turntable base. See AUDIT.md for the full history.
 
 ## Useful survey commands
 
 ```bash
+# Fast lookups: grep part_index.tsv (see CLAUDE.md), regenerate with
+#   python scripts/build_part_index.py
 # What is a primitive?          head -1 p/<name>.dat
-# What does a part reference?   grep -E "^1" parts/<num>.dat
-# Which parts use a primitive?  grep -lE "^1 .*<name>\.dat" parts/*.dat | head
+# What does a part reference?   python scripts/probe_part.py <num> [filter]
+# Raw-geometry parts:           python scripts/flatten_verts.py <num> --rings <axis> <r>
+# Which parts use a primitive?  grep <name>.dat part_index.tsv
 ```
