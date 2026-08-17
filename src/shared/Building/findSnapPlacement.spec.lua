@@ -346,6 +346,32 @@ return function(t: TestTypes.TestContext)
 		t.expect(rejected).toBeFalsy()
 	end)
 
+	t.test("bar rotates into a tilted grip (alignment cone)", function()
+		local tilted = Vector3.new(0, 0.707, 0.707).Unit
+		local world = {
+			{ kind = "Clip", position = Vector3.new(0, 5, 0), direction = tilted, length = 0.4 },
+		}
+		local bar = {
+			{ kind = "Bar", position = Vector3.zero, direction = Vector3.new(0, 1, 0), length = 4 },
+		}
+		local snap = findSnapPlacement(CFrame.new(0.1, 5.2, 0), bar :: any, world :: any, kMaxSnap) :: any
+		t.expect(snap).toBeTruthy()
+		-- The whole bar rotated so its axis matches the 45-degree grip.
+		local alignedDirection = snap.cframe:VectorToWorldSpace(Vector3.new(0, 1, 0))
+		t.expect(math.abs(alignedDirection:Dot(tilted))).toBeCloseTo(1, 0.001)
+		t.expect(#snap.matchedPairs).toBe(1)
+	end)
+
+	t.test("alignment respects the 60 degree cone (perpendicular rejects)", function()
+		local world = {
+			{ kind = "Clip", position = Vector3.new(0, 5, 0), direction = Vector3.new(1, 0, 0), length = 0.4 },
+		}
+		local bar = {
+			{ kind = "Bar", position = Vector3.zero, direction = Vector3.new(0, 1, 0), length = 4 },
+		}
+		t.expect(findSnapPlacement(CFrame.new(0.1, 5.2, 0), bar :: any, world :: any, kMaxSnap)).toBeFalsy()
+	end)
+
 	t.test("axial axes must be parallel", function()
 		local world = {
 			{ kind = "AxleHole", position = Vector3.new(0, 5, 0), direction = Vector3.new(1, 0, 0), length = 1 },

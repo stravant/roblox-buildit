@@ -112,9 +112,18 @@ instances).
   (equal lengths lock centered — how pins click in). OneSided female
   bores (hollow studs) use an asymmetric interval instead: bottomed-out
   flush to half-engaged. Ball rule (Towball<->TowballSocket): centers
-  coincide, rotation free. Candidates are ranked by remaining degrees of
-  freedom first (point/locked-axial = 0, ball = 0.5, sliding axial = 1),
-  translation distance as tiebreaker.
+  coincide, rotation free. Mouth rule (Stud<->PegHole): stud locks into
+  the nearer hole mouth pointing inward. Candidates misaligned by up to
+  60 degrees get a shortest-arc ALIGNMENT ROTATION of the whole dragged
+  unit (bar into a minifig hand's tilted grip); beyond the cone they
+  reject. Ranked by remaining degrees of freedom first (point/locked-
+  axial = 0, ball = 0.5, sliding axial = 1), then score (distance +
+  rotation penalty + grab bias).
+- `RotateController.lua` — Edit-mode Rotate tool (plugin "Rotate"
+  toolbar button): click-hold a composite segment, drag to swing it
+  about its joint (the JointPivot where the segment is the CHILD; the
+  downstream subtree via JointRole follows — rotating an arm carries
+  the hand). Release commits one undo recording, RMB/Esc cancels.
 - `PartPalette.lua` — panel UI listing PartLibrary templates with
   ViewportFrame thumbnails.
 - `BuildController.lua` — drag/ghost/marker/placement controller. Drag out

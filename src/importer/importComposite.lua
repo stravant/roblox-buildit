@@ -65,14 +65,19 @@ local function importComposite(
 		segment:SetAttribute("JointSegment", segmentIndex)
 
 		for jointIndex, joint in composite.joints do
-			if joint.segments ~= nil and table.find(joint.segments :: { number }, segmentIndex) == nil then
+			local segmentList = joint.segments
+			if segmentList ~= nil and table.find(segmentList :: { number }, segmentIndex) == nil then
 				continue
 			end
+			-- The first listed segment is the joint's PARENT (stays put
+			-- when the joint articulates); the rest are children.
+			local parentSegment = if segmentList ~= nil then (segmentList :: { number })[1] else 1
 			local pivot = Instance.new("Attachment")
 			pivot.Name = if #composite.joints == 1 then "JointPivot" else `JointPivot{jointIndex}`
 			pivot.CFrame = segment.CFrame:ToObjectSpace(jointCFrames[jointIndex])
 			pivot:SetAttribute("JointType", joint.type)
 			pivot:SetAttribute("JointIndex", jointIndex)
+			pivot:SetAttribute("JointRole", if segmentIndex == parentSegment then "parent" else "child")
 			pivot.Parent = segment
 		end
 	end

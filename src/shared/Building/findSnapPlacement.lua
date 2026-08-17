@@ -29,8 +29,12 @@
 --     stud-in-technic-hole technique). The stud locks to the nearer
 --     mouth, pointing into the hole.
 --
--- The candidate placement keeps the ghost's rotation: only translation is
--- solved, so the caller controls orientation (e.g. yaw stepping with R).
+-- Candidates whose mating axes are misaligned by up to 60 degrees get a
+-- shortest-arc ALIGNMENT ROTATION applied to the whole dragged unit (a
+-- bar rotates into a minifig hand's tilted grip; a stud onto a tilted
+-- socket). Beyond the cone the candidate is rejected, so perpendicular
+-- and upside-down mates never engage. The user's R/T orientation is the
+-- starting point the alignment adjusts from.
 --
 -- `grabPosition` (optional, world): where the user grabbed the dragged
 -- unit. Candidates additionally prefer mating connectors near the grab
@@ -116,6 +120,32 @@ end
 -- closer snap still wins.
 local kGrabBiasWeight = 0.3
 
+-- Alignment rotation: candidates misaligned by up to this get rotated
+-- into place (minifig hand grips sit at ~46 degrees); beyond it they
+-- reject, so perpendicular/upside-down mates never engage.
+local kMaxAlignmentAngle = math.rad(60)
+-- Score penalty per radian of alignment, so an already-aligned candidate
+-- beats a rotated one at similar distance.
+local kRotationPenaltyWeight = 0.5
+
+-- Shortest-arc rotation taking unit vector `from` onto `to`, or nil if
+-- outside the alignment cone.
+local function shortestArc(from: Vector3, to: Vector3): (CFrame?, number)
+	local dot = math.clamp(from:Dot(to), -1, 1)
+	local angle = math.acos(dot)
+	if angle < 1e-4 then
+		return CFrame.identity, 0
+	end
+	if angle > kMaxAlignmentAngle then
+		return nil, angle
+	end
+	local axis = from:Cross(to)
+	if axis.Magnitude < 1e-6 then
+		return nil, angle
+	end
+	return CFrame.fromAxisAngle(axis.Unit, angle), angle
+end
+
 -- One-sided (blind bore) mating interval: position of the male element's
 -- center along the female's OPEN direction, from bottomed-out flush at the
 -- bore floor (sMin) to half-engaged in the bore (sMax).
@@ -142,38 +172,57 @@ local function findSnapPlacement(
 			if rule == nil then
 				continue
 			end
-			local dragDirection = rotation:VectorToWorldSpace(drag.direction)
-			local dragPosition = ghostCFrame:PointToWorldSpace(drag.position)
+			local baseDirection = rotation:VectorToWorldSpace(drag.direction)
+			local basePosition = ghostCFrame:PointToWorldSpace(drag.position)
+
+			-- Desired world direction for the drag connector; alignment
+			-- rotates the whole unit to it when within the cone.
+			local desired: Vector3? = nil
+			if rule == "point" then
+				desired = -world.direction
+			elseif rule == "ball" then
+				desired = nil -- rotation-free
+			elseif rule == "mouth" and drag.kind == "Stud" then
+				local mouthA, mouthB = holeMouths(world.position, world.direction, world.length)
+				local mouth = if (basePosition - mouthA).Magnitude <= (basePosition - mouthB).Magnitude
+					then mouthA
+					else mouthB
+				local into = world.position - mouth
+				desired = if into.Magnitude > 1e-4 then into.Unit else -world.direction
+			else -- axial, or mouth with the hole dragged
+				desired = if baseDirection:Dot(world.direction) >= 0
+					then world.direction
+					else -world.direction
+			end
+
+			local alignment: CFrame? = CFrame.identity
+			local alignmentAngle = 0
+			if desired ~= nil then
+				alignment, alignmentAngle = shortestArc(baseDirection.Unit, desired)
+				if alignment == nil then
+					continue
+				end
+			end
+			local candidateRotation = (alignment :: CFrame) * rotation
+			local dragDirection = candidateRotation:VectorToWorldSpace(drag.direction)
+			local dragPosition = ghostCFrame.Position + candidateRotation:VectorToWorldSpace(drag.position)
 
 			local targetPosition: Vector3
 			local degreesOfFreedom: number
 			if rule == "point" then
-				if dragDirection:Dot(world.direction) > kDirectionDotMax then
-					continue
-				end
 				targetPosition = world.position
 				degreesOfFreedom = 0
 			elseif rule == "ball" then
 				-- Rotation-free: translationally locked, but rank between
-				-- point locks and axial slides (it constrains orientation
-				-- less than a stud).
+				-- point locks and axial slides.
 				targetPosition = world.position
 				degreesOfFreedom = 0.5
 			elseif rule == "mouth" then
-				if math.abs(dragDirection:Dot(world.direction)) < kAxisDotMin then
-					continue
-				end
 				if drag.kind == "Stud" then
-					-- Stud locks to the nearer mouth, pointing into the hole.
 					local mouthA, mouthB = holeMouths(world.position, world.direction, world.length)
-					local mouth = if (dragPosition - mouthA).Magnitude <= (dragPosition - mouthB).Magnitude
+					targetPosition = if (basePosition - mouthA).Magnitude <= (basePosition - mouthB).Magnitude
 						then mouthA
 						else mouthB
-					local into = world.position - mouth
-					if into.Magnitude > 1e-4 and dragDirection:Dot(into.Unit) < 0.9 then
-						continue
-					end
-					targetPosition = mouth
 				else
 					-- Dragging the hole onto a fixed stud: a mouth lands on
 					-- the stud, hole center half a length along the stud.
@@ -181,9 +230,6 @@ local function findSnapPlacement(
 				end
 				degreesOfFreedom = 0
 			else -- axial
-				if math.abs(dragDirection:Dot(world.direction)) < kAxisDotMin then
-					continue
-				end
 				if world.oneSided or drag.oneSided then
 					local femaleIsWorld = world.oneSided == true
 					local femaleDirection = if femaleIsWorld then world.direction else dragDirection
@@ -207,13 +253,15 @@ local function findSnapPlacement(
 				end
 			end
 
-			local distance = (dragPosition - targetPosition).Magnitude
+			-- Cursor-proximity metric: how far the connector sits from the
+			-- target BEFORE any alignment rotation.
+			local distance = (basePosition - targetPosition).Magnitude
 			if distance > maxSnapDistance then
 				continue
 			end
-			local score = distance
+			local score = distance + kRotationPenaltyWeight * alignmentAngle
 			if grabPosition ~= nil then
-				score += kGrabBiasWeight * (dragPosition - grabPosition).Magnitude
+				score += kGrabBiasWeight * (basePosition - grabPosition).Magnitude
 			end
 			if
 				degreesOfFreedom < bestDegreesOfFreedom
@@ -221,7 +269,7 @@ local function findSnapPlacement(
 			then
 				bestDegreesOfFreedom = degreesOfFreedom
 				bestDistance = score
-				bestCFrame = rotation
+				bestCFrame = candidateRotation
 					+ (ghostCFrame.Position + targetPosition - dragPosition)
 			end
 		end

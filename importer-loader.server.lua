@@ -127,12 +127,48 @@ local function ensureBuildPalette()
 	end)
 end
 
+--------------------------------------------------------------------------------
+-- Rotate tool (click-drag a composite segment to hinge it)
+--------------------------------------------------------------------------------
+
+local rotateButton = toolbar:CreateButton(
+	"BuildItRotate",
+	"Click and hold a composite part's segment, drag to rotate its joint",
+	"",
+	"Rotate"
+)
+
+type RotateControllerHandle = { stop: () -> () }
+local mRotateController: RotateControllerHandle? = nil
+
+local function stopRotateTool()
+	if mRotateController ~= nil then
+		(mRotateController :: RotateControllerHandle).stop()
+		mRotateController = nil
+	end
+	rotateButton:SetActive(false)
+end
+
+rotateButton.Click:Connect(function()
+	if mRotateController ~= nil then
+		stopRotateTool()
+		plugin:Deactivate()
+		return
+	end
+	stopBuildTool()
+	plugin:Activate(true)
+	rotateButton:SetActive(true)
+	local RotateController = require(script.Parent.Src.shared.Building.RotateController)
+	mRotateController = RotateController.start({ plugin = plugin })
+end)
+
 buildButton.Click:Connect(function()
 	if mBuildController ~= nil then
 		stopBuildTool()
 		plugin:Deactivate()
 		return
 	end
+	stopRotateTool()
 	buildWidget.Enabled = true
 	ensureBuildPalette()
 	startBuildTool()
@@ -147,7 +183,10 @@ buildWidget:GetPropertyChangedSignal("Enabled"):Connect(function()
 end)
 
 -- Fires when the user activates another tool (or we Deactivate ourselves).
-plugin.Deactivation:Connect(stopBuildTool)
+plugin.Deactivation:Connect(function()
+	stopBuildTool()
+	stopRotateTool()
+end)
 
 -- Studio restores widget enabled-state across sessions: populate now if
 -- the panel is already open.

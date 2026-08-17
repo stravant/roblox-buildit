@@ -77,6 +77,18 @@ return function(t: TestTypes.TestContext)
 		for jointIndex = 1, 4 do
 			t.expect(pivotCounts[`JointPivot{jointIndex}`]).toBe(2)
 		end
+		-- Each joint has exactly one parent-role and one child-role pivot.
+		local roles: { [string]: number } = {}
+		for _, child in torso:GetDescendants() do
+			if child:IsA("Attachment") and child.Name:match("^JointPivot") then
+				local key = `{child.Name}:{child:GetAttribute("JointRole")}`
+				roles[key] = (roles[key] or 0) + 1
+			end
+		end
+		for jointIndex = 1, 4 do
+			t.expect(roles[`JointPivot{jointIndex}:parent`]).toBe(1)
+			t.expect(roles[`JointPivot{jointIndex}:child`]).toBe(1)
+		end
 
 		folder:Destroy()
 	end)
