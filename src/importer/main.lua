@@ -49,6 +49,8 @@ local kTestSet = {
 	"4143", -- Technic Gear 14 Tooth Bevel
 	"3648a", -- Gear 24 Tooth with 3 axleholes + 4 pin holes
 	"2739a", -- Technic Steering Link 6L: two towball sockets
+	"6538a", -- Technic Axle Joiner: axle hole + slip surface
+	"6539", -- Technic Transmission Driving Ring: slips onto 6538a
 }
 local kBackgroundColor = Color3.fromRGB(46, 46, 46)
 local kTextColor = Color3.fromRGB(220, 220, 220)
