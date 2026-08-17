@@ -103,10 +103,15 @@ type DragState = {
 export type StartOptions = {
 	guiParent: Instance?,
 	plugin: Plugin?,
+	-- Externally owned palette (e.g. the plugin's persistent Build widget):
+	-- the controller uses it for release-over-panel detection but does not
+	-- create or destroy it; the owner wires entry clicks to dragTemplate.
+	palette: PartPalette.PartPalette?,
 }
 
 export type Controller = {
 	stop: () -> (),
+	dragTemplate: (template: BasePart) -> (),
 }
 
 local BuildController = {}
@@ -551,17 +556,22 @@ function BuildController.start(options: StartOptions?): Controller
 		end
 	end)
 
-	mPalette = PartPalette.create(guiParent, templatesFolder :: Folder, function(template: BasePart)
-		beginDrag(template, false)
-	end)
+	local mOwnsPalette = opts.palette == nil
+	if opts.palette ~= nil then
+		mPalette = opts.palette
+	else
+		mPalette = PartPalette.create(guiParent, templatesFolder :: Folder, function(template: BasePart)
+			beginDrag(template, false)
+		end)
+	end
 
 	local function stop()
 		endDrag(true)
 		mPickupConnection:Disconnect()
-		if mPalette ~= nil then
+		if mOwnsPalette and mPalette ~= nil then
 			(mPalette :: PartPalette.PartPalette).destroy()
-			mPalette = nil
 		end
+		mPalette = nil
 		if mOwnScreenGui ~= nil then
 			(mOwnScreenGui :: ScreenGui):Destroy()
 			mOwnScreenGui = nil
@@ -570,6 +580,9 @@ function BuildController.start(options: StartOptions?): Controller
 
 	return {
 		stop = stop,
+		dragTemplate = function(template: BasePart)
+			beginDrag(template, false)
+		end,
 	}
 end
 

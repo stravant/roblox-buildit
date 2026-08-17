@@ -102,8 +102,19 @@ local function main(widget: DockWidgetPluginGui)
 	testSetButton.TextSize = 16
 	testSetButton.Parent = background
 
+	local reimportButton = Instance.new("TextButton")
+	reimportButton.LayoutOrder = 4
+	reimportButton.Size = UDim2.new(1, 0, 0, 28)
+	reimportButton.Text = "Re-import Selected"
+	reimportButton.TextColor3 = kTextColor
+	reimportButton.BackgroundColor3 = Color3.fromRGB(70, 70, 80)
+	reimportButton.BorderSizePixel = 0
+	reimportButton.Font = Enum.Font.SourceSansBold
+	reimportButton.TextSize = 16
+	reimportButton.Parent = background
+
 	local statusLabel = Instance.new("TextLabel")
-	statusLabel.LayoutOrder = 4
+	statusLabel.LayoutOrder = 5
 	statusLabel.Size = UDim2.new(1, 0, 0, 80)
 	statusLabel.BackgroundTransparency = 1
 	statusLabel.TextColor3 = kTextColor
@@ -397,16 +408,128 @@ local function main(widget: DockWidgetPluginGui)
 		runImport(kTestSet)
 	end
 
+	-- Re-import the selection with the current importer code: refreshes
+	-- the PartLibrary templates AND swaps the selected instances in place
+	-- (folders/models are searched, so selecting an assembled set works).
+	local function collectSelectedImports(): ({ BasePart }, { string })
+		local parts: { BasePart } = {}
+		local refs: { string } = {}
+		local refsSeen: { [string]: boolean } = {}
+		local function visit(instance: Instance)
+			if instance:IsA("BasePart") then
+				local ref = instance:GetAttribute("LDrawFile")
+				if type(ref) == "string" then
+					table.insert(parts, instance)
+					if not refsSeen[ref] then
+						refsSeen[ref] = true
+						table.insert(refs, ref)
+					end
+				end
+			end
+			for _, child in instance:GetChildren() do
+				visit(child)
+			end
+		end
+		for _, instance in Selection:Get() do
+			visit(instance)
+		end
+		return parts, refs
+	end
+
+	local function doReimport()
+		if mBusy then
+			return
+		end
+		mBusy = true
+		local selectedParts, refs = collectSelectedImports()
+		if #refs == 0 then
+			setStatus("Select imported parts (or folders of them) first.")
+			mBusy = false
+			return
+		end
+
+		local recording = ChangeHistoryService:TryBeginRecording("Re-import LDraw parts")
+		local folder = getPartLibraryFolder()
+		local imported: { [string]: MeshPart } = {}
+		local failed = 0
+		local aborted = false
+		for index, ref in refs do
+			setStatus(`Re-importing {ref} ({index}/{#refs})...`)
+			local ok, result = pcall(function(): MeshPart?
+				return (importPart(getLibrary(), ref, folder))
+			end)
+			if not ok then
+				if mProvider ~= nil then
+					mProvider.close()
+					mProvider = nil
+					mLibrary = nil
+				end
+				setStatus(`Error: {result}`)
+				aborted = true
+				break
+			elseif result == nil then
+				failed += 1
+			else
+				local template = result :: MeshPart
+				imported[ref] = template
+				for _, child in folder:GetChildren() do
+					if child ~= template and child:GetAttribute("LDrawFile") == ref then
+						child.Parent = nil
+					end
+				end
+			end
+		end
+
+		local replaced = 0
+		if not aborted then
+			local newSelection: { Instance } = {}
+			for _, old in selectedParts do
+				local template = imported[old:GetAttribute("LDrawFile") :: string]
+				-- Templates themselves were already replaced above.
+				if template == nil or old == template or old.Parent == nil or old.Parent == folder then
+					continue
+				end
+				local clone = template:Clone()
+				clone.CFrame = old.CFrame
+				clone.Color = old.Color
+				clone.Transparency = old.Transparency
+				clone.Anchored = old.Anchored
+				clone.Parent = old.Parent
+				old.Parent = nil
+				table.insert(newSelection, clone)
+				replaced += 1
+			end
+			if #newSelection > 0 then
+				Selection:Set(newSelection)
+			end
+			setStatus(
+				`Re-imported {#refs - failed} of {#refs} parts, replaced {replaced} placed instances.`
+					.. (if failed > 0 then ` {failed} failed.` else "")
+			)
+		end
+
+		if recording then
+			ChangeHistoryService:FinishRecording(recording, Enum.FinishRecordingOperation.Commit)
+		else
+			ChangeHistoryService:SetWaypoint("Re-import LDraw parts")
+		end
+		mBusy = false
+	end
+
 	local buttonConnection = importButton.Activated:Connect(function()
 		task.spawn(doImport)
 	end)
 	local testSetConnection = testSetButton.Activated:Connect(function()
 		task.spawn(doImportTestSet)
 	end)
+	local reimportConnection = reimportButton.Activated:Connect(function()
+		task.spawn(doReimport)
+	end)
 
 	widget.Destroying:Connect(function()
 		buttonConnection:Disconnect()
 		testSetConnection:Disconnect()
+		reimportConnection:Disconnect()
 		if mProvider ~= nil then
 			mProvider.close()
 			mProvider = nil
