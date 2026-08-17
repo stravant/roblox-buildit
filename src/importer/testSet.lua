@@ -131,4 +131,9 @@ return {
 	"4533", -- Container Cupboard 2x3x2 Door: hinge rod
 	"4534", -- Container Cupboard 2x3x4: corner bores
 	"4535", -- Container Cupboard 2x3x4 Door: hinge rod
+	"795", -- Arm Piece with Disc and 2 Fingers
+	"4221", -- Arm Piece Grab Jaw: single finger
+	"4000", -- Ladder 4x15.6: semi-circular pivot bar
+	"841", -- Homemaker Stove: oven door hinge grip
+	"843", -- Homemaker Stove Door: fold-down rod
 }

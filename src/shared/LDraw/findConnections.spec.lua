@@ -563,6 +563,14 @@ return function(t: TestTypes.TestContext)
 		end
 	end)
 
+	t.test("vertex-analyzed batch: arms, pivot ladder, stove door", function()
+		t.expect(countByType(findConnections(library, "795.dat") :: any).ArmFinger).toBe(1)
+		t.expect(countByType(findConnections(library, "4221.dat") :: any).ArmFinger).toBe(1)
+		t.expect(countByType(findConnections(library, "4000.dat") :: any).Bar).toBe(1)
+		t.expect(countByType(findConnections(library, "843.dat") :: any).HingePin).toBe(1)
+		t.expect(countByType(findConnections(library, "841.dat") :: any).HingeSocket).toBe(1)
+	end)
+
 	t.test("homemaker cupboard (837/838): rod and corner bores", function()
 		local door = findConnections(library, "838.dat") :: any
 		t.expect(countByType(door).HingePin).toBe(1)

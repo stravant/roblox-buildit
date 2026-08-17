@@ -520,6 +520,54 @@ connectorPrimitives.partOverrides = {
 		{ type = "CoasterEnd", position = Vector3.new(240, 0, 0), direction = Vector3.new(0, 0, -1) },
 		{ type = "CoasterEnd", position = Vector3.new(0, 0, 240), direction = Vector3.new(-1, 0, 0) },
 	},
+	-- Old arm pieces with hand-built fingers (vertex-ring located):
+	-- 795's two-finger knuckle and 4221 grab jaw's single finger both
+	-- pivot on Y-axis barrels; they interleave the arm1/arm2 system.
+	["795.dat"] = {
+		{
+			type = "ArmFinger",
+			position = Vector3.new(0, 0, -3),
+			direction = Vector3.new(0, -1, 0),
+			length = 12,
+		},
+	},
+	["4221.dat"] = {
+		{
+			type = "ArmFinger",
+			position = Vector3.new(1.5, -2.25, -1.5),
+			direction = Vector3.new(0, -1, 0),
+			length = 10.5,
+		},
+	},
+	-- Ladder 4x15.6 with Semi-Circular Pivot: the pivot is an r4 bar
+	-- along Z at the origin.
+	["4000.dat"] = {
+		{
+			type = "Bar",
+			position = Vector3.new(0, 0, 0),
+			direction = Vector3.new(0, 0, 1),
+			length = 41,
+		},
+	},
+	-- Homemaker stove: oven door 843 folds down on an r2 rod along X
+	-- at its bottom edge; stove 841's grip arcs sit at the same
+	-- coordinates (both authored in the assembled frame).
+	["843.dat"] = {
+		{
+			type = "HingePin",
+			position = Vector3.new(0, 57.8, -42),
+			direction = Vector3.new(1, 0, 0),
+			length = 71,
+		},
+	},
+	["841.dat"] = {
+		{
+			type = "HingeSocket",
+			position = Vector3.new(0, 57.5, -42),
+			direction = Vector3.new(1, 0, 0),
+			length = 71,
+		},
+	},
 	-- Homemaker cupboard: door 838's hinge edge is a full-height r1.5
 	-- rod; cabinet 837 has corner bores on both sides (reversible).
 	["838.dat"] = {
