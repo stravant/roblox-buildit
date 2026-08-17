@@ -39,7 +39,7 @@ delete the enable file.
 | Tyres/wheels | ~15 | Tyre<->rim interface is its own system (Tyre/Rim pair); wheels' axle/pin holes mostly already detect. |
 | Ladders/rails/misc | rest | 420/421 ladder clutch, train drive rods (crank pins = Bar candidates), magnet holders (Magnet pair?), roadsign fingers. Case-by-case. |
 | 2855/2856 turntable | 2 | No LDraw assembly file exists; compositeParts would need inline "virtual assembly" support (segment list + transforms in the table). |
-| 3491/3613/3730/3779 towball sockets | 4 | Bespoke socket geometry (no rect-wall pattern); needs per-part measurement for overrides. |
+| ~~3491/3613/3730/3779 towball sockets~~ | done | Curated (approximate cup centers from housing geometry). |
 
 ## Notes
 
