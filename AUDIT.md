@@ -34,7 +34,7 @@ delete the enable file.
 | Bucket | Count | Notes / recommendation |
 |---|---|---|
 | Minifig articulation | ~124 | PARTLY DONE: torso neck Stud, head Pocket/top stud, hand C-grip (cylo bore), hips+legs two-joint composite, hats via tubes, stud-in-pinhole "mouth" mate rule. Remaining: arms (wrist sockets, shoulder joints — torso+arm assemblies are print-variant-heavy), integral-arm figures (15/17), Friends figures. |
-| Doors/windows/shutters | ~25 of zero-bucket | Hinge-rail systems (671, 791, 821...): window shutter pin/rail, door pivot pins. New pair like HingePin/HingeRail, likely geometric (small cylinders at frame corners). |
+| Doors/windows/shutters | ~25 of zero-bucket | IN PROGRESS: HingePin/HingeSocket pair added. Done: bump5000 nubs auto-detect as HingePin (shutter 791, frame 3853's tabs); door 671 rod + frame 670 sockets curated; shutter 3856 hook recesses curated. Remaining: 791's mating frame not identified yet (old 1x3x5 window?), garage door 821a rails, remaining frame variants (60593/60594 tabless — verify no false pins), door 30179/4071/4130 pivot families. |
 | Finger hinges on arms/brackets | ~10 | 412/795 "Arm Piece with N Fingers", exo-force style. Finger knuckles are hand-built; per-family overrides or a finger-stack composite concept. |
 | Tyres/wheels | ~15 | Tyre<->rim interface is its own system (Tyre/Rim pair); wheels' axle/pin holes mostly already detect. |
 | Ladders/rails/misc | rest | 420/421 ladder clutch, train drive rods (crank pins = Bar candidates), magnet holders (Magnet pair?), roadsign fingers. Case-by-case. |
