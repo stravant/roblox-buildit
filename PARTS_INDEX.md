@@ -27,6 +27,9 @@ descriptions (`head -1 p/<name>.dat`) before extending the table:
 | Bush / sleeve axle hole | 3713 (bush), 6553 (axle hub, hole perpendicular to its axle) | `bush.dat` (local Z -6..10), `bush0.dat` (local Z +-6) | AxleHole through |
 | Blind axle hole | 3651 (pin/bush connector w/ 2 studs) | `axl2end`/`axl3end`/`axl5end` "End Surface" caps (hole extends along cap local -Y); the cap's short oneSided segment merges with adjacent hole/bush segments | AxleHole with OneSided |
 | Connector pin hole | 3651 | `connhole.dat` (20 LDU through segment along local Y) | PegHole |
+| Gear tooth-built axle holes | 4019 (gear 16t), 6135, 2712 (rotor) | `axlehol6`/`axl3hol6` "Hole Tooth" segments (4x rotated per hole) | AxleHole |
+| Hand-carved pin bores | 3648a (gear 24t 3-axlehole: 4 pin holes) | geometric: INVERTED radius-6 cylinder sections, merged, sub-6 culled | PegHole |
+| Hand-built connectors (curated) | 3648a center axle hole | `connectorPrimitives.partOverrides` per-part table (raw rect cross, nothing keyable) | per entry |
 | Bar / rod | 30374 (bar 4L), 3957 (antenna shaft) | none — geometric: `4-4cyli`/`4-4cylc` at radius 4, length >= 8 | Bar (axis + length) |
 | Clip (vertical) | 4085c (plate 1x1 w/ clip), 2555 (tile w/ clip) | `clip1.dat`, `clip2.dat` (grip center ~8 LDU out along local -Z from the mount origin) | Clip (grips a Bar along local Y) |
 | 1x1 underside pockets | 3005, 3024, 4085c | `box5.dat`/`box4t.dat` cavity boxes at stud-pocket size (half-extents 5.5-10.5 LDU; larger placements are wall shells and ignored) | Socket via Pocket |
@@ -39,7 +42,9 @@ descriptions (`head -1 p/<name>.dat`) before extending the table:
 |---|---|---|
 | Round 1x1 underside pockets | 4073, 3062 | Pocket walls are cylinders, not box5/box4t cavity boxes |
 | Classic towball socket | 3183 (plate 1x4 w/ socket) | Socket is two flexible rect walls, no keyable primitive or sphere |
-| Hand-built towballs | 30082, 30396, 30395 | Ball/socket modeled from raw quads, no sphere primitives |
+| Hand-built towballs | 30082, 30396, 30395 | Ball/socket modeled from raw quads, no sphere primitives (candidates for partOverrides) |
+| 3648a's two ribbed axle holes | 3648a | Two of its four diagonal pin holes carry axle ribs (rect-built); they detect as PegHole only — an axle still mates via Axle<->PegHole |
+| 4143 full bore depth | 4143 (bevel gear 14t) | Only 4 of ~8 LDU of the bore uses `axlehole`; the rest is face geometry, so the slide range is conservative |
 | Horizontal clips | 4623 (plate 1x1 w/ horiz. clip), 48729 | `clip3`-`clip16` have per-primitive orientations; needs per-name table entries |
 | Bar-into-hollow-stud | 3957 antenna into 4070 etc. | Hollow studs (`stud2*`) accept bars; needs a female "HollowStud" facet on stud2 |
 | Minifig neck/head | 973 (torso), 3626 (head) | Neck post/head socket are bespoke geometry, no primitives |
