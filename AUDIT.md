@@ -54,14 +54,14 @@ Genuinely remaining, by family:
   hook (latching hook, own joint class), 4318 boat mast (mating deck
   part unidentified), 4315 roof holder + its glass (bump/cup pairing
   ambiguous, both sides read HingePin today), 795/4221 arm pieces.
-- Doors/drawers with rail or lip mounts: ~~4536 drawer~~ (done via
-  new SlideRail/SlideGroove class on cupboard 4532). Parked: 4533/
-  4535 cupboard doors (authored lying flat, double-barrel hinge edge
-  needs physical reference), drawer 3 (its cabinet unidentified),
-  2874 sliding door, 838/843 Homemaker doors, 821a Mursten garage
-  door (SlideGroove candidates when their frames get curated).
-- Ladder clutch family: 420/421, 850/851a/852, 4207a, 4000
-  (+ modern 15118/11299 back clips).
+- Doors/drawers: ~~4536 drawer~~, ~~4533/4535 doors + 4532/4534
+  bores~~ (vertex analysis found the full-height r2 rod; the old
+  "double-barrel" reading was wrong), ~~838/843 Homemaker~~ (838
+  done; 843 stove door pending). Parked: drawer 3 (cabinet
+  unidentified), 2874 sliding door, 821a Mursten garage door.
+- Ladders: ~~420/421, 850/851a/852 slides~~, ~~15118/11299 rungs as
+  bars~~ (no hidden clips — the rungs are the connection surface).
+  Remaining: 4207a, 4000 pivot.
 - Misc: 745/746/3350 roadsign posts/clips, 2686 monorail wheel
   chassis, 4788 Fabuland paddle wheel (axle bore is square?).
 - Train track family (TrackEnd/CoasterEnd types added): remaining
