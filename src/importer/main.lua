@@ -116,6 +116,8 @@ local kTestSet = {
 	"4870", -- Plate 2x2 with 2 Wheel Pins
 	"2926", -- Plate 1x4 with 2 Wheel Pins
 	"30027b", -- Wheel Rim 8x8 notched hole (wpinhole)
+	"4532", -- Container Cupboard 2x3x2: drawer groove
+	"4536", -- Container Cupboard Drawer: slide rail
 }
 local kBackgroundColor = Color3.fromRGB(46, 46, 46)
 local kTextColor = Color3.fromRGB(220, 220, 220)
