@@ -131,7 +131,10 @@ instances).
   stops the tool). Edit-mode undo: each drag is ONE recording spanning
   pickup to place — committed on place, canceled-with-rollback on abort
   (aborted drags leave no undo entry); Ctrl+Z mid-drag cancels the drag
-  first. Performance: snapping/markers never scan the whole place — a
+  first. IMPORTANT: picked-up units are HIDDEN in place (transparency +
+  CanQuery off), never unparented — unparenting mid-recording breaks
+  undo, and a plugin reload mid-drag would orphan the part forever.
+  Performance: snapping/markers never scan the whole place — a
   per-frame GetPartBoundsInRadius query around the ghost picks candidate
   parts (lazy per-part connector cache, cleared per drag), and markers
   come from a bounded pool reassigned to whatever is in range.
