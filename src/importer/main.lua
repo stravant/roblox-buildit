@@ -43,6 +43,12 @@ local kTestSet = {
 	"3651", -- Pin/bush connector: blind axle hole + pin hole + 2 studs
 	"3713", -- Technic Bush
 	"2429", -- Hinge Plate 1x4 (imports the full 73983 composite assembly)
+	"2712", -- Technic Rotor 3 Blade
+	"4019", -- Technic Gear 16 Tooth
+	"6135", -- Palm trunk with axle hole
+	"4143", -- Technic Gear 14 Tooth Bevel
+	"3648a", -- Gear 24 Tooth with 3 axleholes + 4 pin holes
+	"2739a", -- Technic Steering Link 6L: two towball sockets
 }
 local kBackgroundColor = Color3.fromRGB(46, 46, 46)
 local kTextColor = Color3.fromRGB(220, 220, 220)

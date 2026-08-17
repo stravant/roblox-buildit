@@ -36,6 +36,7 @@ descriptions (`head -1 p/<name>.dat`) before extending the table:
 | 1x1 underside pockets | 3005, 3024, 4085c | `box5.dat`/`box4t.dat` cavity boxes at stud-pocket size (half-extents 5.5-10.5 LDU; larger placements are wall shells and ignored) | Socket via Pocket |
 | Towball | 3184 (plate 1x4 w/ ball), 2736 (axle towball), 2508 | geometric: `N-Msphe` sphere sections at uniform radius 8, ball center = placement origin (also catches `joint8ball` via recursion) | Towball (position-only mate, rotation free) |
 | Ball socket (joint-8) | 14418, 14704 (plates w/ socket) | `joint8socket1/2/3.dat`, gripped ball center = primitive origin (verified by sphere-fitting the cup: 440/606 verts at r 7-9) | TowballSocket |
+| Ball socket (cylindrical cup) | 2739a (steering link 6L) | geometric: INVERTED radius-8 cylinder segments >= 8 LDU (ball center = segment center); candidates coaxial with a PegHole/AxleHole are suppressed (pin holes have r8 channel sections) | TowballSocket |
 
 ## Known gaps (not yet handled)
 
