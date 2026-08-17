@@ -107,6 +107,9 @@ type DragState = {
 	-- Rotation the steps compose onto (identity for palette drags, the
 	-- unit's own rotation for picked-up parts).
 	baseRotation: CFrame,
+	-- Where the unit was grabbed, in pivot space: the drag handle. Zero
+	-- (center) for palette drags.
+	grabLocal: Vector3,
 	-- Set when dragging an already-placed unit: it stays PARENTED but is
 	-- hidden in place (see beginDrag — unparenting breaks undo recordings
 	-- and loses the part entirely if the plugin reloads mid-drag), and is
@@ -373,14 +376,22 @@ function BuildController.start(options: StartOptions?): Controller
 		end
 
 		local rotation = state.orientation * state.baseRotation
-		-- Rest the rotated bounding box on the hit point.
+		-- Rest the rotated bounding box on the hit point, keeping the
+		-- grabbed point under the cursor horizontally (the grab point is
+		-- the drag handle).
 		local size = unitExtents(state.ghost)
 		local halfHeight = 0.5 * (
 			math.abs(rotation.XVector.Y) * size.X
 			+ math.abs(rotation.YVector.Y) * size.Y
 			+ math.abs(rotation.ZVector.Y) * size.Z
 		)
-		local baseCFrame = rotation + hitPoint + Vector3.new(0, halfHeight, 0)
+		local rotatedGrab = rotation:VectorToWorldSpace(state.grabLocal)
+		local baseCFrame = rotation + Vector3.new(
+			hitPoint.X - rotatedGrab.X,
+			hitPoint.Y + halfHeight,
+			hitPoint.Z - rotatedGrab.Z
+		)
+		local grabWorldPosition = baseCFrame:PointToWorldSpace(state.grabLocal)
 
 		-- Spatial query: only connectors near the ghost participate in
 		-- snapping and get markers.
@@ -415,7 +426,8 @@ function BuildController.start(options: StartOptions?): Controller
 			baseCFrame,
 			state.ghostConnectors :: any,
 			worldConnectors,
-			kMaxSnapDistance
+			kMaxSnapDistance,
+			grabWorldPosition
 		)
 
 		if snap ~= nil then
@@ -479,9 +491,14 @@ function BuildController.start(options: StartOptions?): Controller
 		finishRecording(true)
 	end
 
-	local function beginDrag(source: PVInstance, isExisting: boolean)
+	local function beginDrag(source: PVInstance, isExisting: boolean, grabWorldPosition: Vector3?)
 		endDrag(true)
 		beginRecording(if isExisting then "BuildIt: Move part" else "BuildIt: Place part")
+
+		local grabLocal = Vector3.zero
+		if grabWorldPosition ~= nil then
+			grabLocal = source:GetPivot():PointToObjectSpace(grabWorldPosition)
+		end
 
 		local ghost = source:Clone()
 		forEachUnitPart(ghost, function(part)
@@ -544,6 +561,7 @@ function BuildController.start(options: StartOptions?): Controller
 			ghost = ghost,
 			orientation = CFrame.identity,
 			baseRotation = baseRotation,
+			grabLocal = grabLocal,
 			existingPart = if isExisting then source else nil,
 			hiddenProperties = hiddenProperties,
 			originalCFrame = originalCFrame,
@@ -667,9 +685,9 @@ function BuildController.start(options: StartOptions?): Controller
 		local hit = result.Instance
 		local model = hit:FindFirstAncestorOfClass("Model")
 		if model ~= nil and model:GetAttribute("LDrawFile") ~= nil then
-			beginDrag(model, true)
+			beginDrag(model, true, result.Position)
 		elseif #getConnectors(hit) > 0 then
-			beginDrag(hit, true)
+			beginDrag(hit, true, result.Position)
 		end
 	end)
 

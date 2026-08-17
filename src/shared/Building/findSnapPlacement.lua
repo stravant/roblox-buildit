@@ -27,6 +27,11 @@
 --
 -- The candidate placement keeps the ghost's rotation: only translation is
 -- solved, so the caller controls orientation (e.g. yaw stepping with R).
+--
+-- `grabPosition` (optional, world): where the user grabbed the dragged
+-- unit. Candidates additionally prefer mating connectors near the grab
+-- point, so a part held by one end snaps by that end (and symmetric ties
+-- resolve toward the cursor).
 
 local getConnectors = require(script.Parent.getConnectors)
 
@@ -90,6 +95,11 @@ local function slideRange(lengthA: number?, lengthB: number?): number
 	return math.abs((lengthA or 0) - (lengthB or 0)) / 2
 end
 
+-- Secondary scoring weight for distance from the grab point: strong
+-- enough to resolve ties toward the cursor, weak enough that a genuinely
+-- closer snap still wins.
+local kGrabBiasWeight = 0.3
+
 -- One-sided (blind bore) mating interval: position of the male element's
 -- center along the female's OPEN direction, from bottomed-out flush at the
 -- bore floor (sMin) to half-engaged in the bore (sMax).
@@ -102,7 +112,8 @@ local function findSnapPlacement(
 	ghostCFrame: CFrame,
 	dragConnectors: { Connector },
 	worldConnectors: { WorldConnector },
-	maxSnapDistance: number
+	maxSnapDistance: number,
+	grabPosition: Vector3?
 ): SnapResult?
 	local rotation = ghostCFrame.Rotation
 	local bestDegreesOfFreedom = math.huge
@@ -163,12 +174,16 @@ local function findSnapPlacement(
 			if distance > maxSnapDistance then
 				continue
 			end
+			local score = distance
+			if grabPosition ~= nil then
+				score += kGrabBiasWeight * (dragPosition - grabPosition).Magnitude
+			end
 			if
 				degreesOfFreedom < bestDegreesOfFreedom
-				or (degreesOfFreedom == bestDegreesOfFreedom and distance < bestDistance)
+				or (degreesOfFreedom == bestDegreesOfFreedom and score < bestDistance)
 			then
 				bestDegreesOfFreedom = degreesOfFreedom
-				bestDistance = distance
+				bestDistance = score
 				bestCFrame = rotation
 					+ (ghostCFrame.Position + targetPosition - dragPosition)
 			end

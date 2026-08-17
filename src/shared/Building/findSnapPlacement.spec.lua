@@ -288,6 +288,28 @@ return function(t: TestTypes.TestContext)
 		t.expect(snap.cframe.Position).toBeCloseTo(Vector3.new(0, 4.5, 0))
 	end)
 
+	t.test("grab point biases symmetric snaps toward the grabbed end", function()
+		local world = {
+			{ kind = "Stud", position = Vector3.new(0, 5, 0), direction = Vector3.new(0, 1, 0) },
+		}
+		-- Two sockets equidistant from the stud: a pure translation metric
+		-- ties; the grab point near the left socket must pick it.
+		local drag = {
+			{ kind = "Socket", position = Vector3.new(-1, -0.7, 0), direction = Vector3.new(0, -1, 0) },
+			{ kind = "Socket", position = Vector3.new(1, -0.7, 0), direction = Vector3.new(0, -1, 0) },
+		}
+		local ghost = CFrame.new(0, 5.7, 0)
+
+		local leftGrab = findSnapPlacement(ghost, drag :: any, world :: any, kMaxSnap, Vector3.new(-1, 5.7, 0)) :: any
+		t.expect(leftGrab).toBeTruthy()
+		-- Left socket mates the stud: the part shifts right.
+		t.expect(leftGrab.cframe.Position).toBeCloseTo(Vector3.new(1, 5.7, 0))
+
+		local rightGrab = findSnapPlacement(ghost, drag :: any, world :: any, kMaxSnap, Vector3.new(1, 5.7, 0)) :: any
+		t.expect(rightGrab).toBeTruthy()
+		t.expect(rightGrab.cframe.Position).toBeCloseTo(Vector3.new(-1, 5.7, 0))
+	end)
+
 	t.test("axial axes must be parallel", function()
 		local world = {
 			{ kind = "AxleHole", position = Vector3.new(0, 5, 0), direction = Vector3.new(1, 0, 0), length = 1 },
