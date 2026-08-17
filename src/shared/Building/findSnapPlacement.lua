@@ -86,6 +86,8 @@ local kAxialPartners: { [string]: { [string]: boolean } } = {
 	HingePin = { HingeSocket = true },
 	HingeSocket = { HingePin = true },
 	HingeFinger = { HingeFinger = true },
+	ClickFinger = { ClickFork = true },
+	ClickFork = { ClickFinger = true },
 }
 
 type MateRule = "point" | "axial" | "ball" | "mouth"

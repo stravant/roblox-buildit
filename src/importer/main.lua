@@ -87,6 +87,10 @@ local kTestSet = {
 	"4275a", -- Hinge Plate 1x2 with 3 Fingers (h2 primitive)
 	"4276a", -- Hinge Plate 1x2 with 2 Fingers (h1 primitive)
 	"2452", -- Hinge Plate 1x2 with 3 Fingers On Side
+	"30364", -- Hinge Brick 1x2 Locking, single click finger
+	"30365", -- Hinge Brick 1x2 Locking, dual click fork
+	"44301", -- Hinge Plate 1x2 Locking, single click finger
+	"44302", -- Hinge Plate 1x2 Locking, dual click fork
 }
 local kBackgroundColor = Color3.fromRGB(46, 46, 46)
 local kTextColor = Color3.fromRGB(220, 220, 220)
