@@ -33,6 +33,10 @@ local kTestSet = {
 	"30374", -- Bar 4L
 	"4085c", -- Plate 1x1 with Clip Vertical
 	"3957a", -- Antenna 4H: bar + tube base
+	"3184", -- Plate 1x4 with Towball
+	"2736", -- Technic Axle Towball
+	"3170", -- Plate 1x2 with Ball Joint-8 on Both Ends
+	"14418", -- Plate 1x2 with Socket Joint-8
 }
 local kBackgroundColor = Color3.fromRGB(46, 46, 46)
 local kTextColor = Color3.fromRGB(220, 220, 220)
