@@ -113,6 +113,9 @@ local kTestSet = {
 	"2347", -- Excavator Bucket 6x3: hinge row
 	"2349a", -- Hinge Car Roof 4x4 Sunroof frame
 	"2348a", -- Glass for sunroof: hinge edge
+	"4870", -- Plate 2x2 with 2 Wheel Pins
+	"2926", -- Plate 1x4 with 2 Wheel Pins
+	"30027b", -- Wheel Rim 8x8 notched hole (wpinhole)
 }
 local kBackgroundColor = Color3.fromRGB(46, 46, 46)
 local kTextColor = Color3.fromRGB(220, 220, 220)
