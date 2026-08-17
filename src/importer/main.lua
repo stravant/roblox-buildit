@@ -69,6 +69,11 @@ local kTestSet = {
 	"670", -- Door 1x6x10 Frame: hinge sockets both sides
 	"3853", -- Window 1x4x3: bump hinge pins on the frame rails
 	"3856", -- Window 1x2x3 Shutter: hook recesses for 3853's bumps
+	"2657", -- Door 1x3x5: bump pins both ends
+	"2656", -- Container Cupboard 2x3x5: corner hinge holes for 2657
+	"42205", -- Door 1x6x6 Frame: shared hole-for-bump corner bosses
+	"51239", -- Window 1x3x3 Frame: same hole-for-bump bosses
+	"6798", -- Window 1x3x2 Frame: same hole-for-bump bosses
 }
 local kBackgroundColor = Color3.fromRGB(46, 46, 46)
 local kTextColor = Color3.fromRGB(220, 220, 220)
