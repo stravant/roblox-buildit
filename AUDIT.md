@@ -59,11 +59,11 @@ Genuinely remaining, by family:
   "double-barrel" reading was wrong), ~~838/843 Homemaker~~ (838
   done; 843 stove door pending). Parked: drawer 3 (cabinet
   unidentified), 2874 sliding door, 821a Mursten garage door.
-- Ladders: ~~420/421, 850/851a/852 slides~~, ~~15118/11299 rungs as
-  bars~~ (no hidden clips — the rungs are the connection surface).
-  Remaining: 4207a, 4000 pivot.
-- Misc: 745/746/3350 roadsign posts/clips, 2686 monorail wheel
-  chassis, 4788 Fabuland paddle wheel (axle bore is square?).
+- Ladders: ALL DONE — 420/421 + 850/851a/852 slides, 15118/11299/
+  4207a rungs as bars, 4000 pivot bar.
+- Misc: ~~745/746/3350 roadsigns~~ (done: r2 neck/clamp via the
+  HingePin pair; signs stack on posts). Remaining: 2686 monorail
+  wheel chassis, 4788 Fabuland paddle wheel (axle bore is square?).
 - Train track family (TrackEnd/CoasterEnd types added): remaining
   are 9V points/switches (2861/2859, three ends + moving rail),
   coaster ramps 26559/26560/26561 (end abutment planes at two
