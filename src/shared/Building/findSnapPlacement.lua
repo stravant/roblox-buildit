@@ -83,6 +83,8 @@ local kAxialPartners: { [string]: { [string]: boolean } } = {
 	BarHole = { Bar = true },
 	SlipAxle = { SlipRing = true },
 	SlipRing = { SlipAxle = true },
+	HingePin = { HingeSocket = true },
+	HingeSocket = { HingePin = true },
 }
 
 type MateRule = "point" | "axial" | "ball" | "mouth"
