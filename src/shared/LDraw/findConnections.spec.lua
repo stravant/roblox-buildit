@@ -578,6 +578,14 @@ return function(t: TestTypes.TestContext)
 		t.expect(countByType(cabinet).HingeSocket).toBe(2)
 	end)
 
+	t.test("roadsigns (745/3350) and ladder 4207a", function()
+		t.expect(countByType(findConnections(library, "745.dat") :: any).HingePin).toBe(1)
+		local sign = countByType(findConnections(library, "3350.dat") :: any)
+		t.expect(sign.HingePin).toBe(1)
+		t.expect(sign.HingeSocket).toBe(1)
+		t.expect(countByType(findConnections(library, "4207a.dat") :: any).Bar).toBe(5)
+	end)
+
 	t.test("modern ladder (15118): rungs read as bars", function()
 		local connections = findConnections(library, "15118.dat") :: any
 		t.expect(countByType(connections).Bar).toBe(8)

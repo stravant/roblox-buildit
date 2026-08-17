@@ -639,6 +639,54 @@ connectorPrimitives.partOverrides = {
 		end
 		return rungs
 	end)(),
+	-- Classic roadsign system: bases carry an r2 x 3 neck under the
+	-- knob; sign clamps grip any r2 rod — the base neck or another
+	-- sign's post (signs stack). Reuses the HingePin/HingeSocket pair.
+	["745.dat"] = {
+		{
+			type = "HingePin",
+			position = Vector3.new(0, -7.5, 0),
+			direction = Vector3.new(0, -1, 0),
+			length = 3,
+		},
+	},
+	["746.dat"] = {
+		{
+			type = "HingePin",
+			position = Vector3.new(0, -7.5, 0),
+			direction = Vector3.new(0, -1, 0),
+			length = 3,
+		},
+	},
+	["3350.dat"] = {
+		-- The full r2 post doubles as a stacking pin.
+		{
+			type = "HingePin",
+			position = Vector3.new(0, -50.5, 0),
+			direction = Vector3.new(0, -1, 0),
+			length = 115,
+		},
+		{
+			type = "HingeSocket",
+			position = Vector3.new(0, 5.5, 0),
+			direction = Vector3.new(0, -1, 0),
+			length = 3,
+		},
+	},
+	-- Ladder 2.6x14 with Stops: five rungs (stops at the ends are not
+	-- grippable).
+	["4207a.dat"] = (function()
+		local rungs = {}
+		for _, x in { -80, -40, 0, 40, 80 } do
+			table.insert(rungs, {
+				type = "Bar",
+				position = Vector3.new(x, 0, 0),
+				direction = Vector3.new(0, 0, 1),
+				length = 37.5,
+			})
+		end
+		return rungs
+	end)(),
 	-- Ladder 2.6x16 with Handrails: same six main rungs as 15118 (the
 	-- handrails are flat-profiled, not grippable bars).
 	["11299.dat"] = (function()

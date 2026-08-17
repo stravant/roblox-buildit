@@ -138,4 +138,7 @@ return {
 	"843", -- Homemaker Stove Door: fold-down rod
 	"2", -- Container Drawers 4x4x4: two slots
 	"3", -- Container Drawer 4x4x2: slide rail
+	"745", -- Roadsign Base Round Type 1: knob neck
+	"3350", -- Roadsign Round: clamp + stacking post
+	"4207a", -- Ladder 2.6x14 with Stops: rungs as bars
 }
