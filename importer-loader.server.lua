@@ -25,17 +25,33 @@ importWidget.Name = "BuildItImporter"
 
 local mImporterLoaded = false
 
+local function ensureImporterLoaded()
+	if mImporterLoaded then
+		return
+	end
+	mImporterLoaded = true
+	require(script.Parent.Src.importer.main)(importWidget)
+end
+
 importButton.Click:Connect(function()
 	importWidget.Enabled = not importWidget.Enabled
-	if importWidget.Enabled and not mImporterLoaded then
-		mImporterLoaded = true
-		require(script.Parent.Src.importer.main)(importWidget)
+	if importWidget.Enabled then
+		ensureImporterLoaded()
 	end
 end)
 
 importWidget:GetPropertyChangedSignal("Enabled"):Connect(function()
 	importButton:SetActive(importWidget.Enabled)
+	if importWidget.Enabled then
+		ensureImporterLoaded()
+	end
 end)
+
+-- Studio restores widget enabled-state across sessions: populate now if
+-- the panel starts open.
+if importWidget.Enabled then
+	ensureImporterLoaded()
+end
 
 --------------------------------------------------------------------------------
 -- Build tool (Edit-mode part dragging/connecting, same controller as the
