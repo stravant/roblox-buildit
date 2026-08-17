@@ -107,6 +107,10 @@ local kTestSet = {
 	"1015152", -- Friends Hips (thin hinge): curated D-posts
 	"2645", -- Friends Hair: pin hole for the head stud
 	"3833", -- Construction Helmet: recessed grip tube (headgear rule)
+	"2440", -- Hinge 6x3 Radar: hand-built finger row
+	"3314", -- Excavator Arm 2x6x2: tip finger row
+	"3433", -- Excavator Bucket 5x3: hinge row
+	"2347", -- Excavator Bucket 6x3: hinge row
 }
 local kBackgroundColor = Color3.fromRGB(46, 46, 46)
 local kTextColor = Color3.fromRGB(220, 220, 220)
