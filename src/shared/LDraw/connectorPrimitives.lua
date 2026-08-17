@@ -498,6 +498,29 @@ connectorPrimitives.partOverrides = {
 			length = 87.5,
 		},
 	},
+	-- Modern ladder 2.6x16: the r4 round rungs are the connection
+	-- surface — clips grab them and minifig hands grip them. Six main
+	-- rungs on the back plane plus recessed end rungs.
+	["15118.dat"] = (function()
+		local rungs = {}
+		for _, x in { -100, -60, -20, 20, 60, 100 } do
+			table.insert(rungs, {
+				type = "Bar",
+				position = Vector3.new(x, 0, 0),
+				direction = Vector3.new(0, 0, 1),
+				length = 37.5,
+			})
+		end
+		for _, x in { -140, 140 } do
+			table.insert(rungs, {
+				type = "Bar",
+				position = Vector3.new(x, -4, 0),
+				direction = Vector3.new(0, 0, 1),
+				length = 37.5,
+			})
+		end
+		return rungs
+	end)(),
 	-- Classic 2x12 extension ladder: top section 421 (28 wide) slides
 	-- inside bottom 420 (36 wide), 240 long on axis X.
 	["420.dat"] = {

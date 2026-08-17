@@ -126,4 +126,5 @@ return {
 	"1023035", -- Friends Legs Cargo Pants (thin hinge knuckle)
 	"1022657", -- Friends Legs Shorts (same shared hinge subpart)
 	"25727", -- Friends Legs Cargo (thick hinge): foot pockets
+	"15118", -- Ladder 2.6x16: rungs as bars
 }

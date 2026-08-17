@@ -570,6 +570,11 @@ return function(t: TestTypes.TestContext)
 		t.expect(countByType(cabinet).HingeSocket).toBe(2)
 	end)
 
+	t.test("modern ladder (15118): rungs read as bars", function()
+		local connections = findConnections(library, "15118.dat") :: any
+		t.expect(countByType(connections).Bar).toBe(8)
+	end)
+
 	t.test("classic 2x12 ladder (420/421): slide pair", function()
 		local bottom = findConnections(library, "420.dat") :: any
 		t.expect(countByType(bottom).SlideGroove).toBe(1)
