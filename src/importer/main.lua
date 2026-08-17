@@ -10,7 +10,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Selection = game:GetService("Selection")
 
 local LDrawLibrary = require(script.Parent.Parent.shared.LDraw.LDrawLibrary)
+local compositeParts = require(script.Parent.Parent.shared.LDraw.compositeParts)
 local importPart = require(script.Parent.importPart)
+local importComposite = require(script.Parent.importComposite)
 local importModel = require(script.Parent.importModel)
 local wsFileProvider = require(script.Parent.wsFileProvider)
 
@@ -40,6 +42,7 @@ local kTestSet = {
 	"6553", -- Axle hub: through axle hole perpendicular to a 1.5 axle
 	"3651", -- Pin/bush connector: blind axle hole + pin hole + 2 studs
 	"3713", -- Technic Bush
+	"2429", -- Hinge Plate 1x4 (imports the full 73983 composite assembly)
 }
 local kBackgroundColor = Color3.fromRGB(46, 46, 46)
 local kTextColor = Color3.fromRGB(220, 220, 220)
@@ -153,9 +156,9 @@ local function main(widget: DockWidgetPluginGui)
 	local kMaxRangeCount = 200
 	local kRowWidth = 40 -- studs per row of workspace copies
 
-	local function countCells(part: MeshPart, connectorType: string): number
+	local function countCells(unit: Instance, connectorType: string): number
 		local count = 0
-		for _, child in part:GetChildren() do
+		for _, child in unit:GetDescendants() do
 			if child:IsA("Attachment") and child:GetAttribute("ConnectorType") == connectorType then
 				local countX = child:GetAttribute("CountX") or 1
 				local countZ = child:GetAttribute("CountZ") or 1
@@ -163,6 +166,23 @@ local function main(widget: DockWidgetPluginGui)
 			end
 		end
 		return count
+	end
+
+	local function unitSize(unit: Instance): Vector3
+		if unit:IsA("Model") then
+			return unit:GetExtentsSize()
+		end
+		return (unit :: BasePart).Size
+	end
+
+	-- Routes a ref through composite resolution: hinge halves import as
+	-- their full articulated assembly (a Model of jointed segments).
+	local function importUnit(ref: string, parentInstance: Instance): (Instance?, string?)
+		local resolved = compositeParts.resolve(ref)
+		if compositeParts.get(resolved) ~= nil then
+			return importComposite(getLibrary(), resolved, parentInstance)
+		end
+		return importPart(getLibrary(), ref, parentInstance)
 	end
 
 	-- "3001" imports one part; "3001,3010" imports every existing part in
@@ -211,7 +231,7 @@ local function main(widget: DockWidgetPluginGui)
 		local skipped = 0
 		local copies: { Instance } = {}
 		local lastError: string? = nil
-		local lastPart: MeshPart? = nil
+		local lastPart: Instance? = nil
 		local aborted = false
 
 		for index, partNumber in numbers do
@@ -221,7 +241,7 @@ local function main(widget: DockWidgetPluginGui)
 				setStatus(`Importing {partNumber}...`)
 			end
 
-			local ok, result, errorMessage = pcall(function(): (MeshPart?, string?)
+			local ok, result, errorMessage = pcall(function(): (Instance?, string?)
 				if isRange then
 					-- Skip alias/moved/shortcut stubs; only import real parts.
 					local file = getLibrary():getFile(partNumber .. ".dat")
@@ -236,7 +256,7 @@ local function main(widget: DockWidgetPluginGui)
 						end
 					end
 				end
-				return importPart(getLibrary(), partNumber .. ".dat", folder)
+				return importUnit(partNumber .. ".dat", folder)
 			end)
 			if not ok then
 				-- Hard failure (e.g. lost server connection): abort the batch
@@ -255,31 +275,35 @@ local function main(widget: DockWidgetPluginGui)
 				continue
 			end
 
-			local part = result :: MeshPart
+			local part = result :: Instance
 			lastPart = part
 			imported += 1
 
-			-- Re-import: replace any previous template for this part.
+			-- Re-import: replace any previous template for this part (use
+			-- the template's own PartNumber: composites resolve, so typing
+			-- "2429" produces the "73983" assembly template).
+			local newPartNumber = part:GetAttribute("PartNumber")
 			for _, child in folder:GetChildren() do
-				if child ~= part and child:GetAttribute("PartNumber") == partNumber then
+				if child ~= part and child:GetAttribute("PartNumber") == newPartNumber then
 					child.Parent = nil
 				end
 			end
 
 			-- Drop a visible copy resting on y=0, flowing left-to-right in rows.
 			local copy = part:Clone()
-			if cursorX > 0 and cursorX + copy.Size.X > kRowWidth then
+			local size = unitSize(copy)
+			if cursorX > 0 and cursorX + size.X > kRowWidth then
 				cursorX = 0
 				cursorZ += rowDepth + 1
 				rowDepth = 0
 			end
-			copy.CFrame = CFrame.new(
-				baseX + cursorX + copy.Size.X / 2,
-				copy.Size.Y / 2,
-				baseZ + cursorZ + copy.Size.Z / 2
-			)
-			cursorX += copy.Size.X + 1
-			rowDepth = math.max(rowDepth, copy.Size.Z)
+			copy:PivotTo(CFrame.new(
+				baseX + cursorX + size.X / 2,
+				size.Y / 2,
+				baseZ + cursorZ + size.Z / 2
+			))
+			cursorX += size.X + 1
+			rowDepth = math.max(rowDepth, size.Z)
 			copy.Parent = workspace
 			table.insert(copies, copy)
 		end
@@ -298,7 +322,7 @@ local function main(widget: DockWidgetPluginGui)
 		elseif isRange then
 			setStatus(`Imported {imported} of {#numbers} parts ({skipped} skipped).`)
 		elseif lastPart ~= nil then
-			local part = lastPart :: MeshPart
+			local part = lastPart :: Instance
 			setStatus(
 				`Imported {part.Name} ({part:GetAttribute("PartNumber")}) into PartLibrary + workspace copy: `
 					.. `{countCells(part, "Stud")} studs, {countCells(part, "Socket")} sockets`
@@ -411,18 +435,43 @@ local function main(widget: DockWidgetPluginGui)
 	-- Re-import the selection with the current importer code: refreshes
 	-- the PartLibrary templates AND swaps the selected instances in place
 	-- (folders/models are searched, so selecting an assembled set works).
-	local function collectSelectedImports(): ({ BasePart }, { string })
-		local parts: { BasePart } = {}
+	type SelectedUnit = { instance: Instance, ref: string }
+
+	local function collectSelectedImports(): ({ SelectedUnit }, { string })
+		local units: { SelectedUnit } = {}
+		local unitsSeen: { [Instance]: boolean } = {}
 		local refs: { string } = {}
 		local refsSeen: { [string]: boolean } = {}
+		local function addUnit(instance: Instance, ref: string)
+			if unitsSeen[instance] then
+				return
+			end
+			unitsSeen[instance] = true
+			table.insert(units, { instance = instance, ref = ref })
+			if not refsSeen[ref] then
+				refsSeen[ref] = true
+				table.insert(refs, ref)
+			end
+		end
 		local function visit(instance: Instance)
-			if instance:IsA("BasePart") then
+			-- Composite Models are one unit; don't descend into their
+			-- segments.
+			if instance:IsA("Model") then
 				local ref = instance:GetAttribute("LDrawFile")
 				if type(ref) == "string" then
-					table.insert(parts, instance)
-					if not refsSeen[ref] then
-						refsSeen[ref] = true
-						table.insert(refs, ref)
+					addUnit(instance, ref)
+					return
+				end
+			elseif instance:IsA("BasePart") then
+				local ref = instance:GetAttribute("LDrawFile")
+				if type(ref) == "string" then
+					-- A selected composite segment re-imports its whole
+					-- assembly.
+					local model = instance:FindFirstAncestorOfClass("Model")
+					if model ~= nil and type(model:GetAttribute("LDrawFile")) == "string" then
+						addUnit(model, model:GetAttribute("LDrawFile") :: string)
+					else
+						addUnit(instance, ref)
 					end
 				end
 			end
@@ -433,7 +482,7 @@ local function main(widget: DockWidgetPluginGui)
 		for _, instance in Selection:Get() do
 			visit(instance)
 		end
-		return parts, refs
+		return units, refs
 	end
 
 	local function doReimport()
@@ -441,7 +490,7 @@ local function main(widget: DockWidgetPluginGui)
 			return
 		end
 		mBusy = true
-		local selectedParts, refs = collectSelectedImports()
+		local selectedUnits, refs = collectSelectedImports()
 		if #refs == 0 then
 			setStatus("Select imported parts (or folders of them) first.")
 			mBusy = false
@@ -450,13 +499,13 @@ local function main(widget: DockWidgetPluginGui)
 
 		local recording = ChangeHistoryService:TryBeginRecording("Re-import LDraw parts")
 		local folder = getPartLibraryFolder()
-		local imported: { [string]: MeshPart } = {}
+		local imported: { [string]: Instance } = {}
 		local failed = 0
 		local aborted = false
 		for index, ref in refs do
 			setStatus(`Re-importing {ref} ({index}/{#refs})...`)
-			local ok, result = pcall(function(): MeshPart?
-				return (importPart(getLibrary(), ref, folder))
+			local ok, result = pcall(function(): Instance?
+				return (importUnit(ref, folder))
 			end)
 			if not ok then
 				if mProvider ~= nil then
@@ -470,10 +519,11 @@ local function main(widget: DockWidgetPluginGui)
 			elseif result == nil then
 				failed += 1
 			else
-				local template = result :: MeshPart
+				local template = result :: Instance
 				imported[ref] = template
+				local newPartNumber = template:GetAttribute("PartNumber")
 				for _, child in folder:GetChildren() do
-					if child ~= template and child:GetAttribute("LDrawFile") == ref then
+					if child ~= template and child:GetAttribute("PartNumber") == newPartNumber then
 						child.Parent = nil
 					end
 				end
@@ -483,17 +533,20 @@ local function main(widget: DockWidgetPluginGui)
 		local replaced = 0
 		if not aborted then
 			local newSelection: { Instance } = {}
-			for _, old in selectedParts do
-				local template = imported[old:GetAttribute("LDrawFile") :: string]
+			for _, unit in selectedUnits do
+				local old = unit.instance
+				local template = imported[unit.ref]
 				-- Templates themselves were already replaced above.
 				if template == nil or old == template or old.Parent == nil or old.Parent == folder then
 					continue
 				end
 				local clone = template:Clone()
-				clone.CFrame = old.CFrame
-				clone.Color = old.Color
-				clone.Transparency = old.Transparency
-				clone.Anchored = old.Anchored
+				clone:PivotTo(old:GetPivot())
+				if clone:IsA("BasePart") and old:IsA("BasePart") then
+					clone.Color = old.Color
+					clone.Transparency = old.Transparency
+					clone.Anchored = old.Anchored
+				end
 				clone.Parent = old.Parent
 				old.Parent = nil
 				table.insert(newSelection, clone)

@@ -20,7 +20,14 @@ export type PartPalette = {
 
 local PartPalette = {}
 
-local function makeThumbnail(template: BasePart, parent: Instance)
+local function templateSize(template: Instance): Vector3
+	if template:IsA("Model") then
+		return template:GetExtentsSize()
+	end
+	return (template :: BasePart).Size
+end
+
+local function makeThumbnail(template: PVInstance, parent: Instance)
 	local viewport = Instance.new("ViewportFrame")
 	viewport.Size = UDim2.new(1, -8, 0, 80)
 	viewport.Position = UDim2.new(0, 4, 0, 4)
@@ -30,11 +37,12 @@ local function makeThumbnail(template: BasePart, parent: Instance)
 	viewport.LightColor = Color3.fromRGB(255, 255, 255)
 
 	local clone = template:Clone()
-	clone.CFrame = CFrame.identity
+	clone:PivotTo(CFrame.identity)
 	clone.Parent = viewport
 
 	local camera = Instance.new("Camera")
-	local extent = math.max(template.Size.X, template.Size.Y, template.Size.Z)
+	local size = templateSize(template)
+	local extent = math.max(size.X, size.Y, size.Z)
 	local eye = Vector3.new(1, 0.9, 1).Unit * extent * 1.6 + Vector3.new(0, 0.2, 0)
 	camera.CFrame = CFrame.lookAt(eye, Vector3.zero)
 	camera.FieldOfView = 50
@@ -47,7 +55,7 @@ end
 function PartPalette.create(
 	parentGui: Instance,
 	templatesFolder: Instance,
-	onDragStart: (template: BasePart) -> ()
+	onDragStart: (template: PVInstance) -> ()
 ): PartPalette
 	local mConnections: { RBXScriptConnection } = {}
 	local mEntryConnections: { RBXScriptConnection } = {}
@@ -97,9 +105,9 @@ function PartPalette.create(
 			end
 		end
 
-		local templates: { BasePart } = {}
+		local templates: { PVInstance } = {}
 		for _, child in templatesFolder:GetChildren() do
-			if child:IsA("BasePart") then
+			if child:IsA("BasePart") or child:IsA("Model") then
 				table.insert(templates, child)
 			end
 		end

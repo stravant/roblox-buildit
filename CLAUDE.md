@@ -77,6 +77,15 @@ roblox-nightfall's CLAUDE.md for the war story).
   converters: `cframe()` maps semantic AXES (attachments), while
   `placementCFrame()` conjugates the rotation to map POINTS (placing
   model instances) — they differ and using the wrong one flips axes.
+- `compositeParts.lua` — composite parts: assemblies of rigid segments
+  that always drag as one unit but articulate (hinges). Curated per
+  LDraw Shortcut assembly (joint position/axis); segment part ids
+  redirect to the assembly. Imported by `importer/importComposite.lua`
+  as a Model (attributes PartNumber/LDrawFile/JointType) of annotated
+  segment MeshParts, each carrying a "JointPivot" Attachment (UpVector =
+  articulation axis) for the future joint graph. The palette and build
+  tool treat Models as single pivot-based units; segments still expose
+  their own connectors.
 - `loadModel.lua` — .mpd/.ldr model files (e.g. LDraw OMR sets in
   `sets/`, served under the `sets/` path prefix): splits `0 FILE`
   sections and flattens to part instances (ref + transform + color).

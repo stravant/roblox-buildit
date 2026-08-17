@@ -30,6 +30,16 @@ return function(t: TestTypes.TestContext)
 		task.wait()
 		t.expect(palette.frame:FindFirstChild("Entry_3020", true)).toBeTruthy()
 
+		-- Composite Model templates get entries too.
+		local composite = Instance.new("Model")
+		composite.Name = "Hinge"
+		local segment = Instance.new("Part")
+		segment.Size = Vector3.new(2, 0.4, 1)
+		segment.Parent = composite
+		composite.Parent = folder
+		task.wait()
+		t.expect(palette.frame:FindFirstChild("Entry_Hinge", true)).toBeTruthy()
+
 		palette.destroy()
 		t.expect(screen:FindFirstChild("PartPalette")).toBeFalsy()
 

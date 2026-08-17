@@ -76,9 +76,22 @@ type Marker = {
 	kind: string,
 }
 
+-- A draggable unit is a BasePart or a composite Model of rigid segments;
+-- its connectors are expressed in the unit's PIVOT space so the solver
+-- works identically for both.
+type UnitConnector = {
+	kind: string,
+	position: Vector3, -- unit pivot space
+	direction: Vector3, -- unit pivot space
+	length: number?,
+	oneSided: boolean?,
+	part: BasePart, -- owning segment (for markers)
+	partLocalPosition: Vector3, -- in the segment's space (for markers)
+}
+
 type DragState = {
-	template: BasePart,
-	ghost: BasePart,
+	template: PVInstance,
+	ghost: PVInstance,
 	rotationIndex: number,
 	-- Accumulated T-key tilts (each press adds a 90-degree tip toward the
 	-- camera about the cardinal axis captured at press time).
@@ -86,12 +99,12 @@ type DragState = {
 	-- Rotation the R/T-key steps compose onto (identity for palette drags,
 	-- the part's own rotation for picked-up parts).
 	baseRotation: CFrame,
-	-- Set when dragging an already-placed part: it is unparented for the
+	-- Set when dragging an already-placed unit: it is unparented for the
 	-- duration of the drag and restored on place/cancel.
-	existingPart: BasePart?,
+	existingPart: PVInstance?,
 	existingParent: Instance?,
 	originalCFrame: CFrame?,
-	ghostConnectors: { getConnectors.Connector },
+	ghostConnectors: { UnitConnector },
 	ghostMarkers: { Marker },
 	-- Pooled adornments reassigned each frame to the nearby connectors.
 	markerPool: { Marker },
@@ -111,8 +124,48 @@ export type StartOptions = {
 
 export type Controller = {
 	stop: () -> (),
-	dragTemplate: (template: BasePart) -> (),
+	dragTemplate: (template: PVInstance) -> (),
 }
+
+local function forEachUnitPart(unit: Instance, fn: (BasePart) -> ())
+	if unit:IsA("BasePart") then
+		fn(unit)
+	end
+	for _, descendant in unit:GetDescendants() do
+		if descendant:IsA("BasePart") then
+			fn(descendant)
+		end
+	end
+end
+
+local function unitExtents(unit: PVInstance): Vector3
+	if unit:IsA("Model") then
+		return unit:GetExtentsSize()
+	end
+	return (unit :: BasePart).Size
+end
+
+-- All connectors of a unit, expressed in its pivot space.
+local function unitConnectors(unit: PVInstance): { UnitConnector }
+	local pivot = unit:GetPivot()
+	local connectors: { UnitConnector } = {}
+	forEachUnitPart(unit, function(part)
+		for _, connector in getConnectors(part) do
+			local worldPosition = part.CFrame:PointToWorldSpace(connector.position)
+			local worldDirection = part.CFrame:VectorToWorldSpace(connector.direction)
+			table.insert(connectors, {
+				kind = connector.kind,
+				position = pivot:PointToObjectSpace(worldPosition),
+				direction = pivot:VectorToObjectSpace(worldDirection),
+				length = connector.length,
+				oneSided = connector.oneSided,
+				part = part,
+				partLocalPosition = connector.position,
+			})
+		end
+	end)
+	return connectors
+end
 
 local BuildController = {}
 
@@ -255,9 +308,9 @@ function BuildController.start(options: StartOptions?): Controller
 		state.ghost:Destroy()
 		if canceled then
 			if state.existingPart ~= nil then
-				-- Put a picked-up part back where it was.
-				(state.existingPart :: BasePart).CFrame = state.originalCFrame :: CFrame;
-				(state.existingPart :: BasePart).Parent = state.existingParent
+				-- Put a picked-up unit back where it was.
+				(state.existingPart :: PVInstance):PivotTo(state.originalCFrame :: CFrame);
+				(state.existingPart :: PVInstance).Parent = state.existingParent
 			end
 			finishRecording(false)
 		end
@@ -298,7 +351,7 @@ function BuildController.start(options: StartOptions?): Controller
 			* state.tiltRotation
 			* state.baseRotation
 		-- Rest the rotated bounding box on the hit point.
-		local size = state.ghost.Size
+		local size = unitExtents(state.ghost)
 		local halfHeight = 0.5 * (
 			math.abs(rotation.XVector.Y) * size.X
 			+ math.abs(rotation.YVector.Y) * size.Y
@@ -309,7 +362,7 @@ function BuildController.start(options: StartOptions?): Controller
 		-- Spatial query: only connectors near the ghost participate in
 		-- snapping and get markers.
 		state.overlapParams.FilterDescendantsInstances = filterList
-		local queryRadius = state.ghost.Size.Magnitude / 2 + kSnapQueryPadding
+		local queryRadius = size.Magnitude / 2 + kSnapQueryPadding
 		local nearbyParts = workspace:GetPartBoundsInRadius(baseCFrame.Position, queryRadius, state.overlapParams)
 
 		local worldConnectors: { WorldConnector } = {}
@@ -337,20 +390,20 @@ function BuildController.start(options: StartOptions?): Controller
 
 		local snap = findSnapPlacement(
 			baseCFrame,
-			state.ghostConnectors,
+			state.ghostConnectors :: any,
 			worldConnectors,
 			kMaxSnapDistance
 		)
 
 		if snap ~= nil then
-			state.ghost.CFrame = snap.cframe
+			state.ghost:PivotTo(snap.cframe)
 		else
 			local position = baseCFrame.Position
-			state.ghost.CFrame = rotation + Vector3.new(
+			state.ghost:PivotTo(rotation + Vector3.new(
 				math.round(position.X / kGridSize) * kGridSize,
 				position.Y,
 				math.round(position.Z / kGridSize) * kGridSize
-			)
+			))
 		end
 
 		-- Assign the marker pool to this frame's nearby connectors; hide
@@ -386,40 +439,45 @@ function BuildController.start(options: StartOptions?): Controller
 	end
 
 	local function placeGhost(state: DragState)
+		local ghostPivot = state.ghost:GetPivot()
 		if state.existingPart ~= nil then
-			local placed = state.existingPart :: BasePart
-			placed.CFrame = state.ghost.CFrame
+			local placed = state.existingPart :: PVInstance
+			placed:PivotTo(ghostPivot)
 			placed.Parent = state.existingParent
 		else
 			local placed = state.template:Clone()
-			placed.Anchored = true
-			placed.CFrame = state.ghost.CFrame
+			forEachUnitPart(placed, function(part)
+				part.Anchored = true
+			end)
+			placed:PivotTo(ghostPivot)
 			placed.Parent = getPlacementParent()
 		end
 		endDrag(false)
 		finishRecording(true)
 	end
 
-	local function beginDrag(source: BasePart, isExisting: boolean)
+	local function beginDrag(source: PVInstance, isExisting: boolean)
 		endDrag(true)
 		beginRecording(if isExisting then "BuildIt: Move part" else "BuildIt: Place part")
 
 		local ghost = source:Clone()
-		ghost.Anchored = true
-		ghost.CanCollide = false
-		ghost.CanQuery = false
-		ghost.CanTouch = false
-		ghost.CastShadow = false
-		ghost.Transparency = kGhostTransparency
+		forEachUnitPart(ghost, function(part)
+			part.Anchored = true
+			part.CanCollide = false
+			part.CanQuery = false
+			part.CanTouch = false
+			part.CastShadow = false
+			part.Transparency = kGhostTransparency
+		end)
 		ghost.Parent = workspace
 
 		local baseRotation = CFrame.identity
 		local existingParent: Instance? = nil
 		local originalCFrame: CFrame? = nil
 		if isExisting then
-			baseRotation = source.CFrame.Rotation
+			baseRotation = source:GetPivot().Rotation
 			existingParent = source.Parent
-			originalCFrame = source.CFrame
+			originalCFrame = source:GetPivot()
 			-- Out of the world while dragging: not a snap target, not a
 			-- raycast obstacle.
 			source.Parent = nil
@@ -431,10 +489,13 @@ function BuildController.start(options: StartOptions?): Controller
 		markerFolder.Name = "BuildItMarkers"
 		markerFolder.Parent = workspace.CurrentCamera
 
-		local ghostConnectors = getConnectors(ghost)
+		local ghostConnectors = unitConnectors(ghost)
 		local ghostMarkers: { Marker } = {}
 		for _, connector in ghostConnectors do
-			table.insert(ghostMarkers, makeMarker(ghost, connector.position, connector.kind, markerFolder))
+			table.insert(
+				ghostMarkers,
+				makeMarker(connector.part, connector.partLocalPosition, connector.kind, markerFolder)
+			)
 		end
 
 		local overlapParams = OverlapParams.new()
@@ -563,8 +624,16 @@ function BuildController.start(options: StartOptions?): Controller
 		end
 		params.FilterDescendantsInstances = filterList
 		local result = workspace:Raycast(ray.Origin, ray.Direction * kRaycastDistance, params)
-		if result ~= nil and #getConnectors(result.Instance) > 0 then
-			beginDrag(result.Instance, true)
+		if result == nil then
+			return
+		end
+		-- A hit on a composite segment picks up the whole assembly Model.
+		local hit = result.Instance
+		local model = hit:FindFirstAncestorOfClass("Model")
+		if model ~= nil and model:GetAttribute("LDrawFile") ~= nil then
+			beginDrag(model, true)
+		elseif #getConnectors(hit) > 0 then
+			beginDrag(hit, true)
 		end
 	end)
 
@@ -572,7 +641,7 @@ function BuildController.start(options: StartOptions?): Controller
 	if opts.palette ~= nil then
 		mPalette = opts.palette
 	else
-		mPalette = PartPalette.create(guiParent, templatesFolder :: Folder, function(template: BasePart)
+		mPalette = PartPalette.create(guiParent, templatesFolder :: Folder, function(template: PVInstance)
 			beginDrag(template, false)
 		end)
 	end
@@ -592,7 +661,7 @@ function BuildController.start(options: StartOptions?): Controller
 
 	return {
 		stop = stop,
-		dragTemplate = function(template: BasePart)
+		dragTemplate = function(template: PVInstance)
 			beginDrag(template, false)
 		end,
 	}

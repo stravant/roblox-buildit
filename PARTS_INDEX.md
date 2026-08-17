@@ -30,6 +30,7 @@ descriptions (`head -1 p/<name>.dat`) before extending the table:
 | Gear tooth-built axle holes | 4019 (gear 16t), 6135, 2712 (rotor) | `axlehol6`/`axl3hol6` "Hole Tooth" segments (4x rotated per hole) | AxleHole |
 | Hand-carved pin bores | 3648a (gear 24t 3-axlehole: 4 pin holes) | geometric: INVERTED radius-6 cylinder sections, merged, sub-6 culled | PegHole |
 | Hand-built connectors (curated) | 3648a center axle hole | `connectorPrimitives.partOverrides` per-part table (raw rect cross, nothing keyable) | per entry |
+| Composite hinge | 2429+2430 via 73983 (Hinge Plate 1x4 Complete) | LDraw Shortcut assembly + curated joint in `compositeParts.lua` (both halves' swivel boss at the assembly origin, vertical axis). Imports as a Model of jointed segments; segment ids redirect to the assembly | Composite (Model + JointPivot attachments) |
 | Bar / rod | 30374 (bar 4L), 3957 (antenna shaft) | none — geometric: `4-4cyli`/`4-4cylc` at radius 4, length >= 8 | Bar (axis + length) |
 | Clip (vertical) | 4085c (plate 1x1 w/ clip), 2555 (tile w/ clip) | `clip1.dat`, `clip2.dat` (grip center ~8 LDU out along local -Z from the mount origin) | Clip (grips a Bar along local Y) |
 | 1x1 underside pockets | 3005, 3024, 4085c | `box5.dat`/`box4t.dat` cavity boxes at stud-pocket size (half-extents 5.5-10.5 LDU; larger placements are wall shells and ignored) | Socket via Pocket |

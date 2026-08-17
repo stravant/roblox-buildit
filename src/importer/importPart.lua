@@ -36,17 +36,10 @@ local function cleanDescription(description: string?): string?
 	return if #cleaned > 0 then cleaned else nil
 end
 
--- Orthonormal frame with the given up vector.
-local function frameWithUp(position: Vector3, up: Vector3): CFrame
-	local reference = if math.abs(up.Y) > 0.9 then Vector3.xAxis else Vector3.yAxis
-	local right = reference:Cross(up).Unit
-	return CFrame.fromMatrix(position, right, up, right:Cross(up))
-end
-
 local function addAxialAttachment(parent: MeshPart, connection: Types.Connection, meshCenter: Vector3)
 	local attachment = Instance.new("Attachment")
 	attachment.Name = connection.type
-	attachment.CFrame = frameWithUp(
+	attachment.CFrame = RobloxConvert.frameWithUp(
 		RobloxConvert.position(connection.position) - meshCenter,
 		RobloxConvert.direction(connection.direction)
 	)
