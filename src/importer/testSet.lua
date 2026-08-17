@@ -147,4 +147,6 @@ return {
 	"4315", -- Hinge Plate 1x4 Car Roof Holder: bump pins
 	"2650", -- Hinge Hook Base: r4 latch bar
 	"2651", -- Hinge Hook Arm: latching clip jaw
+	"30633", -- Windscreen Canopy with Click Hinge (clh6d)
+	"30516", -- Turntable 4x4x2 Locking (composite)
 }

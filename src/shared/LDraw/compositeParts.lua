@@ -46,6 +46,13 @@ compositeParts.composites = {
 			{ type = "Hinge", position = Vector3.zero, axis = Vector3.new(0, -1, 0) },
 		},
 	},
+	-- Turntable 4 x 4 x 2 Locking (30516 grooved base + 30658 top):
+	-- swivel about the vertical center axis.
+	["30516c01.dat"] = {
+		joints = {
+			{ type = "Hinge", position = Vector3.new(0, 8, 0), axis = Vector3.new(0, -1, 0) },
+		},
+	},
 	-- Hinge 1 x 2 (3937 base + 3938 top): tilts about a horizontal axis
 	-- through the finger knuckle (axis position approximate: knuckle
 	-- center sits above the base plate at the joint line).
@@ -136,6 +143,9 @@ local kRedirects: { [string]: string } = {
 	["3680c02.dat"] = "3680c01.dat",
 	["3403.dat"] = "3403c01.dat",
 	["3404.dat"] = "3403c01.dat",
+	["30516.dat"] = "30516c01.dat",
+	["30658.dat"] = "30516c01.dat",
+	["30516c02.dat"] = "30516c01.dat",
 	["3815.dat"] = "3815c01.dat",
 	["3816.dat"] = "3815c01.dat",
 	["3817.dat"] = "3815c01.dat",

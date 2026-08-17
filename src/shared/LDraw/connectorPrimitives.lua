@@ -203,7 +203,7 @@ add({ "arm1", "arm2", "arm3" }, {
 -- (clh1 family) click between fork prongs (clh4 family, placed as two
 -- halves at the same origin — they merge to one connector). Pivot axis
 -- = local Z through the primitive origin.
-add({ "clh1", "clh2", "clh3", "clh6", "clh8", "clh9", "clh12", "clh13" }, {
+add({ "clh1", "clh2", "clh3", "clh6", "clh6d", "clh6u", "clh8", "clh9", "clh12", "clh13" }, {
 	type = "ClickFinger",
 	geometry = "axisZ",
 	length = 4,

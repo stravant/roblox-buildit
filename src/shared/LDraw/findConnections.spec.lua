@@ -865,6 +865,11 @@ return function(t: TestTypes.TestContext)
 		t.expect(countByType(two).HingeFinger).toBe(1)
 	end)
 
+	t.test("canopy with click hinge (30633): clh6d variant detected", function()
+		local connections = findConnections(library, "30633.dat") :: any
+		t.expect((countByType(connections).ClickFinger or 0) >= 1).toBe(true)
+	end)
+
 	t.test("click hinges (30364/30365/44301/44302): finger and fork", function()
 		local singleBrick = findConnections(library, "30364.dat") :: any
 		t.expect(countByType(singleBrick).ClickFinger).toBe(1)
