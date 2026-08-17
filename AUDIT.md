@@ -48,9 +48,12 @@ minifig accessories that wrap/drape). Headgear was the big fixable
 family (now handled via the wearable boundary-rule exemption).
 Genuinely remaining, by family:
 
-- Hand-built finger hinges: 2440 radar, 654 joining ring, 2650/2651
-  hinge hook, 4318 boat mast, excavator buckets 3314/3433/2347,
-  795/4221 arm pieces.
+- Hand-built finger hinges: ~~2440 radar, excavator 3314/3433/2347~~
+  (done), ~~2348/2349 sunroof~~ (done). Parked: 654 joining ring
+  (652c01 composite segment, joint handled there), 2650/2651 hinge
+  hook (latching hook, own joint class), 4318 boat mast (mating deck
+  part unidentified), 4315 roof holder + its glass (bump/cup pairing
+  ambiguous, both sides read HingePin today), 795/4221 arm pieces.
 - Doors/drawers with rail or lip mounts: 4533/4535 cupboard doors,
   4536/3 drawers, 2874 sliding door, 838/843 Homemaker doors,
   821a Mursten garage door (sliding channel class).
