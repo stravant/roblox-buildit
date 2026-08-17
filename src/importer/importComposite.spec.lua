@@ -52,4 +52,32 @@ return function(t: TestTypes.TestContext)
 
 		folder:Destroy()
 	end)
+
+	t.test("imports the minifig torso assembly with four joints", function()
+		local folder = Instance.new("Folder")
+		local model, errorMessage = importComposite(library, "973c01.dat", folder)
+		t.expect(errorMessage).toBeFalsy()
+		local torso = model :: Model
+		t.expect(torso:GetAttribute("JointCount")).toBe(4)
+
+		local segments = 0
+		local pivotCounts: { [string]: number } = {}
+		for _, child in torso:GetChildren() do
+			if child:IsA("MeshPart") then
+				segments += 1
+				for _, attachment in child:GetChildren() do
+					if attachment:IsA("Attachment") and attachment.Name:match("^JointPivot") then
+						pivotCounts[attachment.Name] = (pivotCounts[attachment.Name] or 0) + 1
+					end
+				end
+			end
+		end
+		t.expect(segments).toBe(5)
+		-- Each joint's pivot appears on exactly its two segments.
+		for jointIndex = 1, 4 do
+			t.expect(pivotCounts[`JointPivot{jointIndex}`]).toBe(2)
+		end
+
+		folder:Destroy()
+	end)
 end
