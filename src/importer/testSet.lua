@@ -127,4 +127,8 @@ return {
 	"1022657", -- Friends Legs Shorts (same shared hinge subpart)
 	"25727", -- Friends Legs Cargo (thick hinge): foot pockets
 	"15118", -- Ladder 2.6x16: rungs as bars
+	"11299", -- Ladder 2.6x16 with Handrails: rungs as bars
+	"4533", -- Container Cupboard 2x3x2 Door: hinge rod
+	"4534", -- Container Cupboard 2x3x4: corner bores
+	"4535", -- Container Cupboard 2x3x4 Door: hinge rod
 }

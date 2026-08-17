@@ -340,6 +340,52 @@ connectorPrimitives.partOverrides = {
 			direction = Vector3.new(0, 0, 1),
 			length = 36,
 		},
+		-- Door hinge bores at both front corners (door hangs either side).
+		{
+			type = "HingeSocket",
+			position = Vector3.new(24, 22, -17),
+			direction = Vector3.new(0, -1, 0),
+			length = 37,
+		},
+		{
+			type = "HingeSocket",
+			position = Vector3.new(-24, 22, -17),
+			direction = Vector3.new(0, -1, 0),
+			length = 37,
+		},
+	},
+	-- Cupboard doors: full-height r2 hinge rod on the door edge
+	-- (located by vertex-ring analysis; 30125 aliases 4533).
+	["4533.dat"] = {
+		{
+			type = "HingePin",
+			position = Vector3.new(0, 18, 0),
+			direction = Vector3.new(0, -1, 0),
+			length = 37,
+		},
+	},
+	["4535.dat"] = {
+		{
+			type = "HingePin",
+			position = Vector3.new(0, 42, 0),
+			direction = Vector3.new(0, -1, 0),
+			length = 85,
+		},
+	},
+	-- Container Cupboard 2x3x4: same corner bores, taller.
+	["4534.dat"] = {
+		{
+			type = "HingeSocket",
+			position = Vector3.new(24, 46, -17),
+			direction = Vector3.new(0, -1, 0),
+			length = 85,
+		},
+		{
+			type = "HingeSocket",
+			position = Vector3.new(-24, 46, -17),
+			direction = Vector3.new(0, -1, 0),
+			length = 85,
+		},
 	},
 	-- Fire ladder 2.4x13 sections: the narrow top section (852) nests
 	-- and slides inside the bottom section (850)'s rails, both 260
@@ -515,6 +561,20 @@ connectorPrimitives.partOverrides = {
 			table.insert(rungs, {
 				type = "Bar",
 				position = Vector3.new(x, -4, 0),
+				direction = Vector3.new(0, 0, 1),
+				length = 37.5,
+			})
+		end
+		return rungs
+	end)(),
+	-- Ladder 2.6x16 with Handrails: same six main rungs as 15118 (the
+	-- handrails are flat-profiled, not grippable bars).
+	["11299.dat"] = (function()
+		local rungs = {}
+		for _, x in { -100, -60, -20, 20, 60, 100 } do
+			table.insert(rungs, {
+				type = "Bar",
+				position = Vector3.new(x, 0, 0),
 				direction = Vector3.new(0, 0, 1),
 				length = 37.5,
 			})

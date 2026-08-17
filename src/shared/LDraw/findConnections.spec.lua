@@ -582,6 +582,24 @@ return function(t: TestTypes.TestContext)
 		t.expect(countByType(top).SlideRail).toBe(1)
 	end)
 
+	t.test("cupboard doors (4533/4535) and cabinets (4532/4534)", function()
+		for _, case in { { "4533.dat", 37 }, { "4535.dat", 85 } } do
+			local connections = findConnections(library, case[1] :: any) :: any
+			local pins = {}
+			for _, connection in connections do
+				if connection.type == "HingePin" then
+					table.insert(pins, connection)
+				end
+			end
+			t.expect(#pins).toBe(1)
+			t.expect(pins[1].length).toBeCloseTo(case[2] :: any)
+		end
+		local small = findConnections(library, "4532.dat") :: any
+		t.expect(countByType(small).HingeSocket).toBe(2)
+		local tall = findConnections(library, "4534.dat") :: any
+		t.expect(countByType(tall).HingeSocket).toBe(2)
+	end)
+
 	t.test("cupboard drawer slide (4532/4536)", function()
 		local cupboard = findConnections(library, "4532.dat") :: any
 		t.expect(countByType(cupboard).SlideGroove).toBe(1)
