@@ -64,6 +64,11 @@ Genuinely remaining, by family:
   (+ modern 15118/11299 back clips).
 - Misc: 745/746/3350 roadsign posts/clips, 2686 monorail wheel
   chassis, 4788 Fabuland paddle wheel (axle bore is square?).
+- Train track family (TrackEnd/CoasterEnd types added): remaining
+  are 9V points/switches (2861/2859, three ends + moving rail),
+  coaster ramps 26559/26560/26561 (end abutment planes at two
+  heights, not confidently derivable from probes — verify in Studio
+  with imported straights first), coaster lift/chain sections.
 
 ## Notes
 
