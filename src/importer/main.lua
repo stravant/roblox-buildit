@@ -84,6 +84,9 @@ local kTestSet = {
 	"4131", -- Door 2x4x5: capped hinge rod
 	"4071", -- Door 2x6x7 Frame: corner rails + nubs
 	"4072", -- Door 2x6x7 Four Panes: capped hinge rod
+	"4275a", -- Hinge Plate 1x2 with 3 Fingers (h2 primitive)
+	"4276a", -- Hinge Plate 1x2 with 2 Fingers (h1 primitive)
+	"2452", -- Hinge Plate 1x2 with 3 Fingers On Side
 }
 local kBackgroundColor = Color3.fromRGB(46, 46, 46)
 local kTextColor = Color3.fromRGB(220, 220, 220)
