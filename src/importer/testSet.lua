@@ -120,4 +120,6 @@ return {
 	"2672", -- Monorail Track Curve Quarter (R560)
 	"2677", -- Monorail Ramp Lower Section
 	"2678", -- Monorail Ramp Upper Section
+	"2861", -- Train Track 9V Switch Left: three ends
+	"2859", -- Train Track 9V Switch Right: three ends
 }
