@@ -61,14 +61,12 @@ Genuinely remaining, by family:
   unidentified), 2874 sliding door, 821a Mursten garage door.
 - Ladders: ALL DONE — 420/421 + 850/851a/852 slides, 15118/11299/
   4207a rungs as bars, 4000 pivot bar.
-- Misc: ~~745/746/3350 roadsigns~~ (done: r2 neck/clamp via the
-  HingePin pair; signs stack on posts). Remaining: 2686 monorail
-  wheel chassis, 4788 Fabuland paddle wheel (axle bore is square?).
-- Train track family (TrackEnd/CoasterEnd types added): remaining
-  are 9V points/switches (2861/2859, three ends + moving rail),
-  coaster ramps 26559/26560/26561 (end abutment planes at two
-  heights, not confidently derivable from probes — verify in Studio
-  with imported straights first), coaster lift/chain sections.
+- Misc: ~~745/746/3350 roadsigns~~, ~~4788 paddle wheel~~ (hand-built
+  axle cross bore). Remaining: 2686 monorail wheel chassis (mates the
+  motor assembly, out of connector scope).
+- Train track family: ~~9V switches 2861/2859~~, ~~coaster ramps
+  26559/26560/26561~~ (clip pins located by ring search, calibrated
+  against the straights). Remaining: coaster lift/chain sections.
 
 ## Notes
 
