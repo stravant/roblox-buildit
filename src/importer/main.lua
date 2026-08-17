@@ -121,6 +121,8 @@ local kTestSet = {
 	"850", -- Fire ladder bottom section: slide groove
 	"852", -- Fire ladder top section: slide rail
 	"851a", -- Fire ladder middle section: both slide interfaces
+	"420", -- Classic 2x12 ladder bottom: slide groove
+	"421", -- Classic 2x12 ladder top: slide rail
 }
 local kBackgroundColor = Color3.fromRGB(46, 46, 46)
 local kTextColor = Color3.fromRGB(220, 220, 220)
