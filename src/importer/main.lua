@@ -76,6 +76,10 @@ local kTestSet = {
 	"6798", -- Window 1x3x2 Frame: same hole-for-bump bosses
 	"3644", -- Door 1x4x6 Grooved: segmented r2 hinge rod
 	"30179", -- Door 1x4x6 Frame Type 1: corner pivot bores
+	"2042", -- Container Cupboard 2x6x7: side-rail hinge stacks
+	"2043", -- Container Cupboard 2x6x7 Door: outward end pins
+	"60596", -- Door 1x4x6 Frame (newer mold): r2.5 corner bores
+	"60623", -- Door 1x4x6 Stud Handle (newer mold): short end pins
 }
 local kBackgroundColor = Color3.fromRGB(46, 46, 46)
 local kTextColor = Color3.fromRGB(220, 220, 220)
