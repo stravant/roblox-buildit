@@ -116,4 +116,8 @@ return {
 	"25059", -- Roller Coaster Straight 4x16
 	"26022", -- Roller Coaster Straight 4x8
 	"25061", -- Roller Coaster Curve 90 R12
+	"2670", -- Monorail Track Straight 4x8
+	"2672", -- Monorail Track Curve Quarter (R560)
+	"2677", -- Monorail Ramp Lower Section
+	"2678", -- Monorail Ramp Upper Section
 }

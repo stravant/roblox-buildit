@@ -110,6 +110,10 @@ local function mateRule(a: string, b: string): MateRule?
 		return "point"
 	elseif a == "CoasterEnd" and b == "CoasterEnd" then
 		return "point"
+	elseif a == "MonoEnd" and b == "MonoEnd" then
+		return "point"
+	elseif a == "MonoRampJoint" and b == "MonoRampJoint" then
+		return "point"
 	elseif (a == "Towball" and b == "TowballSocket") or (a == "TowballSocket" and b == "Towball") then
 		return "ball"
 	elseif (a == "Stud" and b == "PegHole") or (a == "PegHole" and b == "Stud") then
