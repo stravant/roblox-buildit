@@ -24,6 +24,10 @@
 --     lengths lock centered, which is how pins click in).
 --   Ball (Towball <-> TowballSocket): centers coincide, NO direction
 --     constraint — ball joints mate at any rotation.
+--   Mouth (Stud <-> PegHole): a stud inserts into a pin hole's mouth
+--     from either end (minifig head on the neck post, and the classic
+--     stud-in-technic-hole technique). The stud locks to the nearer
+--     mouth, pointing into the hole.
 --
 -- The candidate placement keeps the ghost's rotation: only translation is
 -- solved, so the caller controls orientation (e.g. yaw stepping with R).
@@ -77,19 +81,28 @@ local kAxialPartners: { [string]: { [string]: boolean } } = {
 	SlipRing = { SlipAxle = true },
 }
 
-type MateRule = "point" | "axial" | "ball"
+type MateRule = "point" | "axial" | "ball" | "mouth"
 
 local function mateRule(a: string, b: string): MateRule?
 	if (a == "Stud" and b == "Socket") or (a == "Socket" and b == "Stud") then
 		return "point"
 	elseif (a == "Towball" and b == "TowballSocket") or (a == "TowballSocket" and b == "Towball") then
 		return "ball"
+	elseif (a == "Stud" and b == "PegHole") or (a == "PegHole" and b == "Stud") then
+		return "mouth"
 	end
 	local partners = kAxialPartners[a]
 	if partners ~= nil and partners[b] then
 		return "axial"
 	end
 	return nil
+end
+
+-- Both mouths of a hole connector (its segment ends; a bare mouth with
+-- no length is its own single mouth).
+local function holeMouths(position: Vector3, direction: Vector3, length: number?): (Vector3, Vector3)
+	local halfSpan = direction * ((length or 0) / 2)
+	return position - halfSpan, position + halfSpan
 end
 
 -- The dragged element may slide along the axis by half the length
@@ -146,6 +159,27 @@ local function findSnapPlacement(
 				-- less than a stud).
 				targetPosition = world.position
 				degreesOfFreedom = 0.5
+			elseif rule == "mouth" then
+				if math.abs(dragDirection:Dot(world.direction)) < kAxisDotMin then
+					continue
+				end
+				if drag.kind == "Stud" then
+					-- Stud locks to the nearer mouth, pointing into the hole.
+					local mouthA, mouthB = holeMouths(world.position, world.direction, world.length)
+					local mouth = if (dragPosition - mouthA).Magnitude <= (dragPosition - mouthB).Magnitude
+						then mouthA
+						else mouthB
+					local into = world.position - mouth
+					if into.Magnitude > 1e-4 and dragDirection:Dot(into.Unit) < 0.9 then
+						continue
+					end
+					targetPosition = mouth
+				else
+					-- Dragging the hole onto a fixed stud: a mouth lands on
+					-- the stud, hole center half a length along the stud.
+					targetPosition = world.position + world.direction * ((drag.length or 0) / 2)
+				end
+				degreesOfFreedom = 0
 			else -- axial
 				if math.abs(dragDirection:Dot(world.direction)) < kAxisDotMin then
 					continue
@@ -210,6 +244,16 @@ local function findSnapPlacement(
 					and dragDirection:Dot(world.direction) <= kDirectionDotMax
 			elseif rule == "ball" then
 				mated = (dragPosition - world.position).Magnitude <= kMatedEpsilon
+			elseif rule == "mouth" then
+				if math.abs(dragDirection:Dot(world.direction)) >= kAxisDotMin then
+					local studPosition = if drag.kind == "Stud" then dragPosition else world.position
+					local holePosition = if drag.kind == "Stud" then world.position else dragPosition
+					local holeDirection = if drag.kind == "Stud" then world.direction else dragDirection
+					local holeLength = if drag.kind == "Stud" then world.length else drag.length
+					local mouthA, mouthB = holeMouths(holePosition, holeDirection, holeLength)
+					mated = (studPosition - mouthA).Magnitude <= kMatedEpsilon
+						or (studPosition - mouthB).Magnitude <= kMatedEpsilon
+				end
 			elseif rule == "axial" then
 				if math.abs(dragDirection:Dot(world.direction)) >= kAxisDotMin then
 					if world.oneSided or drag.oneSided then

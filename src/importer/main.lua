@@ -56,6 +56,11 @@ local kTestSet = {
 	"3937", -- Hinge 1x2 (imports the 3937c01 composite)
 	"3680", -- Turntable 2x2 (imports the 3680c01 composite)
 	"3183a", -- Plate 1x4 with classic towball socket
+	"973", -- Minifig torso: neck stud
+	"3626b", -- Minifig head: neck pocket + top stud
+	"3820", -- Minifig hand: bar grip
+	"3815", -- Minifig hips+legs (imports the 3815c01 two-joint composite)
+	"3624", -- Minifig police hat: tube grips the head stud
 }
 local kBackgroundColor = Color3.fromRGB(46, 46, 46)
 local kTextColor = Color3.fromRGB(220, 220, 220)

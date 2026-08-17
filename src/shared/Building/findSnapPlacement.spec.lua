@@ -324,6 +324,28 @@ return function(t: TestTypes.TestContext)
 		t.expect(#snap.matchedPairs).toBe(1)
 	end)
 
+	t.test("stud inserts into a peghole mouth", function()
+		-- Horizontal through-hole (like a technic brick's) at y=3.
+		local world = {
+			{ kind = "PegHole", position = Vector3.new(0, 3, 0), direction = Vector3.new(0, 0, 1), length = 1 },
+		}
+		local stud = {
+			{ kind = "Stud", position = Vector3.new(0, 0.5, 0), direction = Vector3.new(0, 0, 1) },
+		}
+		-- Approaching the near (-Z) mouth: stud locks there, pointing +Z in.
+		local snap = findSnapPlacement(CFrame.new(0.1, 2.6, -0.8), stud :: any, world :: any, kMaxSnap) :: any
+		t.expect(snap).toBeTruthy()
+		t.expect(snap.cframe:PointToWorldSpace(Vector3.new(0, 0.5, 0))).toBeCloseTo(Vector3.new(0, 3, -0.5))
+		t.expect(#snap.matchedPairs).toBe(1)
+
+		-- Wrong way (stud pointing out of the hole): rejected.
+		local studOut = {
+			{ kind = "Stud", position = Vector3.new(0, 0.5, 0), direction = Vector3.new(0, 0, -1) },
+		}
+		local rejected = findSnapPlacement(CFrame.new(0.1, 2.6, -0.8), studOut :: any, world :: any, kMaxSnap)
+		t.expect(rejected).toBeFalsy()
+	end)
+
 	t.test("axial axes must be parallel", function()
 		local world = {
 			{ kind = "AxleHole", position = Vector3.new(0, 5, 0), direction = Vector3.new(1, 0, 0), length = 1 },

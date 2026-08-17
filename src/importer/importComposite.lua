@@ -40,9 +40,13 @@ local function importComposite(
 		return nil, `Assembly file not found: {assemblyRef}`
 	end
 
-	local jointPosition = RobloxConvert.position(composite.joint.position)
-	local jointAxis = RobloxConvert.direction(composite.joint.axis)
-	local jointCFrame = RobloxConvert.frameWithUp(jointPosition, jointAxis)
+	local jointCFrames: { CFrame } = {}
+	for _, joint in composite.joints do
+		table.insert(
+			jointCFrames,
+			RobloxConvert.frameWithUp(RobloxConvert.position(joint.position), RobloxConvert.direction(joint.axis))
+		)
+	end
 
 	local model = Instance.new("Model")
 	local segmentIndex = 0
@@ -60,11 +64,17 @@ local function importComposite(
 		segment.CFrame = RobloxConvert.placementCFrame(ref.transform) * CFrame.new(meshCenter :: Vector3)
 		segment:SetAttribute("JointSegment", segmentIndex)
 
-		local pivot = Instance.new("Attachment")
-		pivot.Name = "JointPivot"
-		pivot.CFrame = segment.CFrame:ToObjectSpace(jointCFrame)
-		pivot:SetAttribute("JointType", composite.joint.type)
-		pivot.Parent = segment
+		for jointIndex, joint in composite.joints do
+			if joint.segments ~= nil and table.find(joint.segments :: { number }, segmentIndex) == nil then
+				continue
+			end
+			local pivot = Instance.new("Attachment")
+			pivot.Name = if #composite.joints == 1 then "JointPivot" else `JointPivot{jointIndex}`
+			pivot.CFrame = segment.CFrame:ToObjectSpace(jointCFrames[jointIndex])
+			pivot:SetAttribute("JointType", joint.type)
+			pivot:SetAttribute("JointIndex", jointIndex)
+			pivot.Parent = segment
+		end
 	end
 	if segmentIndex == 0 then
 		model:Destroy()
@@ -75,7 +85,8 @@ local function importComposite(
 	model.Name = cleanDescription(assembly.description) or partNumber
 	model:SetAttribute("LDrawFile", assemblyRef)
 	model:SetAttribute("PartNumber", partNumber)
-	model:SetAttribute("JointType", composite.joint.type)
+	model:SetAttribute("JointType", composite.joints[1].type)
+	model:SetAttribute("JointCount", #composite.joints)
 	-- No PrimaryPart: the model pivot stays the bounding box center, so
 	-- PivotTo-based tooling treats composites like plain parts.
 	model.Parent = parent

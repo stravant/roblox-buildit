@@ -33,7 +33,7 @@ delete the enable file.
 
 | Bucket | Count | Notes / recommendation |
 |---|---|---|
-| Minifig articulation | ~124 | Core figure: 973 torso (neck stud, arm sockets), 3626 head (neck socket, top stud), 970-972 hips/legs, 976-983 arms/hands (wrist bar, hand C-grip = Clip). Accessories mostly fine (bar grips detect). Needs a curated override set + probably a "MinifigNeck"-style pair or reuse Bar/Clip/Stud analogues. |
+| Minifig articulation | ~124 | PARTLY DONE: torso neck Stud, head Pocket/top stud, hand C-grip (cylo bore), hips+legs two-joint composite, hats via tubes, stud-in-pinhole "mouth" mate rule. Remaining: arms (wrist sockets, shoulder joints — torso+arm assemblies are print-variant-heavy), integral-arm figures (15/17), Friends figures. |
 | Doors/windows/shutters | ~25 of zero-bucket | Hinge-rail systems (671, 791, 821...): window shutter pin/rail, door pivot pins. New pair like HingePin/HingeRail, likely geometric (small cylinders at frame corners). |
 | Finger hinges on arms/brackets | ~10 | 412/795 "Arm Piece with N Fingers", exo-force style. Finger knuckles are hand-built; per-family overrides or a finger-stack composite concept. |
 | Tyres/wheels | ~15 | Tyre<->rim interface is its own system (Tyre/Rim pair); wheels' axle/pin holes mostly already detect. |
