@@ -9,11 +9,13 @@
 -- connector pair that ends up mated under that placement (for
 -- visualization).
 --
--- Candidate choice: fewest remaining degrees of freedom first, translation
--- distance as the tiebreaker. A point mate (stud in socket, 0 DOF) beats
--- an axial slide (bar in clip, 1 DOF) even when the axial target is
--- closer; an axial mate whose lengths match (pin clicked into a peghole)
--- locks fully and counts as 0 DOF too.
+-- Candidate choice: a single weighted score — translation distance,
+-- distance from the grab point (both which drag connector engages and
+-- where it lands, so the joint under the cursor wins), remaining
+-- degrees of freedom (a locking mate is worth a modest distance
+-- advantage, not an absolute one), a penalty for loose fallback fits
+-- (an axle resting in a round pin hole never beats the axle hole
+-- beside it), and the alignment rotation.
 --
 -- Three mating rules:
 --   Point (Stud <-> Socket): positions coincide, directions anti-parallel.
@@ -74,10 +76,21 @@ local radiusCompatible = mates.radiusCompatible
 local holeMouths = mates.holeMouths
 local slideRange = mates.slideRange
 
--- Secondary scoring weight for distance from the grab point: strong
--- enough to resolve ties toward the cursor, weak enough that a genuinely
--- closer snap still wins.
-local kGrabBiasWeight = 0.3
+-- Scoring weight for distance from the grab point, applied to BOTH the
+-- drag connector's current position and where it would land — so a part
+-- held by one end snaps by that end, and among several world joints the
+-- one under the cursor wins.
+local kGrabBiasWeight = 0.5
+-- Score penalty per remaining degree of freedom (studs): a locking mate
+-- (stud, clicked pin) is preferred over a slide, but only as a modest
+-- distance advantage — it must not hijack the joint under the cursor
+-- (a stud mouthing into a gear's pin hole must not beat the axle mate
+-- being aimed at the gear's bore).
+local kDofPenaltyWeight = 0.75
+-- Score penalty for loose fallback fits (mates.isLooseKindPair — axle
+-- in a round pin hole, bar through a bore): valid mates, but never
+-- preferred over a proper fit nearby.
+local kLoosePairPenalty = 1.5
 
 -- Alignment rotation: candidates misaligned by up to this get rotated
 -- into place (minifig hand grips sit at ~46 degrees); beyond it they
@@ -128,8 +141,7 @@ local function findSnapPlacement(
 	grabPosition: Vector3?
 ): SnapResult?
 	local rotation = ghostCFrame.Rotation
-	local bestDegreesOfFreedom = math.huge
-	local bestDistance = math.huge
+	local bestScore = math.huge
 	local bestCFrame: CFrame? = nil
 
 	for _, world in worldConnectors do
@@ -247,16 +259,19 @@ local function findSnapPlacement(
 			if distance > maxSnapDistance then
 				continue
 			end
-			local score = distance + kRotationPenaltyWeight * alignmentAngle
-			if grabPosition ~= nil then
-				score += kGrabBiasWeight * (basePosition - grabPosition).Magnitude
+			local score = distance
+				+ kRotationPenaltyWeight * alignmentAngle
+				+ kDofPenaltyWeight * degreesOfFreedom
+			if mates.isLooseKindPair(drag.kind, world.kind) then
+				score += kLoosePairPenalty
 			end
-			if
-				degreesOfFreedom < bestDegreesOfFreedom
-				or (degreesOfFreedom == bestDegreesOfFreedom and score < bestDistance)
-			then
-				bestDegreesOfFreedom = degreesOfFreedom
-				bestDistance = score
+			if grabPosition ~= nil then
+				local grab = grabPosition :: Vector3
+				score += kGrabBiasWeight
+					* ((basePosition - grab).Magnitude + (targetPosition - grab).Magnitude)
+			end
+			if score < bestScore then
+				bestScore = score
 				bestCFrame = candidateRotation
 					+ (ghostCFrame.Position + targetPosition - dragPosition)
 			end

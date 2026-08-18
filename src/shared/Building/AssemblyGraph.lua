@@ -300,21 +300,10 @@ local function edgeReleases(edge: Edge, movingId: any, direction: Vector3): bool
 	return true
 end
 
--- Kind pairs that are LOOSE: freely rotating/sliding connections with
--- no clutch (an axle spinning in a round pin hole, a bar through a
--- pin's bore). These hold nothing when handling parts — only "move
--- assembly" carries them.
-local kLoosePairs: { [string]: { [string]: boolean } } = {
-	Axle = { PegHole = true },
-	PegHole = { Axle = true },
-	Bar = { BarHole = true, AxleHole = true },
-	BarHole = { Bar = true },
-	AxleHole = { Bar = true },
-}
-
+-- Loose (clutchless spin/slide) pairs live in mates.kLoosePairs: they
+-- hold nothing when handling parts — only "move assembly" carries them.
 local function mateIsLoose(mate: mates.Mate): boolean
-	local partners = kLoosePairs[mate.aKind]
-	return partners ~= nil and partners[mate.bKind] == true
+	return mates.isLooseKindPair(mate.aKind, mate.bKind)
 end
 
 -- Chunk rule for one mate: does it carry the neighbor when the

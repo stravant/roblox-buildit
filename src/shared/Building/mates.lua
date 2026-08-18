@@ -89,6 +89,24 @@ mates.kAxialPartners = {
 	RimSeat = { TyreBore = true },
 } :: { [string]: { [string]: boolean } }
 
+-- Kind pairs that are LOOSE: freely rotating/sliding fits with no
+-- clutch (an axle spinning in a round pin hole, a bar through a bore).
+-- Valid build connections, but weak: handling code never carries them
+-- outside "move assembly", and the snap solver deprioritizes them
+-- against a proper fit nearby (axle hole over pin hole).
+local kLoosePairs: { [string]: { [string]: boolean } } = {
+	Axle = { PegHole = true },
+	PegHole = { Axle = true },
+	Bar = { BarHole = true, AxleHole = true },
+	BarHole = { Bar = true },
+	AxleHole = { Bar = true },
+}
+
+function mates.isLooseKindPair(a: string, b: string): boolean
+	local partners = kLoosePairs[a]
+	return partners ~= nil and partners[b] == true
+end
+
 -- Self-mating face-to-face butt joints (weakest links: they lift apart
 -- in any direction; physics treats them as rigid while engaged).
 local kFaceKinds: { [string]: boolean } = {

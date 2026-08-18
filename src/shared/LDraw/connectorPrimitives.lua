@@ -291,6 +291,16 @@ connectorPrimitives.partOverrides = {
 			length = 15.6,
 		},
 	},
+	-- Gear 24 tooth single axle hole: same raw rect-cross bore as 3648a
+	-- (walls at half-extent 4.8125 centered z=4.8125, mirrored in -z).
+	["3648b.dat"] = {
+		{
+			type = "AxleHole",
+			position = Vector3.zero,
+			direction = Vector3.new(0, 0, 1),
+			length = 19.25,
+		},
+	},
 	-- Transmission slip interface: the driving ring (6539) rides splined
 	-- on the OUTSIDE of the axle joiner (6538a) and slides axially to
 	-- engage gears on either side. The joiner keeps its internal AxleHole

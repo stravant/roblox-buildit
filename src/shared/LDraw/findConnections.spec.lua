@@ -360,6 +360,19 @@ return function(t: TestTypes.TestContext)
 		t.expect(connections[1].length).toBeCloseTo(4)
 	end)
 
+	t.test("gear 24 tooth single axle hole (3648b): center override", function()
+		local connections = findConnections(library, "3648b.dat") :: any
+		local counts = countByType(connections)
+		-- The bore is a raw rect cross: only the override's axle hole.
+		t.expect(counts.AxleHole).toBe(1)
+		for _, connection in connections do
+			if connection.type == "AxleHole" then
+				t.expect(connection.position).toBeCloseTo(Vector3.new(0, 0, 0), 0.1)
+				t.expect(connection.length).toBeCloseTo(19.25)
+			end
+		end
+	end)
+
 	t.test("gear 24 tooth 3-axlehole (3648a): pin holes + center override", function()
 		local connections = findConnections(library, "3648a.dat") :: any
 		local counts = countByType(connections)

@@ -424,4 +424,66 @@ return function(t: TestTypes.TestContext)
 		local snap = findSnapPlacement(CFrame.new(0, 5.1, 0), crossways :: any, world :: any, kMaxSnap)
 		t.expect(snap).toBeFalsy()
 	end)
+
+	t.test("axle prefers the axle hole over a closer pin hole (gear hub)", function()
+		-- Gear-like layout: keyed axle bore at the center, round pin
+		-- holes on the diagonals. The pin holes are a loose fallback fit
+		-- for an axle — the bore wins even when a pin hole is nearer.
+		local world = {
+			{ kind = "AxleHole", position = Vector3.zero, direction = Vector3.new(0, 0, 1), length = 0.96 },
+			{ kind = "PegHole", position = Vector3.new(0.5, 0.5, 0), direction = Vector3.new(0, 0, 1), length = 0.8 },
+			{ kind = "PegHole", position = Vector3.new(-0.5, 0.5, 0), direction = Vector3.new(0, 0, 1), length = 0.8 },
+			{ kind = "PegHole", position = Vector3.new(0.5, -0.5, 0), direction = Vector3.new(0, 0, 1), length = 0.8 },
+			{ kind = "PegHole", position = Vector3.new(-0.5, -0.5, 0), direction = Vector3.new(0, 0, 1), length = 0.8 },
+		}
+		local axle = {
+			{ kind = "Axle", position = Vector3.zero, direction = Vector3.new(0, 0, 1), length = 2 },
+		}
+		-- Ghost hovering nearly on top of a pin hole.
+		local snap = findSnapPlacement(CFrame.new(0.4, 0.4, 0), axle :: any, world :: any, kMaxSnap) :: any
+		t.expect(snap).toBeTruthy()
+		t.expect(snap.cframe.Position).toBeCloseTo(Vector3.new(0, 0, 0))
+	end)
+
+	t.test("grab point picks between equal world joints", function()
+		local world = {
+			{ kind = "AxleHole", position = Vector3.zero, direction = Vector3.new(0, 0, 1), length = 1 },
+			{ kind = "AxleHole", position = Vector3.new(2, 0, 0), direction = Vector3.new(0, 0, 1), length = 1 },
+		}
+		local axle = {
+			{ kind = "Axle", position = Vector3.zero, direction = Vector3.new(0, 0, 1), length = 2 },
+		}
+		-- Ghost equidistant from both holes: the joint nearer the grab
+		-- point wins each way.
+		local ghost = CFrame.new(1, 0.5, 0)
+		local right = findSnapPlacement(ghost, axle :: any, world :: any, kMaxSnap, Vector3.new(1.9, 0, 0)) :: any
+		t.expect(right).toBeTruthy()
+		t.expect(right.cframe.Position).toBeCloseTo(Vector3.new(2, 0, 0))
+		local left = findSnapPlacement(ghost, axle :: any, world :: any, kMaxSnap, Vector3.new(0.1, 0, 0)) :: any
+		t.expect(left).toBeTruthy()
+		t.expect(left.cframe.Position).toBeCloseTo(Vector3.new(0, 0, 0))
+	end)
+
+	t.test("a locking mate does not hijack a slide at the cursor", function()
+		-- An axle aimed at an axle hole, with a stud mouth-mate available
+		-- on a pin hole 1 stud away: the joint under the cursor wins even
+		-- though the mouth mate has fewer degrees of freedom.
+		local world = {
+			{ kind = "AxleHole", position = Vector3.zero, direction = Vector3.new(0, 0, 1), length = 0.96 },
+			{ kind = "Stud", position = Vector3.new(1, 0, 0), direction = Vector3.new(0, 0, 1) },
+		}
+		local unit = {
+			{ kind = "Axle", position = Vector3.zero, direction = Vector3.new(0, 0, 1), length = 2 },
+			{ kind = "PegHole", position = Vector3.new(1, 0, 0), direction = Vector3.new(0, 0, 1), length = 0.8 },
+		}
+		local snap = findSnapPlacement(
+			CFrame.new(0.1, 0.1, 0),
+			unit :: any,
+			world :: any,
+			kMaxSnap,
+			Vector3.new(0.1, 0.1, 0)
+		) :: any
+		t.expect(snap).toBeTruthy()
+		t.expect(snap.cframe.Position).toBeCloseTo(Vector3.new(0, 0, 0))
+	end)
 end
