@@ -143,6 +143,18 @@ compositeParts.composites = {
 	["19478-f2.dat"] = {
 		joints = { { type = "Slider", position = Vector3.zero, axis = Vector3.new(0, -1, 0) } },
 	},
+	-- Classic 1x6x2 shuttered windows: the glass pane (854) tilts open
+	-- on hemisphere knobs at (+-20, 3, -4) — hinge about X through
+	-- that line. Same joint for all three sill variants.
+	["646ac01.dat"] = {
+		joints = { { type = "Hinge", position = Vector3.new(0, 3, -4), axis = Vector3.new(1, 0, 0) } },
+	},
+	["646bc01.dat"] = {
+		joints = { { type = "Hinge", position = Vector3.new(0, 3, -4), axis = Vector3.new(1, 0, 0) } },
+	},
+	["646cc01.dat"] = {
+		joints = { { type = "Hinge", position = Vector3.new(0, 3, -4), axis = Vector3.new(1, 0, 0) } },
+	},
 	-- Train level crossing gates (base 814 + crossbar 815c0x): the
 	-- crossbar swings 90 degrees about X through its mount at (0,-28,0)
 	-- (closed lies flat, open stands up — both authored poses).
@@ -340,6 +352,20 @@ compositeParts.composites = {
 			{ type = "Hinge", position = Vector3.new(0, 7, 0), axis = Vector3.new(0, -1, 0) },
 		},
 	},
+	-- Winch 2x4x2 with its drum: no official complete exists, so the
+	-- drum (crank axle along X, authored on its own axis) is placed
+	-- onto the housing's bore line at (0, 18, 0).
+	["virtual:3750.dat"] = {
+		name = "Winch  2 x  4 x  2 with Drum",
+		partNumber = "3750c",
+		segments = {
+			{ ref = "3750c01.dat", transform = CFrame.identity },
+			{ ref = "3752.dat", transform = CFrame.new(0, 18, 0) },
+		},
+		joints = {
+			{ type = "Hinge", position = Vector3.new(0, 18, 0), axis = Vector3.new(1, 0, 0) },
+		},
+	},
 } :: { [string]: Composite }
 
 local kRedirects: { [string]: string } = {
@@ -399,6 +425,14 @@ local kRedirects: { [string]: string } = {
 	["128.dat"] = "127c01-f1.dat",
 	["337.dat"] = "127c01-f1.dat",
 	["4701.dat"] = "127c01-f1.dat",
+	["3750.dat"] = "virtual:3750.dat",
+	["3750c01.dat"] = "virtual:3750.dat",
+	["3751.dat"] = "virtual:3750.dat",
+	["3752.dat"] = "virtual:3750.dat",
+	["646a.dat"] = "646ac01.dat",
+	["646b.dat"] = "646bc01.dat",
+	["646c.dat"] = "646cc01.dat",
+	["854.dat"] = "646ac01.dat",
 	["814.dat"] = "814c01-f1.dat",
 	["815c01.dat"] = "814c01-f1.dat",
 	["815c02.dat"] = "814c02-f1.dat",

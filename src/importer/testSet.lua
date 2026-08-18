@@ -173,4 +173,6 @@ return {
 	"40918-f1", -- Technic Linear Actuator 12L (Slider)
 	"3430c00-f2", -- Forklift 2x7: forks slide on rails
 	"814c01-f1", -- Train level crossing gate (Hinge composite)
+	"646ac01", -- Classic shuttered window: tilting glass (composite)
+	"3750", -- Winch 2x4x2 with drum (virtual composite)
 }
