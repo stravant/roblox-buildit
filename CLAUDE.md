@@ -185,6 +185,18 @@ instances).
   per-frame GetPartBoundsInRadius query around the ghost picks candidate
   parts (lazy per-part connector cache, cleared per drag), and markers
   come from a bounded pool reassigned to whatever is in range.
+  GROUP DRAGGING: picking up a placed unit rebuilds the AssemblyGraph
+  from scratch (undo/external edits make the workspace the only source
+  of truth in Edit mode; ~250ms at 2000 units); once the ghost moves
+  past a small threshold, the drag direction partitions the graph and
+  every unit that cannot separate along that direction joins the drag
+  (hidden in place, ghosted at a fixed offset from the primary,
+  connectors contributing to snapping/markers). Lifting a mid-wall
+  brick carries the bricks stacked above it; dragging down carries the
+  ones below; sideways carries the whole connected chunk. The group is
+  committed once per drag; placement moves all members rigidly and
+  cancel restores them untouched, inside the same single undo
+  recording.
 
 `src/entry/BuildTool.client.lua` — StarterPlayerScripts bootstrap for the
 build tool (mounted only by default.project.json, never the test plugin).

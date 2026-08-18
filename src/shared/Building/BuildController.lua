@@ -34,6 +34,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local getConnectors = require(script.Parent.getConnectors)
 local findSnapPlacement = require(script.Parent.findSnapPlacement)
+local AssemblyGraph = require(script.Parent.AssemblyGraph)
 local PartPalette = require(script.Parent.PartPalette)
 
 local kMaxSnapDistance = 1.25
@@ -119,6 +120,15 @@ type DragState = {
 	originalCFrame: CFrame?,
 	ghostConnectors: { UnitConnector },
 	ghostMarkers: { Marker },
+	-- Group dragging (existing picks only). The assembly graph is
+	-- rebuilt FROM SCRATCH at pickup: undo and external edits mean the
+	-- workspace is the only reliable source of truth in Edit mode.
+	-- Once the drag direction is established (the ghost has moved past
+	-- the threshold), the graph partition lifts every unit that cannot
+	-- separate along that direction into the drag: hidden in place like
+	-- the primary, ghosted at a fixed offset from the primary ghost.
+	partitionGraph: AssemblyGraph.AssemblyGraph?,
+	groupGhosts: { { ghost: PVInstance, offset: CFrame, original: PVInstance } },
 	-- Pooled adornments reassigned each frame to the nearby connectors.
 	markerPool: { Marker },
 	markerFolder: Folder,
@@ -223,6 +233,33 @@ function BuildController.start(options: StartOptions?): Controller
 		folder.Name = "Assembly"
 		folder.Parent = workspace
 		return folder
+	end
+
+	-- Distance the ghost must move from the pickup pose before the drag
+	-- direction is trusted for the group partition.
+	local kPartitionMinDistance = 1.25
+
+	-- All placed units eligible for the assembly graph: composite Models
+	-- (LDrawFile attribute) and connector-annotated loose parts, found
+	-- under the placement container (recursing through folders/models
+	-- that are not themselves units).
+	local function collectGraphUnits(): { Instance }
+		local units: { Instance } = {}
+		local function scan(container: Instance)
+			for _, child in container:GetChildren() do
+				if child:IsA("Model") and child:GetAttribute("LDrawFile") ~= nil then
+					table.insert(units, child)
+				elseif child:IsA("BasePart") then
+					if #getConnectors(child) > 0 then
+						table.insert(units, child)
+					end
+				elseif child:IsA("Folder") or child:IsA("Model") then
+					scan(child)
+				end
+			end
+		end
+		scan(getPlacementParent())
+		return units
 	end
 
 	local mDragState: DragState? = nil
@@ -335,9 +372,14 @@ function BuildController.start(options: StartOptions?): Controller
 		table.clear(mConnectorCache)
 		state.markerFolder:Destroy()
 		state.ghost:Destroy()
+		for _, entry in state.groupGhosts do
+			entry.ghost:Destroy()
+		end
 		if canceled then
 			if state.existingPart ~= nil then
-				-- Put a picked-up unit back where it was.
+				-- Put a picked-up unit back where it was. Group members
+				-- were never moved; restoring their hidden properties is
+				-- all a cancel needs.
 				restoreHidden(state);
 				(state.existingPart :: PVInstance):PivotTo(state.originalCFrame :: CFrame)
 			end
@@ -352,10 +394,86 @@ function BuildController.start(options: StartOptions?): Controller
 		return camera:ViewportPointToRay(mouse.X - inset.X, mouse.Y - inset.Y)
 	end
 
+	-- Commit the direction-dependent drag group: partition the assembly
+	-- graph along the established drag direction and lift every unit
+	-- that cannot separate that way into the drag (hide in place, ghost
+	-- at a fixed offset, contribute connectors to snapping/markers).
+	-- Runs once per drag; the group stays committed afterwards.
+	local function resolveGroup(state: DragState, intendedPosition: Vector3)
+		local graph = state.partitionGraph
+		if graph == nil or state.existingPart == nil then
+			return
+		end
+		local sourcePivot = state.originalCFrame :: CFrame
+		local delta = intendedPosition - sourcePivot.Position
+		if delta.Magnitude < kPartitionMinDistance then
+			return
+		end
+		state.partitionGraph = nil -- committed
+		local moving = graph:partition(state.existingPart, delta.Unit)
+		local saved = state.hiddenProperties :: { [BasePart]: HiddenProperties }
+		for _, movingUnit in moving do
+			if movingUnit == state.existingPart then
+				continue
+			end
+			local original = movingUnit :: PVInstance
+			local offset = sourcePivot:ToObjectSpace(original:GetPivot())
+
+			-- Clone the ghost BEFORE hiding the original.
+			local ghost = original:Clone()
+			forEachUnitPart(ghost, function(part)
+				part.Anchored = true
+				part.CanCollide = false
+				part.CanQuery = false
+				part.CanTouch = false
+				part.CastShadow = false
+				part.Transparency = kGhostTransparency
+			end)
+			ghost.Parent = workspace
+
+			forEachUnitPart(original, function(part)
+				saved[part] = {
+					transparency = part.Transparency,
+					canQuery = part.CanQuery,
+					canCollide = part.CanCollide,
+					canTouch = part.CanTouch,
+				}
+				part.Transparency = 1
+				part.CanQuery = false
+				part.CanCollide = false
+				part.CanTouch = false
+			end)
+
+			table.insert(state.groupGhosts, { ghost = ghost, offset = offset, original = original })
+
+			-- The group member's connectors join the drag set, expressed
+			-- in the PRIMARY unit's pivot space (offset is rigid).
+			for _, connector in unitConnectors(ghost) do
+				table.insert(state.ghostConnectors, {
+					kind = connector.kind,
+					position = offset:PointToWorldSpace(connector.position),
+					direction = offset:VectorToWorldSpace(connector.direction),
+					length = connector.length,
+					oneSided = connector.oneSided,
+					radius = connector.radius,
+					part = connector.part,
+					partLocalPosition = connector.partLocalPosition,
+				})
+				table.insert(
+					state.ghostMarkers,
+					makeMarker(connector.part, connector.partLocalPosition, connector.kind, state.markerFolder)
+				)
+			end
+		end
+	end
+
 	local function updateGhost(state: DragState)
 		local ray = mouseRay()
 
 		local filterList: { Instance } = { state.ghost }
+		for _, entry in state.groupGhosts do
+			table.insert(filterList, entry.ghost)
+		end
 		if pluginRef == nil then
 			local character = (Players.LocalPlayer :: Player).Character
 			if character ~= nil then
@@ -393,6 +511,11 @@ function BuildController.start(options: StartOptions?): Controller
 			hitPoint.Z - rotatedGrab.Z
 		)
 		local grabWorldPosition = baseCFrame:PointToWorldSpace(state.grabLocal)
+
+		-- The intended (pre-snap) position defines the drag direction for
+		-- the group partition. Newly hidden group members drop out of the
+		-- snap query below via CanQuery.
+		resolveGroup(state, baseCFrame.Position)
 
 		-- Spatial query: only connectors near the ghost participate in
 		-- snapping and get markers.
@@ -432,15 +555,20 @@ function BuildController.start(options: StartOptions?): Controller
 			grabWorldPosition
 		)
 
+		local targetPivot: CFrame
 		if snap ~= nil then
-			state.ghost:PivotTo(snap.cframe)
+			targetPivot = snap.cframe
 		else
 			local position = baseCFrame.Position
-			state.ghost:PivotTo(rotation + Vector3.new(
+			targetPivot = rotation + Vector3.new(
 				math.round(position.X / kGridSize) * kGridSize,
 				position.Y,
 				math.round(position.Z / kGridSize) * kGridSize
-			))
+			)
+		end
+		state.ghost:PivotTo(targetPivot)
+		for _, entry in state.groupGhosts do
+			entry.ghost:PivotTo(targetPivot * entry.offset)
 		end
 
 		-- Assign the marker pool to this frame's nearby connectors; hide
@@ -481,6 +609,9 @@ function BuildController.start(options: StartOptions?): Controller
 			local placed = state.existingPart :: PVInstance
 			restoreHidden(state)
 			placed:PivotTo(ghostPivot)
+			for _, entry in state.groupGhosts do
+				entry.original:PivotTo(ghostPivot * entry.offset)
+			end
 		else
 			local placed = state.template:Clone()
 			forEachUnitPart(placed, function(part)
@@ -500,6 +631,16 @@ function BuildController.start(options: StartOptions?): Controller
 		local grabLocal = Vector3.zero
 		if grabWorldPosition ~= nil then
 			grabLocal = source:GetPivot():PointToObjectSpace(grabWorldPosition)
+		end
+
+		-- Rebuild the assembly graph from scratch every pickup: undo and
+		-- external edits can change anything between drags, so the
+		-- workspace is the only source of truth in Edit mode. Built
+		-- BEFORE the ghost clone enters the workspace so the ghost's
+		-- connectors never pollute the graph.
+		local partitionGraph: AssemblyGraph.AssemblyGraph? = nil
+		if isExisting then
+			partitionGraph = AssemblyGraph.build(AssemblyGraph.collectUnits(collectGraphUnits()))
 		end
 
 		local ghost = source:Clone()
@@ -569,6 +710,8 @@ function BuildController.start(options: StartOptions?): Controller
 			originalCFrame = originalCFrame,
 			ghostConnectors = ghostConnectors,
 			ghostMarkers = ghostMarkers,
+			partitionGraph = partitionGraph,
+			groupGhosts = {},
 			markerPool = {},
 			markerFolder = markerFolder,
 			overlapParams = overlapParams,
