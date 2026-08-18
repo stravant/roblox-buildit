@@ -47,18 +47,20 @@ type Session = {
 	simParts: { BasePart },
 	anchoredParts: { BasePart },
 	originalCFrames: { [BasePart]: CFrame },
-	-- Gear drive: propagation steps in BFS order from the grabbed
-	-- group. Each step reads the FROM group's accumulated rotation
-	-- about its gear axis and poses the TO group about its own axis by
-	-- the tooth ratio (external mesh reverses direction). Gears mesh
-	-- with too many teeth to simulate; the meshing pairs get
-	-- NoCollisionConstraints and this code supplies the gearing.
+	-- Gear bridges: propagation steps in BFS order from the grabbed
+	-- group. Gears mesh with too many teeth to simulate, so meshing
+	-- pairs get NoCollisionConstraints and each mesh becomes a RATIO
+	-- BRIDGE between two constraint islands: per frame, a step reads
+	-- the driver gear's accumulated rotation about its axis and gives
+	-- the driven gear its ratio target via IKMoveTo - the constraint
+	-- solver then moves everything attached to the driven gear (pins
+	-- in its holes, cranks, prismatic followers) the same way it does
+	-- for the grabbed part. One IKMoveTo per bridge per frame.
 	gearSteps: {
 		{
-			fromParts: { BasePart },
-			toParts: { BasePart },
+			fromReference: BasePart, -- driver gear part (measured)
 			fromAxis: Vector3,
-			fromCenter: Vector3,
+			toReference: BasePart, -- driven gear part (IK-driven)
 			toAxis: Vector3,
 			toCenter: Vector3,
 			ratio: number, -- signed: driven = ratio * driver angle
@@ -66,7 +68,6 @@ type Session = {
 			-- teeth interleave (computed at session start from tooth
 			-- counts and the gears' cross reference directions).
 			phase: number,
-			fromReference: BasePart,
 			lastAngle: number,
 			accumulated: number,
 		}
@@ -413,12 +414,6 @@ function RotateController.start(options: StartOptions?): Controller
 		do
 			local meshes = graph:gearMeshes()
 			if #meshes > 0 then
-				local partsOfGroup: { [BasePart]: { BasePart } } = {}
-				for _, part in parts do
-					local root = find(part)
-					partsOfGroup[root] = partsOfGroup[root] or {}
-					table.insert(partsOfGroup[root] :: { BasePart }, part)
-				end
 				-- Fractional tooth phase of a gear at the contact
 				-- direction: 0 = tooth centered on the contact line, 0.5
 				-- = gap centered. The tooth reference is the mounting
@@ -538,15 +533,13 @@ function RotateController.start(options: StartOptions?): Controller
 									.. ` phase={math.deg(phase)}deg`
 							)
 							table.insert(gearSteps, {
-								fromParts = partsOfGroup[fromRoot] or {},
-								toParts = partsOfGroup[toRoot] or {},
+								fromReference = if forward then partA :: BasePart else partB :: BasePart,
 								fromAxis = fromAxis,
-								fromCenter = fromCenter,
+								toReference = if forward then partB :: BasePart else partA :: BasePart,
 								toAxis = toAxis,
 								toCenter = toCenter,
 								ratio = -fromTeeth / toTeeth,
 								phase = phase,
-								fromReference = if forward then partA :: BasePart else partB :: BasePart,
 								lastAngle = 0,
 								accumulated = 0,
 							})
@@ -618,13 +611,11 @@ function RotateController.start(options: StartOptions?): Controller
 			-- target is simply the cursor point on the drag plane (with
 			-- the handle's current rotation - orientation follows the
 			-- mechanism).
-			local part = session.handle
-			local target = part.CFrame.Rotation + planeTarget
-			if kDriveEnabled then
+			local function ikMoveTo(movePart: BasePart, moveTarget: CFrame)
 				local ok, problem = pcall(function()
 					(workspace :: any):IKMoveTo(
-						part,
-						target,
+						movePart,
+						moveTarget,
 						kTranslateStiffness,
 						kRotateStiffness,
 						Enum.IKCollisionsMode.NoCollisions
@@ -634,10 +625,18 @@ function RotateController.start(options: StartOptions?): Controller
 					session.reportedDriveError = true
 					warn(`[BuildIt Rotate] IKMoveTo failed: {problem}`)
 				end
+			end
 
-				-- Gear the driven groups off the solved pose. Angles are
-				-- accumulated frame to frame (valid while no gear turns
-				-- more than half a revolution per frame).
+			local part = session.handle
+			local target = part.CFrame.Rotation + planeTarget
+			if kDriveEnabled then
+				ikMoveTo(part, target)
+
+				-- Propagate across the gear bridges off the solved pose:
+				-- each driven gear gets its ratio target and IKMoveTo
+				-- lets the constraint solver move its whole island.
+				-- Angles are accumulated frame to frame (valid while no
+				-- gear turns more than half a revolution per frame).
 				for _, step in session.gearSteps do
 					local reference = step.fromReference
 					local original = session.originalCFrames[reference]
@@ -666,14 +665,12 @@ function RotateController.start(options: StartOptions?): Controller
 					step.accumulated += wrap
 
 					local drivenAngle = step.accumulated * step.ratio + step.phase
-					local spin = CFrame.new(step.toCenter)
-						* CFrame.fromAxisAngle(step.toAxis, drivenAngle)
-						* CFrame.new(-step.toCenter)
-					for _, toPart in step.toParts do
-						local toOriginal = session.originalCFrames[toPart]
-						if toOriginal ~= nil then
-							toPart.CFrame = spin * toOriginal
-						end
+					local toOriginal = session.originalCFrames[step.toReference]
+					if toOriginal ~= nil then
+						local spin = CFrame.new(step.toCenter)
+							* CFrame.fromAxisAngle(step.toAxis, drivenAngle)
+							* CFrame.new(-step.toCenter)
+						ikMoveTo(step.toReference, spin * (toOriginal :: CFrame))
 					end
 				end
 			end
