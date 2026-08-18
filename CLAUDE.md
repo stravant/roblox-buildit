@@ -175,7 +175,34 @@ instances).
   liftarms stay rigid through the solver. Release commits the pose
   (one undo recording); RMB/Esc/Ctrl+Z cancels and restores.
 - `PartPalette.lua` — panel UI listing PartLibrary templates with
-  ViewportFrame thumbnails.
+  ViewportFrame thumbnails and a search box (name/part number
+  substring).
+- Instruction sets (in-game set building; flat square-corner UI via
+  `FlatUI.lua`, entry menu in `src/entry/BuildTool.client.lua`):
+  - `SetData.lua` — pure model: a set = name + flat ordered steps
+    (`bag` markers, `subbuild` markers opening an isolated target,
+    `place` steps with partNumber/color/pose relative to their target
+    root, `attach` steps carrying the sub-build root pose in
+    main-build space). JSON round-trip; bag ranges; active target.
+  - `SetStore.lua` — sets persist as StringValues in
+    workspace.BuildItSets.
+  - `SetRig.lua` — materializer: container + main root Model +
+    per-sub-build roots on platform slabs; buildTo(cursor) rebuilds
+    for scrubbing; attach folds sub parts into the main root.
+  - `SetGuide.lua` — pure follower logic: matching pending steps for
+    a dragged part, nearest-target snap pick, next-step selection
+    (attach waits for its range), bag completion.
+  - `SetEditorController.lua` — the build tool (via BuildController's
+    placeParent/scanRoot/onPicked/onPlaced hooks) recording steps at
+    a cursor, with the `Sequencer.lua` strip on top: square cell per
+    step, scrub-to-rebuild, +BAG/+SUB-BUILD/DELETE/SAVE. Dropping a
+    whole open sub-build onto the main build (assembly move mode)
+    records its attach step.
+  - `SetPlayerController.lua` — guided following: the current bag's
+    parts spawn as a pile on a tray; dragging a part near a pending
+    matching step's pose snaps it in; accent hint ghost shows the
+    next step; bags advance when drained; the completed sub-build
+    drags onto the main build as a whole.
 - `BuildController.lua` — drag/ghost/marker/placement controller. Drag out
   of the palette OR pick up any connector-annotated workspace part;
   release to place (release over the panel cancels), R yaws 90 degrees
