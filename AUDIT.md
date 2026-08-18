@@ -71,11 +71,11 @@ Genuinely remaining, by family:
 
 ## Known limitations (non-connector)
 
-- 9V switches 2861/2859 exceed the MeshPart triangle limit at import
-  even with the single-sided fallback (importPart retries uncertified
-  geometry single-sided when the double-sided build hits the limit).
-  Fixing them needs a split-into-multiple-MeshParts import path.
-  Exempted in the testSetCoverage import sweep.
+- ~~9V switches 2861/2859 exceeded the MeshPart triangle limit~~ —
+  RESOLVED: importPart falls back to single-sided emission, then to a
+  chunked Model of MeshParts (chunks share the parent mesh bounds so
+  they align at identical CFrames; attachments live on the first
+  chunk). Every test-set part now imports.
 
 ## Notes
 

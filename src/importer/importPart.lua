@@ -74,7 +74,7 @@ local function importPart(
 	library: LDrawLibrary.LDrawLibrary,
 	partRef: string,
 	parent: Instance
-): (MeshPart?, string?)
+): (Instance?, string?)
 	local file = library:getFile(partRef)
 	if file == nil then
 		return nil, `Part file not found: {partRef}`
@@ -87,34 +87,84 @@ local function importPart(
 	local connections = findConnections(library, partRef, mesh) :: { Types.Connection }
 	local sockets = deriveSockets(connections, mesh)
 
-	local okBuild, editableMesh: any, buildStats: any = pcall(buildEditableMesh, mesh)
-	if not okBuild and tostring(editableMesh):find("limit") ~= nil then
-		-- Giant uncertified parts (9V switches) exceed the triangle
-		-- limit when emitted double-sided; retry single-sided (possible
-		-- backface holes beat not importing at all).
-		local slimMesh = flattenMesh(library, partRef, { forceSingleSided = true }) :: Types.FlatMesh
-		okBuild, editableMesh, buildStats = pcall(buildEditableMesh, slimMesh)
-	end
-	if not okBuild then
-		return nil, `Failed to build mesh: {editableMesh}`
-	end
-	local meshCenter = buildStats.meshCenter :: Vector3
-	local okCreate, part: any = pcall(function()
-		return AssetService:CreateMeshPartAsync(Content.fromObject(editableMesh))
-	end)
-	if not okCreate then
-		return nil, `CreateMeshPartAsync failed: {part}`
+	-- Build one MeshPart from a FlatMesh(-shaped) table. Split chunks
+	-- reuse the parent mesh's bounds, so every chunk shares one
+	-- coordinate space (meshCenter derives from the bounds).
+	local function createMeshPart(flatMesh: Types.FlatMesh): (MeshPart?, Vector3?, string?)
+		local okBuild, editableMesh: any, buildStats: any = pcall(buildEditableMesh, flatMesh)
+		if not okBuild then
+			return nil, nil, tostring(editableMesh)
+		end
+		local okCreate, meshPart: any = pcall(function()
+			return AssetService:CreateMeshPartAsync(Content.fromObject(editableMesh))
+		end)
+		if not okCreate then
+			return nil, nil, tostring(meshPart)
+		end
+		meshPart.Anchored = true
+		meshPart.Material = Enum.Material.SmoothPlastic
+		return meshPart, buildStats.meshCenter :: Vector3, nil
 	end
 
+	local kSplitChunkTriangles = 15000
+
+	local part: MeshPart?, meshCenterMaybe: Vector3?, buildError: string?
+	part, meshCenterMaybe, buildError = createMeshPart(mesh)
+	if part == nil and (buildError :: string):find("limit") ~= nil then
+		-- Giant uncertified parts exceed the triangle limit when emitted
+		-- double-sided; retry single-sided (possible backface holes beat
+		-- not importing at all).
+		mesh = flattenMesh(library, partRef, { forceSingleSided = true }) :: Types.FlatMesh
+		part, meshCenterMaybe, buildError = createMeshPart(mesh)
+	end
+
+	-- The unit we annotate and return: the MeshPart itself, or a Model
+	-- of chunk MeshParts when even single-sided exceeds the limit (9V
+	-- switches). Chunks share the parent bounds, so they all sit at the
+	-- same CFrame and attachments on the first chunk are in unit space.
+	local unit: Instance
+	local annotationTarget: Instance
+	if part ~= nil then
+		unit = part
+		annotationTarget = part
+	elseif (buildError :: string):find("limit") ~= nil then
+		local model = Instance.new("Model")
+		local firstChunk: MeshPart? = nil
+		for start = 1, #mesh.triangles, kSplitChunkTriangles do
+			local chunk = table.clone(mesh) :: any
+			chunk.triangles = table.move(
+				mesh.triangles,
+				start,
+				math.min(start + kSplitChunkTriangles - 1, #mesh.triangles),
+				1,
+				{}
+			)
+			local chunkPart, chunkCenter, chunkError = createMeshPart(chunk)
+			if chunkPart == nil then
+				model:Destroy()
+				return nil, `Failed to build mesh chunk: {chunkError}`
+			end
+			meshCenterMaybe = chunkCenter
+			chunkPart.Name = `Chunk{1 + (start - 1) / kSplitChunkTriangles}`
+			chunkPart.CFrame = CFrame.identity
+			chunkPart.Parent = model
+			firstChunk = firstChunk or chunkPart
+		end
+		model.WorldPivot = CFrame.identity
+		unit = model
+		annotationTarget = firstChunk :: MeshPart
+	else
+		return nil, `Failed to build mesh: {buildError}`
+	end
+	local meshCenter = meshCenterMaybe :: Vector3
+
 	local partNumber = (partRef:gsub("%.dat$", ""))
-	part.Name = cleanDescription(file.description) or partNumber
-	part.Anchored = true
-	part.Material = Enum.Material.SmoothPlastic
-	part:SetAttribute("LDrawFile", partRef)
-	part:SetAttribute("PartNumber", partNumber)
+	unit.Name = cleanDescription(file.description) or partNumber
+	unit:SetAttribute("LDrawFile", partRef)
+	unit:SetAttribute("PartNumber", partNumber)
 	-- Pivot offset from the LDraw origin (see buildEditableMesh): needed to
 	-- place instances of this part at LDraw model transforms.
-	part:SetAttribute("MeshCenter", meshCenter)
+	unit:SetAttribute("MeshCenter", meshCenter)
 
 	local regionCells: { Types.RegionCell } = {}
 	for _, connection in connections do
@@ -127,7 +177,7 @@ local function importPart(
 		elseif connection.type ~= "Tube" and connection.type ~= "Pin" and connection.type ~= "Pocket" then
 			-- Tubes/pins/pockets become Socket regions via deriveSockets;
 			-- everything else is annotated individually.
-			addAxialAttachment(part, connection, meshCenter)
+			addAxialAttachment(annotationTarget :: MeshPart, connection, meshCenter)
 		end
 	end
 	for _, socket in sockets do
@@ -138,12 +188,12 @@ local function importPart(
 		})
 	end
 	for _, region in coalesceRegions(regionCells) do
-		addRegionAttachment(part, region, meshCenter)
+		addRegionAttachment(annotationTarget :: MeshPart, region, meshCenter)
 	end
 
-	part.Parent = parent
+	unit.Parent = parent
 
-	return part, nil
+	return unit, nil
 end
 
 return importPart
