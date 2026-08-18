@@ -29,6 +29,7 @@ return {
 	["3649"] = { teeth = 40 },
 	["10928"] = { teeth = 8 },
 	["6542"] = { teeth = 16 }, -- clutch gear (freewheel not modeled)
+	["6542a"] = { teeth = 16 },
 	["6542b"] = { teeth = 16 },
 	["18946"] = { teeth = 20 }, -- bike gear ring? verify when used
 	-- Double bevel (mesh parallel like spurs)

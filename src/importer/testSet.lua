@@ -175,4 +175,37 @@ return {
 	"814c01-f1", -- Train level crossing gate (Hinge composite)
 	"646ac01", -- Classic shuttered window: tilting glass (composite)
 	"3750", -- Winch 2x4x2 with drum (virtual composite)
+	-- Classic studded Technic: bricks with holes
+	"32000", -- Technic Brick 1x2 with Holes
+	"3894", -- Technic Brick 1x6 with Holes
+	"3702", -- Technic Brick 1x8 with Holes
+	"2730", -- Technic Brick 1x10 with Holes
+	"3895", -- Technic Brick 1x12 with Holes
+	"3703", -- Technic Brick 1x16 with Holes
+	-- Classic studded Technic: plates with holes
+	"3709b", -- Technic Plate 2x4 with Holes
+	"32001", -- Technic Plate 2x6 with Holes
+	"3738", -- Technic Plate 2x8 with Holes
+	-- Classic studded Technic: gears
+	"3649", -- Technic Gear 40 Tooth
+	"3648b", -- Technic Gear 24 Tooth with Single Axle Hole
+	"3650a", -- Technic Gear 24 Tooth Crown Type 1
+	"6542a", -- Technic Gear 16 Tooth Clutch
+	"4716", -- Technic Worm Gear 2L
+	"3743", -- Technic Gear Rack 1x4
+	-- Classic studded Technic: axles
+	"4519", -- Technic Axle 3
+	"3705", -- Technic Axle 4
+	"32073", -- Technic Axle 5
+	"3706", -- Technic Axle 6
+	"3707", -- Technic Axle 8
+	"3737", -- Technic Axle 10
+	"3708", -- Technic Axle 12
+	-- Classic studded Technic: pins and bushes
+	"3673", -- Technic Pin (frictionless)
+	"4274", -- Technic Pin 1/2
+	"3749", -- Technic Axle Pin
+	"6558", -- Technic Pin Long with Friction and Slot
+	"32054", -- Technic Pin Long with Stop Bush
+	"32123a", -- Technic Bush 1/2 Smooth
 }
