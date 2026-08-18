@@ -245,31 +245,29 @@ function RotateController.start(options: StartOptions?): Controller
 			end
 			return part
 		end
-		-- Structural = FRAME parts: studs AND inlets (sockets/holes), the
-		-- technic brick / beam / plate family. Machine elements never
-		-- qualify - gears, bushes, wheels, links have no studs; pins and
-		-- axles have no inlets. (Interim rule per user: studs + inlets is
-		-- good enough until a more precise groundedness rule exists.)
-		local kInletKinds: { [string]: boolean } = {
-			Socket = true,
-			PegHole = true,
-			AxleHole = true,
-		}
+		-- Structural = FRAME parts: studs AND sockets (the anti-stud
+		-- underside cells), the brick/plate/technic-brick family. Pin or
+		-- axle holes do NOT count as sockets - a stud-topped connector
+		-- like 3651 (2 studs + pin hole + blind axle bore) is a machine
+		-- element, not frame. Gears/bushes/wheels/links have no studs;
+		-- pins and axles have neither. (Interim rule per user: studs +
+		-- sockets is good enough until a more precise groundedness rule
+		-- exists.)
 		local function isStructuralUnit(id: any): boolean
 			local unitInput = graph.units[id]
 			if unitInput == nil then
 				return false
 			end
 			local hasStud = false
-			local hasInlet = false
+			local hasSocket = false
 			for _, connector in unitInput.connectors do
 				if connector.kind == "Stud" then
 					hasStud = true
-				elseif kInletKinds[connector.kind] then
-					hasInlet = true
+				elseif connector.kind == "Socket" then
+					hasSocket = true
 				end
 			end
-			return hasStud and hasInlet
+			return hasStud and hasSocket
 		end
 		local structuralPart: { [BasePart]: boolean } = {}
 		for id in assemblySet do
