@@ -25,10 +25,12 @@ local AssemblyGraph = require(script.Parent.AssemblyGraph)
 local applyPhysicsJoints = require(script.Parent.applyPhysicsJoints)
 
 local kRaycastDistance = 500
--- IKMoveTo stiffnesses: drive the grab position hard, leave the
--- orientation entirely to the mechanism's joints.
-local kTranslateStiffness = 1
-local kRotateStiffness = 0
+-- IKMoveTo stiffnesses. The API defaults (0.5/0.5, what Studio's own
+-- dragger uses) matter: stiffness 1 demands exact target satisfaction,
+-- which explodes when an anchored part makes the cursor target
+-- unreachable — the solver soft-blends toward the goal instead.
+local kTranslateStiffness = 0.5
+local kRotateStiffness = 0.5
 -- Debug toggle: with the drive off, sessions only build joints for
 -- inspection and nothing moves.
 local kDriveEnabled = true
