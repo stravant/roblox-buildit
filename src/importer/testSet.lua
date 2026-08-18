@@ -149,4 +149,7 @@ return {
 	"2651", -- Hinge Hook Arm: latching clip jaw
 	"30633", -- Windscreen Canopy with Click Hinge (clh6d)
 	"30516", -- Turntable 4x4x2 Locking (composite)
+	"30261", -- Roadsign Clip-on Round: rear C-channel
+	"50862", -- Wheel 6x14 Spoked with Stub Axles
+	"2415", -- Plate 2x2 with Wheel Clips Angled
 }

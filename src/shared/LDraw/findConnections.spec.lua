@@ -580,6 +580,12 @@ return function(t: TestTypes.TestContext)
 		t.expect(countByType(cabinet).HingeSocket).toBe(2)
 	end)
 
+	t.test("clip-on roadsigns and stub axle wheels", function()
+		t.expect(countByType(findConnections(library, "30261.dat") :: any).Clip).toBe(1)
+		t.expect(countByType(findConnections(library, "50862.dat") :: any).WheelPin).toBe(1)
+		t.expect(countByType(findConnections(library, "2415.dat") :: any).WheelHole).toBe(1)
+	end)
+
 	t.test("roadsigns (745/3350) and ladder 4207a", function()
 		t.expect(countByType(findConnections(library, "745.dat") :: any).HingePin).toBe(1)
 		local sign = countByType(findConnections(library, "3350.dat") :: any)

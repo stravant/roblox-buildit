@@ -599,6 +599,36 @@ connectorPrimitives.partOverrides = {
 			length = 4,
 		},
 	},
+	-- Clip-on roadsigns (30259a/30260/30261): a full-height C-channel
+	-- on the back grips a vertical bar/post.
+	["30259a.dat"] = {
+		{ type = "Clip", position = Vector3.new(0, 0, -7.5), direction = Vector3.new(0, -1, 0), length = 40 },
+	},
+	["30260.dat"] = {
+		{ type = "Clip", position = Vector3.new(0, 0, -7.5), direction = Vector3.new(0, -1, 0), length = 40 },
+	},
+	["30261.dat"] = {
+		{ type = "Clip", position = Vector3.new(0, 0, -7.5), direction = Vector3.new(0, -1, 0), length = 40 },
+	},
+	-- Stub-axle wheel system: wheel 50862's r5 stub pair is one
+	-- WheelPin line through the hub; holder plate 2415's angled clip
+	-- bearings form the matching WheelHole line.
+	["50862.dat"] = {
+		{
+			type = "WheelPin",
+			position = Vector3.new(0, 0, 0),
+			direction = Vector3.new(0, 0, 1),
+			length = 28,
+		},
+	},
+	["2415.dat"] = {
+		{
+			type = "WheelHole",
+			position = Vector3.new(0, 23, 20),
+			direction = Vector3.new(1, 0, 0),
+			length = 24,
+		},
+	},
 	-- Hinge hook (crane latch): base 2650 carries an r4 bar; arm
 	-- 2651's hook is a C-jaw that latches over it — plain Bar/Clip.
 	["2650.dat"] = {
