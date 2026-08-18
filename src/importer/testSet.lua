@@ -172,4 +172,5 @@ return {
 	"41838", -- Technic Shock Absorber 6.5L Soft (Slider)
 	"40918-f1", -- Technic Linear Actuator 12L (Slider)
 	"3430c00-f2", -- Forklift 2x7: forks slide on rails
+	"814c01-f1", -- Train level crossing gate (Hinge composite)
 }

@@ -143,6 +143,21 @@ compositeParts.composites = {
 	["19478-f2.dat"] = {
 		joints = { { type = "Slider", position = Vector3.zero, axis = Vector3.new(0, -1, 0) } },
 	},
+	-- Train level crossing gates (base 814 + crossbar 815c0x): the
+	-- crossbar swings 90 degrees about X through its mount at (0,-28,0)
+	-- (closed lies flat, open stands up — both authored poses).
+	["814c01-f1.dat"] = {
+		joints = { { type = "Hinge", position = Vector3.new(0, -28, 0), axis = Vector3.new(1, 0, 0) } },
+	},
+	["814c01-f2.dat"] = {
+		joints = { { type = "Hinge", position = Vector3.new(0, -28, 0), axis = Vector3.new(1, 0, 0) } },
+	},
+	["814c02-f1.dat"] = {
+		joints = { { type = "Hinge", position = Vector3.new(0, -28, 0), axis = Vector3.new(1, 0, 0) } },
+	},
+	["814c02-f2.dat"] = {
+		joints = { { type = "Hinge", position = Vector3.new(0, -28, 0), axis = Vector3.new(1, 0, 0) } },
+	},
 	-- Technic shock absorbers: rod slides in the cylinder, spring stays
 	-- with the cylinder segment. 9L: cylinder(1) rod(2); 6.5L: rod(1)
 	-- cylinder(2).
@@ -384,6 +399,9 @@ local kRedirects: { [string]: string } = {
 	["128.dat"] = "127c01-f1.dat",
 	["337.dat"] = "127c01-f1.dat",
 	["4701.dat"] = "127c01-f1.dat",
+	["814.dat"] = "814c01-f1.dat",
+	["815c01.dat"] = "814c01-f1.dat",
+	["815c02.dat"] = "814c02-f1.dat",
 	["2909.dat"] = "41475-f1.dat",
 	["2910.dat"] = "41475-f1.dat",
 	["4254.dat"] = "41838.dat",
