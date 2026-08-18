@@ -127,11 +127,16 @@ local function cellKey(x: number, y: number, z: number): string
 end
 
 local function cellsForConnector(connector: WorldConnector): { string }
-	local halfSpan = (connector.length or 0) / 2 + mates.kMatedEpsilon
+	local halfSpan = (connector.length or 0) / 2
 	local from = connector.position - connector.direction * halfSpan
 	local to = connector.position + connector.direction * halfSpan
-	local minCorner = from:Min(to)
-	local maxCorner = from:Max(to)
+	-- Pad by the mating epsilon in ALL axes, not just along the span:
+	-- a connector a float-hair on the far side of a cell boundary from
+	-- its partner must still land in a shared cell (a pin at
+	-- x=133.99998 mating a hole at exactly x=134 sits on the boundary).
+	local pad = Vector3.one * mates.kMatedEpsilon
+	local minCorner = from:Min(to) - pad
+	local maxCorner = from:Max(to) + pad
 	local keys = {}
 	for x = math.floor(minCorner.X / kCellSize), math.floor(maxCorner.X / kCellSize) do
 		for y = math.floor(minCorner.Y / kCellSize), math.floor(maxCorner.Y / kCellSize) do

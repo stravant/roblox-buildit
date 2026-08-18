@@ -476,6 +476,37 @@ return function(t: TestTypes.TestContext)
 		t.expect(bigCenter).toBeCloseTo(Vector3.new(5, 3, 0))
 	end)
 
+	t.test("mates engage across spatial hash cell boundaries", function()
+		-- Cell size is 2: positions a float-hair either side of x=2 hash
+		-- into different cells and were never tested against each other
+		-- (a placed pin at x=133.99998 in a beam hole at exactly x=134).
+		local graph = AssemblyGraph.build({
+			{
+				id = "pin",
+				connectors = {
+					{
+						kind = "TechnicPin",
+						position = Vector3.new(1.99999, 0, 0),
+						direction = Vector3.new(0, 0, 1),
+						length = 1,
+					},
+				},
+			},
+			{
+				id = "beam",
+				connectors = {
+					{
+						kind = "PegHole",
+						position = Vector3.new(2, 0, 0),
+						direction = Vector3.new(0, 0, -1),
+						length = 1,
+					},
+				},
+			},
+		})
+		t.expect(graph:edge("pin", "beam")).toBeTruthy()
+	end)
+
 	t.test("axle-pin gear chain on a studded beam plans fully", function()
 		-- The 40T-8T-24T chain: axle pins in a 1x12 technic brick, one
 		-- gear per pin. The 24T (3648b) bore is slightly SHORTER than the
