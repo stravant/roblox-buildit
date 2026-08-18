@@ -160,4 +160,7 @@ return {
 	"3176c01-f1", -- Train coupling hook on plate (composite)
 	"3135", -- Crane slope brick with swinging hook (composite)
 	"2042c01", -- Cupboard 2x6x7 with both doors (composite)
+	"19001", -- Tipper Bucket 8x12 with hinge plate (composite)
+	"44570", -- Hinge Plate 3x4 Locking Dual (clh forks)
+	"2648c01-f2", -- Container lifting grab (scissor composite)
 }

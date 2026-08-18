@@ -115,6 +115,31 @@ compositeParts.composites = {
 			{ type = "Hinge", position = Vector3.new(52, 0, -16), axis = Vector3.new(0, -1, 0), segments = { 1, 3 } },
 		},
 	},
+	-- Tipper Bucket 8x12 (click hinge plate 44570 + bucket 18926): the
+	-- bucket tips on the plate's clh fork line, which lands on the X
+	-- axis through the assembly origin.
+	["19001.dat"] = {
+		joints = {
+			{ type = "Hinge", position = Vector3.zero, axis = Vector3.new(1, 0, 0) },
+		},
+	},
+	-- Container lifting grab: two identical halves scissor about the
+	-- vertical pivot at the origin (all three authored poses).
+	["2648c01-f1.dat"] = {
+		joints = {
+			{ type = "Hinge", position = Vector3.zero, axis = Vector3.new(0, -1, 0) },
+		},
+	},
+	["2648c01-f2.dat"] = {
+		joints = {
+			{ type = "Hinge", position = Vector3.zero, axis = Vector3.new(0, -1, 0) },
+		},
+	},
+	["2648c01-f3.dat"] = {
+		joints = {
+			{ type = "Hinge", position = Vector3.zero, axis = Vector3.new(0, -1, 0) },
+		},
+	},
 	-- Car steering: the wheel spins on its tilted column (axis = the
 	-- wheel placement's local Y in assembly space).
 	["3829c01.dat"] = {
@@ -251,6 +276,11 @@ local kRedirects: { [string]: string } = {
 	["3135c03.dat"] = "3135c01.dat",
 	["2042c02.dat"] = "2042c01.dat",
 	["2042c03.dat"] = "2042c01.dat",
+	-- 44570 stays standalone (general hinge plate); only the bucket
+	-- redirects into the tipper assembly.
+	["18926.dat"] = "19001.dat",
+	["19001p01.dat"] = "19001.dat",
+	["2648c01.dat"] = "2648c01-f2.dat",
 	["3815.dat"] = "3815c01.dat",
 	["3816.dat"] = "3815c01.dat",
 	["3817.dat"] = "3815c01.dat",
