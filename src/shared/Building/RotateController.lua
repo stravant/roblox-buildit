@@ -245,11 +245,35 @@ function RotateController.start(options: StartOptions?): Controller
 			end
 			return part
 		end
+		-- Structural = FRAME parts: studs AND inlets (sockets/holes), the
+		-- technic brick / beam / plate family. Machine elements never
+		-- qualify - gears, bushes, wheels, links have no studs; pins and
+		-- axles have no inlets. (Interim rule per user: studs + inlets is
+		-- good enough until a more precise groundedness rule exists.)
+		local kInletKinds: { [string]: boolean } = {
+			Socket = true,
+			PegHole = true,
+			AxleHole = true,
+		}
+		local function isStructuralUnit(id: any): boolean
+			local unitInput = graph.units[id]
+			if unitInput == nil then
+				return false
+			end
+			local hasStud = false
+			local hasInlet = false
+			for _, connector in unitInput.connectors do
+				if connector.kind == "Stud" then
+					hasStud = true
+				elseif kInletKinds[connector.kind] then
+					hasInlet = true
+				end
+			end
+			return hasStud and hasInlet
+		end
 		local structuralPart: { [BasePart]: boolean } = {}
 		for id in assemblySet do
-			-- Structural = frame parts. Fasteners (pins/axles) and GEARS
-			-- are machine elements: anchoring a gear defeats the drive.
-			local structural = not graph:isFastenerUnit(id) and not graph:isGearUnit(id)
+			local structural = isStructuralUnit(id)
 			forEachUnitPart(id :: Instance, function(part)
 				table.insert(parts, part)
 				groupOf[part] = part
@@ -392,7 +416,7 @@ function RotateController.start(options: StartOptions?): Controller
 					table.insert(tags, "ANCHORED")
 				end
 				if not groupStructural[root] then
-					table.insert(tags, "fastener")
+					table.insert(tags, "non-structural")
 				end
 				local suffix = if #tags > 0 then ` [{table.concat(tags, ", ")}]` else ""
 				table.insert(lines, `  group (d={distance[root] or "-"}){suffix}: {table.concat(members, ", ")}`)
