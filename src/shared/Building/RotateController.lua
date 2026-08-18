@@ -220,10 +220,15 @@ function RotateController.start(options: StartOptions?): Controller
 			end
 			return part
 		end
+		local structuralPart: { [BasePart]: boolean } = {}
 		for id in assemblySet do
+			local structural = not graph:isFastenerUnit(id)
 			forEachUnitPart(id :: Instance, function(part)
 				table.insert(parts, part)
 				groupOf[part] = part
+				if structural then
+					structuralPart[part] = true
+				end
 			end)
 		end
 		for _, pair in joints.weldedPairs do
@@ -233,6 +238,7 @@ function RotateController.start(options: StartOptions?): Controller
 			end
 		end
 		local groupVolume: { [BasePart]: number } = {}
+		local groupStructural: { [BasePart]: boolean } = {}
 		local groupCount = 0
 		for _, part in parts do
 			local root = find(part)
@@ -242,6 +248,9 @@ function RotateController.start(options: StartOptions?): Controller
 			end
 			local size = part.Size
 			groupVolume[root] += size.X * size.Y * size.Z
+			if structuralPart[part] then
+				groupStructural[root] = true
+			end
 		end
 		if groupCount < 2 then
 			-- Fully rigid (or a lone part): nothing to articulate.
@@ -279,8 +288,15 @@ function RotateController.start(options: StartOptions?): Controller
 				end
 			end
 		end
+		-- Prefer STRUCTURAL groups (containing a part with studs and
+		-- inlets, not just fastener rods) over leaves like a lone pin:
+		-- a pin sticking out may be hop-farthest, but pinning it as
+		-- ground is useless. Structural beats distance beats volume.
+		-- (Interim heuristic per user: "studs + inlets" is good enough
+		-- for now; a more precise groundedness rule can come later.)
 		local anchoredRoot: BasePart? = nil
 		local anchoredDistance = -1
+		local anchoredStructural = false
 		for root, volume in groupVolume do
 			if root == grabbedRoot then
 				continue
@@ -289,13 +305,21 @@ function RotateController.start(options: StartOptions?): Controller
 			if rootDistance < 0 then
 				continue -- not joint-connected to the grabbed group
 			end
-			if
-				anchoredRoot == nil
-				or rootDistance > anchoredDistance
-				or (rootDistance == anchoredDistance and volume > groupVolume[anchoredRoot :: BasePart])
-			then
+			local rootStructural = groupStructural[root] == true
+			local better: boolean
+			if anchoredRoot == nil then
+				better = true
+			elseif rootStructural ~= anchoredStructural then
+				better = rootStructural
+			elseif rootDistance ~= anchoredDistance then
+				better = rootDistance > anchoredDistance
+			else
+				better = volume > groupVolume[anchoredRoot :: BasePart]
+			end
+			if better then
 				anchoredRoot = root
 				anchoredDistance = rootDistance
+				anchoredStructural = rootStructural
 			end
 		end
 
@@ -328,6 +352,9 @@ function RotateController.start(options: StartOptions?): Controller
 				end
 				if root == anchoredRoot then
 					table.insert(tags, "ANCHORED")
+				end
+				if not groupStructural[root] then
+					table.insert(tags, "fastener")
 				end
 				local suffix = if #tags > 0 then ` [{table.concat(tags, ", ")}]` else ""
 				table.insert(lines, `  group (d={distance[root] or "-"}){suffix}: {table.concat(members, ", ")}`)

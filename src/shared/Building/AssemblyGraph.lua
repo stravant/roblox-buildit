@@ -686,6 +686,14 @@ function AssemblyGraph.physicsPlan(self: AssemblyGraph): PhysicsPlan
 	return { clusters = clusters, constraints = constraints }
 end
 
+-- Is this unit a fastener (pin/axle/bar rod)? Exposed for callers that
+-- want to prefer structural parts (bricks, beams - anything with studs
+-- and inlets) over loose rods, e.g. when picking what to anchor.
+function AssemblyGraph.isFastenerUnit(self: AssemblyGraph, id: any): boolean
+	local unit = self.units[id]
+	return unit ~= nil and isFastener(unit)
+end
+
 -- The instantiation-oriented joint list: one entry per PHYSICAL joint
 -- to create between units (contrast physicsPlan, which is the analysis
 -- view). Every Fixed edge is a weld; every articulated edge is a
