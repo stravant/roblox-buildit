@@ -23,6 +23,7 @@ local UserInputService = game:GetService("UserInputService")
 local getConnectors = require(script.Parent.getConnectors)
 local AssemblyGraph = require(script.Parent.AssemblyGraph)
 local applyPhysicsJoints = require(script.Parent.applyPhysicsJoints)
+local gearSatellites = require(script.Parent.gearSatellites)
 
 local kRaycastDistance = 500
 -- IKMoveTo stiffnesses. The API defaults (0.5/0.5, what Studio's own
@@ -304,7 +305,7 @@ function RotateController.start(options: StartOptions?): Controller
 		local grabbedRoot = find(hitPart)
 		local groupAdjacency: { [BasePart]: { [BasePart]: boolean } } = {}
 		for _, pair in joints.constraintPairs do
-			local rootA, rootB = find(pair[1]), find(pair[2])
+			local rootA, rootB = find(pair.part0), find(pair.part1)
 			if rootA ~= rootB then
 				groupAdjacency[rootA] = groupAdjacency[rootA] or {}
 				groupAdjacency[rootA][rootB] = true
@@ -400,7 +401,7 @@ function RotateController.start(options: StartOptions?): Controller
 				table.insert(lines, `  weld: {pair[1].Name} <-> {pair[2].Name}`)
 			end
 			for _, pair in joints.constraintPairs do
-				table.insert(lines, `  constraint: {pair[1].Name} <-> {pair[2].Name}`)
+				table.insert(lines, `  constraint ({pair.kind}): {pair.part0.Name} <-> {pair.part1.Name}`)
 			end
 			warn(table.concat(lines, "\n"))
 		end
@@ -530,16 +531,48 @@ function RotateController.start(options: StartOptions?): Controller
 									phase = deltaFraction * 2 * math.pi / toTeeth
 								end
 							end
+							-- The spin carries satellites: constraint
+							-- neighbors joined off the spin axis (a pin in
+							-- an off-center gear hole) ride along rigidly;
+							-- coaxial bearings (the axle in the beam) and
+							-- groups with their own motion (ground, the
+							-- grabbed group, already-driven gears) do not.
+							local excluded: { [BasePart]: boolean } = { [grabbedRoot] = true }
+							if anchoredRoot ~= nil then
+								excluded[anchoredRoot :: BasePart] = true
+							end
+							for drivenRoot in driven do
+								excluded[drivenRoot] = true
+							end
+							excluded[toRoot] = nil
+							local carriedRoots = gearSatellites(
+								joints.constraintPairs,
+								find,
+								toRoot,
+								toCenter,
+								toAxis,
+								excluded
+							)
+							local toParts: { BasePart } = {}
+							local satelliteCount = 0
+							for root in carriedRoots do
+								if root ~= toRoot then
+									satelliteCount += 1
+								end
+								for _, part in partsOfGroup[root] or {} do
+									table.insert(toParts, part)
+								end
+							end
 							driven[toRoot] = true
 							table.insert(nextFrontier, toRoot)
 							table.insert(
 								gearLines,
 								`  drive: {fromTeeth}t -> {toTeeth}t ratio={-fromTeeth / toTeeth}`
-									.. ` phase={math.deg(phase)}deg`
+									.. ` phase={math.deg(phase)}deg satellites={satelliteCount}`
 							)
 							table.insert(gearSteps, {
 								fromParts = partsOfGroup[fromRoot] or {},
-								toParts = partsOfGroup[toRoot] or {},
+								toParts = toParts,
 								fromAxis = fromAxis,
 								fromCenter = fromCenter,
 								toAxis = toAxis,
