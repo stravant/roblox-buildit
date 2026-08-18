@@ -29,9 +29,9 @@ local kRaycastDistance = 500
 -- orientation entirely to the mechanism's joints.
 local kTranslateStiffness = 1
 local kRotateStiffness = 0
--- DEBUG: drive disabled while we validate the generated constraints
--- (sessions only build joints for inspection; nothing moves).
-local kDriveEnabled = false
+-- Debug toggle: with the drive off, sessions only build joints for
+-- inspection and nothing moves.
+local kDriveEnabled = true
 
 type Session = {
 	grabbedPart: BasePart,

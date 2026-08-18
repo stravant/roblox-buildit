@@ -88,14 +88,23 @@ local kSeparationDot = 0.5
 -- are inserted into every cell they cross.
 local kCellSize = 2
 
--- Units whose every connector is one of these male rod kinds act as
--- fasteners when they join exactly two structural units.
-local kFastenerKinds: { [string]: boolean } = {
+-- Fastener units (pins, axles, bars): at least one male rod connector,
+-- and nothing else beyond rod kinds and the interior bore that hollow
+-- pins carry (a 2780's BarHole must not disqualify it).
+local kFastenerRodKinds: { [string]: boolean } = {
 	TechnicPin = true,
 	Axle = true,
 	Bar = true,
 	WheelPin = true,
 	HingePin = true,
+}
+local kFastenerBodyKinds: { [string]: boolean } = {
+	TechnicPin = true,
+	Axle = true,
+	Bar = true,
+	WheelPin = true,
+	HingePin = true,
+	BarHole = true,
 }
 
 local AssemblyGraph = {}
@@ -530,16 +539,27 @@ AssemblyGraph.foldArchetype = function(_self: AssemblyGraph, edge: Edge): Archet
 end
 
 local function isFastener(unit: UnitInput): boolean
-	if #unit.connectors == 0 then
-		return false
-	end
+	local hasRod = false
 	for _, connector in unit.connectors do
-		if not kFastenerKinds[connector.kind] then
+		if kFastenerRodKinds[connector.kind] then
+			hasRod = true
+		elseif not kFastenerBodyKinds[connector.kind] then
 			return false
 		end
 	end
-	return true
+	return hasRod
 end
+
+-- Rank for picking which neighbor a fastener welds to: prefer the most
+-- constrained joint (welding an axle to its keyed gear preserves the
+-- real mechanism; the round holes keep their spin).
+local kArchetypeRank: { [string]: number } = {
+	Fixed = 0,
+	Prismatic = 1,
+	Hinge = 2,
+	Cylindrical = 3,
+	Ball = 4,
+}
 
 function AssemblyGraph.physicsPlan(self: AssemblyGraph): PhysicsPlan
 	-- Union-find over rigid connections.
@@ -696,20 +716,28 @@ function AssemblyGraph.physicsJoints(self: AssemblyGraph): PhysicsJoints
 		if not isFastener(unit) then
 			continue
 		end
-		local neighbors = {}
-		for otherId in self.adjacency[id] or {} do
-			table.insert(neighbors, otherId)
+		local neighborEdges: { { other: any, edge: Edge, archetype: Archetype } } = {}
+		for otherId, edge in self.adjacency[id] or {} do
+			table.insert(neighborEdges, { other = otherId, edge = edge, archetype = foldArchetype(edge.mates) })
 		end
-		if #neighbors ~= 2 then
-			continue
+		if #neighborEdges < 2 then
+			continue -- a lone-ended fastener keeps its direct edge
 		end
-		local edgeA = self.adjacency[id][neighbors[1]]
-		local edgeB = self.adjacency[id][neighbors[2]]
-		absorbedEdges[edgeA] = true
-		absorbedEdges[edgeB] = true
-		-- Ride with the first neighbor; articulate against the second.
-		table.insert(welds, { a = id, b = neighbors[1], position = edgeA.mates[1].position })
-		emit(id, neighbors[2], foldArchetype(edgeB.mates), edgeB.mates[1].position)
+		-- Pin the pin: WELD it to its most-constrained neighbor (a keyed
+		-- gear beats a round hole), articulate against all the others.
+		-- Without this, a single pin becomes a chain of two coaxial
+		-- hinges whose free middle body destabilizes the solver.
+		table.sort(neighborEdges, function(lhs, rhs)
+			return (kArchetypeRank[lhs.archetype.kind] or 9) < (kArchetypeRank[rhs.archetype.kind] or 9)
+		end)
+		for index, entry in neighborEdges do
+			absorbedEdges[entry.edge] = true
+			if index == 1 then
+				table.insert(welds, { a = id, b = entry.other, position = entry.edge.mates[1].position })
+			else
+				emit(id, entry.other, entry.archetype, entry.edge.mates[1].position)
+			end
+		end
 	end
 
 	local seenEdges: { [Edge]: boolean } = {}

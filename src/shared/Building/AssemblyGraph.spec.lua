@@ -134,6 +134,14 @@ return function(t: TestTypes.TestContext)
 						direction = pin.axis,
 						length = 1,
 					},
+					-- Real pins are hollow: the interior bar bore must not
+					-- disqualify them from fastener classification.
+					{
+						kind = "BarHole",
+						position = pin.position,
+						direction = pin.axis,
+						length = 2,
+					},
 				},
 			})
 		end
@@ -346,6 +354,45 @@ return function(t: TestTypes.TestContext)
 		local joints = graph:physicsJoints()
 		t.expect(#joints.constraints).toBe(1)
 		t.expect(joints.constraints[1].kind).toBe("Prismatic")
+	end)
+
+	t.test("physicsJoints: axle welds to its keyed gear, spins in round holes", function()
+		local kAxisZ2 = Vector3.new(0, 0, 1)
+		local graph = AssemblyGraph.build({
+			{
+				id = "axle",
+				connectors = {
+					{ kind = "Axle", position = Vector3.zero, direction = kAxisZ2, length = 6 },
+				},
+			},
+			{
+				id = "gear",
+				connectors = {
+					{ kind = "AxleHole", position = Vector3.new(0, 0, 2), direction = kAxisZ2, length = 1 },
+				},
+			},
+			{
+				id = "brickA",
+				connectors = {
+					{ kind = "PegHole", position = Vector3.new(0, 0, -1), direction = kAxisZ2, length = 1 },
+				},
+			},
+			{
+				id = "brickB",
+				connectors = {
+					{ kind = "PegHole", position = Vector3.new(0, 0, 1), direction = kAxisZ2, length = 1 },
+				},
+			},
+		})
+		local joints = graph:physicsJoints()
+		-- Degree-3 fastener: welded to the most-constrained neighbor
+		-- (the keyed gear), articulated against the two round holes.
+		t.expect(#joints.welds).toBe(1)
+		t.expect(joints.welds[1].b).toBe("gear")
+		t.expect(#joints.constraints).toBe(2)
+		for _, constraint in joints.constraints do
+			t.expect(constraint.kind).toBe("Cylindrical")
+		end
 	end)
 
 	t.test("physicsJoints: stud pyramid is all welds", function()
