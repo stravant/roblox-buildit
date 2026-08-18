@@ -222,16 +222,53 @@ function RotateController.start(options: StartOptions?): Controller
 			return
 		end
 
-		-- The largest rigid group that ISN'T the grabbed one stays
-		-- anchored as ground; everything else simulates.
+		-- Pin the OTHER EXTREMITY of the assembly: the rigid group
+		-- FARTHEST from the grabbed one (by joint-graph hops) stays
+		-- anchored as ground, so the whole chain between grip and
+		-- ground has something to articulate against. (Anchoring a
+		-- group adjacent to the grip would leave the far end of the
+		-- chain undriven and free to wander.) Volume breaks ties.
 		local grabbedRoot = find(hitPart)
+		local groupAdjacency: { [BasePart]: { [BasePart]: boolean } } = {}
+		for _, pair in joints.constraintPairs do
+			local rootA, rootB = find(pair[1]), find(pair[2])
+			if rootA ~= rootB then
+				groupAdjacency[rootA] = groupAdjacency[rootA] or {}
+				groupAdjacency[rootA][rootB] = true
+				groupAdjacency[rootB] = groupAdjacency[rootB] or {}
+				groupAdjacency[rootB][rootA] = true
+			end
+		end
+		local distance: { [BasePart]: number } = { [grabbedRoot] = 0 }
+		local queue = { grabbedRoot }
+		local head = 1
+		while head <= #queue do
+			local current = queue[head]
+			head += 1
+			for neighbor in groupAdjacency[current] or {} do
+				if distance[neighbor] == nil then
+					distance[neighbor] = distance[current] + 1
+					table.insert(queue, neighbor)
+				end
+			end
+		end
 		local anchoredRoot: BasePart? = nil
+		local anchoredDistance = -1
 		for root, volume in groupVolume do
 			if root == grabbedRoot then
 				continue
 			end
-			if anchoredRoot == nil or volume > groupVolume[anchoredRoot :: BasePart] then
+			local rootDistance = distance[root] or -1
+			if rootDistance < 0 then
+				continue -- not joint-connected to the grabbed group
+			end
+			if
+				anchoredRoot == nil
+				or rootDistance > anchoredDistance
+				or (rootDistance == anchoredDistance and volume > groupVolume[anchoredRoot :: BasePart])
+			then
 				anchoredRoot = root
+				anchoredDistance = rootDistance
 			end
 		end
 

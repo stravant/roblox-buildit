@@ -21,6 +21,8 @@ export type Applied = {
 	folder: Folder,
 	-- Part-level weld pairs (for rigid grouping).
 	weldedPairs: { { BasePart } },
+	-- Part-level articulated pairs (for walking the joint graph).
+	constraintPairs: { { BasePart } },
 	destroy: () -> (),
 }
 
@@ -69,8 +71,10 @@ local function createConstraint(
 	position: Vector3,
 	axis: Vector3,
 	folder: Folder,
-	created: { Instance }
+	created: { Instance },
+	constraintPairs: { { BasePart } }
 )
+	table.insert(constraintPairs, { part0, part1 })
 	local attachment0 = axisAttachment(part0, position, axis)
 	local attachment1 = axisAttachment(part1, position, axis)
 	table.insert(created, attachment0)
@@ -92,7 +96,12 @@ end
 
 -- Composite internal joints: pair JointPivot attachments by JointIndex
 -- (parent/child roles) and constrain per JointType.
-local function applyCompositeJoints(unit: Instance, folder: Folder, created: { Instance })
+local function applyCompositeJoints(
+	unit: Instance,
+	folder: Folder,
+	created: { Instance },
+	constraintPairs: { { BasePart } }
+)
 	if not unit:IsA("Model") then
 		return
 	end
@@ -119,7 +128,16 @@ local function applyCompositeJoints(unit: Instance, folder: Folder, created: { I
 		local kind = if jointType == "Slider" then "Prismatic" else "Hinge"
 		-- JointPivot uses UpVector (Y) as the articulation axis.
 		local pivotWorld = parentPart.CFrame * parentPivot.CFrame
-		createConstraint(kind, parentPart, childPart, pivotWorld.Position, pivotWorld.YVector, folder, created)
+		createConstraint(
+			kind,
+			parentPart,
+			childPart,
+			pivotWorld.Position,
+			pivotWorld.YVector,
+			folder,
+			created,
+			constraintPairs
+		)
 	end
 end
 
@@ -130,6 +148,7 @@ local function apply(graph: AssemblyGraph.AssemblyGraph, unitFilter: { [any]: bo
 
 	local created: { Instance } = {}
 	local weldedPairs: { { BasePart } } = {}
+	local constraintPairs: { { BasePart } } = {}
 
 	local function included(id: any): boolean
 		return unitFilter == nil or unitFilter[id] == true
@@ -160,12 +179,21 @@ local function apply(graph: AssemblyGraph.AssemblyGraph, unitFilter: { [any]: bo
 		if part0 == nil or part1 == nil then
 			continue
 		end
-		createConstraint(entry.kind, part0 :: BasePart, part1 :: BasePart, entry.position, entry.axis, folder, created)
+		createConstraint(
+			entry.kind,
+			part0 :: BasePart,
+			part1 :: BasePart,
+			entry.position,
+			entry.axis,
+			folder,
+			created,
+			constraintPairs
+		)
 	end
 
 	for id in graph.units do
 		if included(id) and typeof(id) == "Instance" then
-			applyCompositeJoints(id :: Instance, folder, created)
+			applyCompositeJoints(id :: Instance, folder, created, constraintPairs)
 		end
 	end
 
@@ -179,6 +207,7 @@ local function apply(graph: AssemblyGraph.AssemblyGraph, unitFilter: { [any]: bo
 	return {
 		folder = folder,
 		weldedPairs = weldedPairs,
+		constraintPairs = constraintPairs,
 		destroy = destroy,
 	}
 end
