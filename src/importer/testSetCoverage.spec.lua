@@ -10,6 +10,8 @@ local LDrawLibrary = require(script.Parent.Parent.shared.LDraw.LDrawLibrary)
 local findConnections = require(script.Parent.Parent.shared.LDraw.findConnections)
 local deriveSockets = require(script.Parent.Parent.shared.LDraw.deriveSockets)
 local compositeParts = require(script.Parent.Parent.shared.LDraw.compositeParts)
+local importPart = require(script.Parent.importPart)
+local importComposite = require(script.Parent.importComposite)
 local kTestSet = require(script.Parent.testSet)
 
 return function(t: TestTypes.TestContext)
@@ -33,5 +35,45 @@ return function(t: TestTypes.TestContext)
 			end
 		end
 		t.expect(table.concat(bare, ",")).toBe("")
+	end)
+
+	t.test("every test-set part imports with connector annotations", function()
+		-- Full pipeline: mesh build + MeshPart + Attachment annotation
+		-- for the entire representative set (composites import as
+		-- Models). Failures list as id(reason).
+		local folder = Instance.new("Folder")
+		local failures: { string } = {}
+		-- The 9V switches exceed the EditableMesh triangle limit (their
+		-- uncertified geometry imports double-sided); their connectors
+		-- are covered by the findConnections sweep above. Tracked in
+		-- AUDIT.md as a mesh-build limitation, not a connector gap.
+		local kMeshTooBig: { [string]: boolean } = { ["2861"] = true, ["2859"] = true }
+		for _, id in kTestSet do
+			if kMeshTooBig[id] then
+				continue
+			end
+			local ref = compositeParts.resolve(id .. ".dat")
+			local unit: Instance?, errorMessage: string?
+			if compositeParts.get(ref) ~= nil then
+				unit, errorMessage = importComposite(library, ref, folder)
+			else
+				unit, errorMessage = importPart(library, id .. ".dat", folder)
+			end
+			if unit == nil then
+				table.insert(failures, `{id}({errorMessage})`)
+				continue
+			end
+			local annotated = 0
+			for _, child in unit:GetDescendants() do
+				if child:IsA("Attachment") and child:GetAttribute("ConnectorType") ~= nil then
+					annotated += 1
+				end
+			end
+			if annotated == 0 then
+				table.insert(failures, `{id}(no annotations)`)
+			end
+		end
+		folder:Destroy()
+		t.expect(table.concat(failures, ",")).toBe("")
 	end)
 end

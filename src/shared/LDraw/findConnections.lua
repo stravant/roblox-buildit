@@ -535,7 +535,11 @@ local function findConnections(
 	-- the primitive was reused as plain geometry. Minifig wearables are
 	-- exempt: headgear grips the head stud with a tube recessed well
 	-- inside the brim (police hat visors dip 8 LDU below the rim).
-	local exemptRecessedRims = ((rootFile.description or ""):match("^[=~]?%s*Minifig") ~= nil)
+	-- Wearables: "Minifig ..." parts and any hair piece (minidoll hair
+	-- is described "Figure Friends Hair ...").
+	local kRootDescription = rootFile.description or ""
+	local exemptRecessedRims = kRootDescription:match("^[=~]?%s*Minifig") ~= nil
+		or kRootDescription:match("Hair") ~= nil
 	if mesh ~= nil then
 		local boundsMin = mesh.boundsMin
 		local boundsMax = mesh.boundsMax

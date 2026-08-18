@@ -69,6 +69,14 @@ Genuinely remaining, by family:
   26559/26560/26561~~ (clip pins located by ring search, calibrated
   against the straights). Remaining: coaster lift/chain sections.
 
+## Known limitations (non-connector)
+
+- 9V switches 2861/2859 exceed the EditableMesh triangle limit at
+  import (large uncertified geometry imports double-sided). Their
+  connectors are correct; the mesh build needs either BFC-certified
+  reauthoring upstream or a decimation pass. Exempted in the
+  testSetCoverage import sweep.
+
 ## Notes
 
 - 3937 (hinge base) shows zero connectors in RAW audit output by design:
