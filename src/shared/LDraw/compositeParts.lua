@@ -143,6 +143,39 @@ compositeParts.composites = {
 	["19478-f2.dat"] = {
 		joints = { { type = "Slider", position = Vector3.zero, axis = Vector3.new(0, -1, 0) } },
 	},
+	-- Classic 2x2 pneumatics (piston rod 337 + cap/cylinder/base body,
+	-- pumps add a spring): the rod slides on the vertical axis; the
+	-- joint links cylinder(3) to rod(1) and the other pieces stay with
+	-- the body.
+	["127c01-f1.dat"] = {
+		joints = { { type = "Slider", position = Vector3.zero, axis = Vector3.new(0, -1, 0), segments = { 3, 1 } } },
+	},
+	["127c01-f2.dat"] = {
+		joints = { { type = "Slider", position = Vector3.zero, axis = Vector3.new(0, -1, 0), segments = { 3, 1 } } },
+	},
+	["127c02-f1.dat"] = {
+		joints = { { type = "Slider", position = Vector3.zero, axis = Vector3.new(0, -1, 0), segments = { 3, 1 } } },
+	},
+	["127c02-f2.dat"] = {
+		joints = { { type = "Slider", position = Vector3.zero, axis = Vector3.new(0, -1, 0), segments = { 3, 1 } } },
+	},
+	["127c03-f1.dat"] = {
+		joints = { { type = "Slider", position = Vector3.zero, axis = Vector3.new(0, -1, 0), segments = { 3, 1 } } },
+	},
+	["127c03-f2.dat"] = {
+		joints = { { type = "Slider", position = Vector3.zero, axis = Vector3.new(0, -1, 0), segments = { 3, 1 } } },
+	},
+	-- Pneumatic valve: the lever toggles +-30 degrees about the X axis
+	-- through the origin (all three authored positions).
+	["19474-f1.dat"] = {
+		joints = { { type = "Hinge", position = Vector3.zero, axis = Vector3.new(1, 0, 0) } },
+	},
+	["19474-f2.dat"] = {
+		joints = { { type = "Hinge", position = Vector3.zero, axis = Vector3.new(1, 0, 0) } },
+	},
+	["19474-f3.dat"] = {
+		joints = { { type = "Hinge", position = Vector3.zero, axis = Vector3.new(1, 0, 0) } },
+	},
 	-- Tipper Bucket 8x12 (click hinge plate 44570 + bucket 18926): the
 	-- bucket tips on the plate's clh fork line, which lands on the X
 	-- axis through the assembly origin.
@@ -313,6 +346,10 @@ local kRedirects: { [string]: string } = {
 	["2606.dat"] = "2605c01.dat",
 	["19466c01.dat"] = "19478-f1.dat",
 	["19467c01.dat"] = "19478-f1.dat",
+	["127.dat"] = "127c01-f1.dat",
+	["128.dat"] = "127c01-f1.dat",
+	["337.dat"] = "127c01-f1.dat",
+	["4701.dat"] = "127c01-f1.dat",
 	["3815.dat"] = "3815c01.dat",
 	["3816.dat"] = "3815c01.dat",
 	["3817.dat"] = "3815c01.dat",

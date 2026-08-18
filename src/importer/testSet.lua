@@ -165,4 +165,7 @@ return {
 	"2648c01-f2", -- Container lifting grab (scissor composite)
 	"2605", -- Shock absorber (Slider composite)
 	"19478-f1", -- Pneumatic cylinder 2x11 (Slider composite)
+	"127c01-f1", -- Classic pneumatic cylinder 2x2x5 (Slider)
+	"127c02-f1", -- Classic pneumatic pump with spring (Slider)
+	"19474-f1", -- Pneumatic valve with toggle lever (Hinge)
 }
