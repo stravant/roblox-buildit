@@ -143,6 +143,40 @@ compositeParts.composites = {
 	["19478-f2.dat"] = {
 		joints = { { type = "Slider", position = Vector3.zero, axis = Vector3.new(0, -1, 0) } },
 	},
+	-- Technic shock absorbers: rod slides in the cylinder, spring stays
+	-- with the cylinder segment. 9L: cylinder(1) rod(2); 6.5L: rod(1)
+	-- cylinder(2).
+	["41475-f1.dat"] = {
+		joints = { { type = "Slider", position = Vector3.zero, axis = Vector3.new(0, -1, 0), segments = { 1, 2 } } },
+	},
+	["41475-f2.dat"] = {
+		joints = { { type = "Slider", position = Vector3.zero, axis = Vector3.new(0, -1, 0), segments = { 1, 2 } } },
+	},
+	["41838.dat"] = {
+		joints = { { type = "Slider", position = Vector3.zero, axis = Vector3.new(0, -1, 0), segments = { 2, 1 } } },
+	},
+	-- Technic linear actuators: the piston assembly extends along Z
+	-- from the body; the axle bush input coupling stays with the body.
+	["40918-f1.dat"] = {
+		joints = { { type = "Slider", position = Vector3.zero, axis = Vector3.new(0, 0, 1), segments = { 2, 3 } } },
+	},
+	["40918-f2.dat"] = {
+		joints = { { type = "Slider", position = Vector3.zero, axis = Vector3.new(0, 0, 1), segments = { 2, 3 } } },
+	},
+	["43097-f1.dat"] = {
+		joints = { { type = "Slider", position = Vector3.zero, axis = Vector3.new(0, 0, 1), segments = { 2, 3 } } },
+	},
+	["43097-f2.dat"] = {
+		joints = { { type = "Slider", position = Vector3.zero, axis = Vector3.new(0, 0, 1), segments = { 2, 3 } } },
+	},
+	-- Forklift 2x7: the forks (1) ride the mast rails (2) vertically;
+	-- the chain detail stays with the mast.
+	["3430c00-f1.dat"] = {
+		joints = { { type = "Slider", position = Vector3.zero, axis = Vector3.new(0, -1, 0), segments = { 2, 1 } } },
+	},
+	["3430c00-f2.dat"] = {
+		joints = { { type = "Slider", position = Vector3.zero, axis = Vector3.new(0, -1, 0), segments = { 2, 1 } } },
+	},
 	-- Classic 2x2 pneumatics (piston rod 337 + cap/cylinder/base body,
 	-- pumps add a spring): the rod slides on the vertical axis; the
 	-- joint links cylinder(3) to rod(1) and the other pieces stay with
@@ -350,6 +384,15 @@ local kRedirects: { [string]: string } = {
 	["128.dat"] = "127c01-f1.dat",
 	["337.dat"] = "127c01-f1.dat",
 	["4701.dat"] = "127c01-f1.dat",
+	["2909.dat"] = "41475-f1.dat",
+	["2910.dat"] = "41475-f1.dat",
+	["4254.dat"] = "41838.dat",
+	["4255.dat"] = "41838.dat",
+	["3430.dat"] = "3430c00-f2.dat",
+	["3431.dat"] = "3430c00-f2.dat",
+	["3430c01-f1.dat"] = "3430c00-f1.dat",
+	["3430c02-f1.dat"] = "3430c00-f1.dat",
+	["3430c03-f1.dat"] = "3430c00-f1.dat",
 	["3815.dat"] = "3815c01.dat",
 	["3816.dat"] = "3815c01.dat",
 	["3817.dat"] = "3815c01.dat",

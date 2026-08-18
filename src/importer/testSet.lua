@@ -168,4 +168,8 @@ return {
 	"127c01-f1", -- Classic pneumatic cylinder 2x2x5 (Slider)
 	"127c02-f1", -- Classic pneumatic pump with spring (Slider)
 	"19474-f1", -- Pneumatic valve with toggle lever (Hinge)
+	"41475-f1", -- Technic Shock Absorber 9L (Slider)
+	"41838", -- Technic Shock Absorber 6.5L Soft (Slider)
+	"40918-f1", -- Technic Linear Actuator 12L (Slider)
+	"3430c00-f2", -- Forklift 2x7: forks slide on rails
 }
