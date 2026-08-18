@@ -31,6 +31,9 @@ export type MateConnector = {
 	length: number?,
 	oneSided: boolean?,
 	radius: number?,
+	-- Secondary axis (axle cross flat / gear tooth reference); unused
+	-- by the mate rules themselves.
+	secondary: Vector3?,
 }
 
 export type MateClass = "point" | "mouth" | "axial" | "ball" | "face"

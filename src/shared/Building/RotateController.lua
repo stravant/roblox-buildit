@@ -62,6 +62,10 @@ type Session = {
 			toAxis: Vector3,
 			toCenter: Vector3,
 			ratio: number, -- signed: driven = ratio * driver angle
+			-- Tooth phase correction: added to the driven angle so the
+			-- teeth interleave (computed at session start from tooth
+			-- counts and the gears' cross reference directions).
+			phase: number,
 			fromReference: BasePart,
 			lastAngle: number,
 			accumulated: number,
@@ -404,6 +408,30 @@ function RotateController.start(options: StartOptions?): Controller
 					partsOfGroup[root] = partsOfGroup[root] or {}
 					table.insert(partsOfGroup[root] :: { BasePart }, part)
 				end
+				-- Fractional tooth phase of a gear at the contact
+				-- direction: 0 = tooth centered on the contact line, 0.5
+				-- = gap centered. The tooth reference is the mounting
+				-- bore's secondary axis (cardinal-toothed gears carry a
+				-- tooth along it); teeth are evenly spaced, so only the
+				-- tooth count matters beyond that.
+				local function toothPhase(
+					reference: Vector3?,
+					axis: Vector3,
+					contact: Vector3,
+					teeth: number
+				): number?
+					if reference == nil then
+						return nil
+					end
+					local projected = (reference :: Vector3) - axis * (reference :: Vector3):Dot(axis)
+					if projected.Magnitude < 1e-3 then
+						return nil
+					end
+					projected = projected.Unit
+					local angle = math.atan2(projected:Cross(contact):Dot(axis), projected:Dot(contact))
+					return (angle * teeth / (2 * math.pi)) % 1
+				end
+
 				local function unitMainPart(id: any): BasePart?
 					local instance = id :: Instance
 					if instance:IsA("BasePart") then
@@ -446,16 +474,46 @@ function RotateController.start(options: StartOptions?): Controller
 							end
 							local fromTeeth = if forward then mesh.teethA else mesh.teethB
 							local toTeeth = if forward then mesh.teethB else mesh.teethA
+							local fromCenter = if forward then mesh.centerA else mesh.centerB
+							local toCenter = if forward then mesh.centerB else mesh.centerA
+							-- Tooth phase correction: a proper mesh puts a
+							-- tooth of one gear in the gap of the other at
+							-- the contact line, i.e. the fractional phases
+							-- complement to 0.5.
+							local phase = 0
+							local contact = toCenter - fromCenter
+							contact -= fromAxis * contact:Dot(fromAxis)
+							if contact.Magnitude > 1e-3 then
+								contact = contact.Unit
+								local fromPhase = toothPhase(
+									if forward then mesh.secondaryA else mesh.secondaryB,
+									fromAxis,
+									contact,
+									fromTeeth
+								)
+								local toPhase = toothPhase(
+									if forward then mesh.secondaryB else mesh.secondaryA,
+									fromAxis,
+									-contact,
+									toTeeth
+								)
+								if fromPhase ~= nil and toPhase ~= nil then
+									local targetFraction = (0.5 - (fromPhase :: number)) % 1
+									local deltaFraction = (targetFraction - (toPhase :: number) + 0.5) % 1 - 0.5
+									phase = deltaFraction * 2 * math.pi / toTeeth
+								end
+							end
 							driven[toRoot] = true
 							table.insert(nextFrontier, toRoot)
 							table.insert(gearSteps, {
 								fromParts = partsOfGroup[fromRoot] or {},
 								toParts = partsOfGroup[toRoot] or {},
 								fromAxis = fromAxis,
-								fromCenter = if forward then mesh.centerA else mesh.centerB,
+								fromCenter = fromCenter,
 								toAxis = toAxis,
-								toCenter = if forward then mesh.centerB else mesh.centerA,
+								toCenter = toCenter,
 								ratio = -fromTeeth / toTeeth,
+								phase = phase,
 								fromReference = if forward then partA :: BasePart else partB :: BasePart,
 								lastAngle = 0,
 								accumulated = 0,
@@ -574,7 +632,7 @@ function RotateController.start(options: StartOptions?): Controller
 					step.lastAngle = raw
 					step.accumulated += wrap
 
-					local drivenAngle = step.accumulated * step.ratio
+					local drivenAngle = step.accumulated * step.ratio + step.phase
 					local spin = CFrame.new(step.toCenter)
 						* CFrame.fromAxisAngle(step.toAxis, drivenAngle)
 						* CFrame.new(-step.toCenter)

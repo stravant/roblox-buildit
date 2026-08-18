@@ -697,6 +697,11 @@ export type GearMesh = {
 	axisB: Vector3,
 	centerA: Vector3,
 	centerB: Vector3,
+	-- Tooth reference directions (the mounting bore's secondary axis:
+	-- for cardinal-toothed gears a tooth points along it). Nil for
+	-- legacy imports without cross data.
+	secondaryA: Vector3?,
+	secondaryB: Vector3?,
 }
 
 -- LEGO gear pitch radius in studs = teeth / 16.
@@ -706,19 +711,20 @@ end
 
 -- A gear's mounting axis and center: its axle hole (or pin hole for
 -- freewheeling gears).
-local function gearAxis(unit: UnitInput): (Vector3?, Vector3?)
+local function gearAxis(unit: UnitInput): (Vector3?, Vector3?, Vector3?)
 	local fallback: WorldConnector? = nil
 	for _, connector in unit.connectors do
 		if connector.kind == "AxleHole" then
-			return connector.position, connector.direction
+			return connector.position, connector.direction, connector.secondary
 		elseif connector.kind == "PegHole" and fallback == nil then
 			fallback = connector
 		end
 	end
 	if fallback ~= nil then
-		return (fallback :: WorldConnector).position, (fallback :: WorldConnector).direction
+		local connector = fallback :: WorldConnector
+		return connector.position, connector.direction, connector.secondary
 	end
-	return nil, nil
+	return nil, nil, nil
 end
 
 local kMeshAxisDot = 0.98
@@ -731,17 +737,23 @@ local kMeshAxialTolerance = 0.6 -- studs (tooth faces must overlap)
 -- many teeth); callers give meshing pairs a NoCollisionConstraint and
 -- drive rotation by tooth ratio in code.
 function AssemblyGraph.gearMeshes(self: AssemblyGraph): { GearMesh }
-	local gears: { { id: any, teeth: number, center: Vector3, axis: Vector3 } } = {}
+	local gears: { { id: any, teeth: number, center: Vector3, axis: Vector3, secondary: Vector3? } } = {}
 	for id, unit in self.units do
 		local info = if unit.partNumber ~= nil then gearInfo[unit.partNumber :: string] else nil
 		if info == nil then
 			continue
 		end
-		local center, axis = gearAxis(unit)
+		local center, axis, secondary = gearAxis(unit)
 		if center == nil or axis == nil then
 			continue
 		end
-		table.insert(gears, { id = id, teeth = info.teeth, center = center :: Vector3, axis = (axis :: Vector3).Unit })
+		table.insert(gears, {
+			id = id,
+			teeth = info.teeth,
+			center = center :: Vector3,
+			axis = (axis :: Vector3).Unit,
+			secondary = secondary,
+		})
 	end
 	local meshes: { GearMesh } = {}
 	for i = 1, #gears do
@@ -769,6 +781,8 @@ function AssemblyGraph.gearMeshes(self: AssemblyGraph): { GearMesh }
 				axisB = gearB.axis,
 				centerA = gearA.center,
 				centerB = gearB.center,
+				secondaryA = gearA.secondary,
+				secondaryB = gearB.secondary,
 			})
 		end
 	end
@@ -884,6 +898,9 @@ function AssemblyGraph.collectUnits(units: { Instance }): { UnitInput }
 					length = connector.length,
 					oneSided = connector.oneSided,
 					radius = connector.radius,
+					secondary = if connector.secondary ~= nil
+						then part.CFrame:VectorToWorldSpace(connector.secondary :: Vector3)
+						else nil,
 				})
 			end
 		end
