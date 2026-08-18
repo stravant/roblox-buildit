@@ -77,10 +77,27 @@ function PartPalette.create(
 	title.TextSize = 18
 	title.Parent = frame
 
+	-- Query box: filters entries by substring of name or part number.
+	local search = Instance.new("TextBox")
+	search.Name = "Search"
+	search.Size = UDim2.new(1, -8, 0, 24)
+	search.Position = UDim2.new(0, 4, 0, 28)
+	search.BackgroundColor3 = Color3.fromRGB(25, 25, 28)
+	search.BorderSizePixel = 0
+	search.ClearTextOnFocus = false
+	search.Text = ""
+	search.PlaceholderText = "Search parts..."
+	search.PlaceholderColor3 = Color3.fromRGB(140, 140, 145)
+	search.TextColor3 = kTextColor
+	search.Font = Enum.Font.SourceSans
+	search.TextSize = 15
+	search.TextXAlignment = Enum.TextXAlignment.Left
+	search.Parent = frame
+
 	local scroll = Instance.new("ScrollingFrame")
 	scroll.Name = "Entries"
-	scroll.Size = UDim2.new(1, 0, 1, -28)
-	scroll.Position = UDim2.new(0, 0, 0, 28)
+	scroll.Size = UDim2.new(1, 0, 1, -56)
+	scroll.Position = UDim2.new(0, 0, 0, 56)
 	scroll.BackgroundTransparency = 1
 	scroll.BorderSizePixel = 0
 	scroll.ScrollBarThickness = 6
@@ -105,9 +122,18 @@ function PartPalette.create(
 			end
 		end
 
+		local query = string.lower(search.Text)
 		local templates: { PVInstance } = {}
 		for _, child in templatesFolder:GetChildren() do
 			if child:IsA("BasePart") or child:IsA("Model") then
+				if query ~= "" then
+					local haystack = string.lower(child.Name)
+						.. " "
+						.. string.lower(tostring(child:GetAttribute("PartNumber") or ""))
+					if string.find(haystack, query, 1, true) == nil then
+						continue
+					end
+				end
 				table.insert(templates, child)
 			end
 		end
@@ -121,7 +147,9 @@ function PartPalette.create(
 			empty.TextWrapped = true
 			empty.Font = Enum.Font.SourceSans
 			empty.TextSize = 15
-			empty.Text = "No parts.\nImport parts into ReplicatedStorage.PartLibrary with the BuildIt Importer plugin (Edit mode)."
+			empty.Text = if query ~= ""
+				then "No matches."
+				else "No parts.\nImport parts into ReplicatedStorage.PartLibrary with the BuildIt Importer plugin (Edit mode)."
 			empty.Parent = scroll
 			return
 		end
@@ -158,6 +186,7 @@ function PartPalette.create(
 	end
 
 	rebuild()
+	table.insert(mConnections, search:GetPropertyChangedSignal("Text"):Connect(rebuild))
 	table.insert(mConnections, templatesFolder.ChildAdded:Connect(function()
 		task.defer(rebuild)
 	end))

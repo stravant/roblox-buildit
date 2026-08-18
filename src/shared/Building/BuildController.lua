@@ -139,6 +139,16 @@ export type StartOptions = {
 	-- the controller uses it for release-over-panel detection but does not
 	-- create or destroy it; the owner wires entry clicks to dragTemplate.
 	palette: PartPalette.PartPalette?,
+	-- Set-editor hooks. placeParent: where newly placed units parent
+	-- (default workspace.Assembly in-game / workspace in Edit mode).
+	-- scanRoot: the container scanned for snapping/graph units (default
+	-- = the placement parent). onPicked fires when an existing unit is
+	-- picked up; onPlaced after any placement commits, with the primary
+	-- unit and any group members that moved with it.
+	placeParent: (() -> Instance)?,
+	scanRoot: (() -> Instance)?,
+	onPicked: ((unit: PVInstance) -> ())?,
+	onPlaced: ((primary: PVInstance, group: { PVInstance }, isExisting: boolean) -> ())?,
 }
 
 export type Controller = {
@@ -219,8 +229,12 @@ function BuildController.start(options: StartOptions?): Controller
 	end
 
 	-- In-game, new parts collect in workspace.Assembly; in Edit mode they
-	-- go directly into workspace alongside imported copies.
+	-- go directly into workspace alongside imported copies. The set
+	-- editor overrides via placeParent (active build root).
 	local function getPlacementParent(): Instance
+		if opts.placeParent ~= nil then
+			return (opts.placeParent :: () -> Instance)()
+		end
 		if pluginRef ~= nil then
 			return workspace
 		end
@@ -232,6 +246,13 @@ function BuildController.start(options: StartOptions?): Controller
 		folder.Name = "Assembly"
 		folder.Parent = workspace
 		return folder
+	end
+
+	local function getScanRoot(): Instance
+		if opts.scanRoot ~= nil then
+			return (opts.scanRoot :: () -> Instance)()
+		end
+		return getPlacementParent()
 	end
 
 	-- All placed units eligible for the assembly graph: composite Models
@@ -253,7 +274,7 @@ function BuildController.start(options: StartOptions?): Controller
 				end
 			end
 		end
-		scan(getPlacementParent())
+		scan(getScanRoot())
 		return units
 	end
 
@@ -650,13 +671,18 @@ function BuildController.start(options: StartOptions?): Controller
 
 	local function placeGhost(state: DragState)
 		local ghostPivot = state.ghost:GetPivot()
+		local primary: PVInstance
+		local group: { PVInstance } = {}
+		local isExisting = state.existingPart ~= nil
 		if state.existingPart ~= nil then
 			local placed = state.existingPart :: PVInstance
 			restoreHidden(state)
 			placed:PivotTo(ghostPivot)
 			for _, entry in state.groupGhosts do
 				entry.original:PivotTo(ghostPivot * entry.offset)
+				table.insert(group, entry.original)
 			end
+			primary = placed
 		else
 			local placed = state.template:Clone()
 			forEachUnitPart(placed, function(part)
@@ -664,14 +690,21 @@ function BuildController.start(options: StartOptions?): Controller
 			end)
 			placed:PivotTo(ghostPivot)
 			placed.Parent = getPlacementParent()
+			primary = placed
 		end
 		endDrag(false)
 		finishRecording(true)
+		if opts.onPlaced ~= nil then
+			(opts.onPlaced :: (PVInstance, { PVInstance }, boolean) -> ())(primary, group, isExisting)
+		end
 	end
 
 	local function beginDrag(source: PVInstance, isExisting: boolean, grabWorldPosition: Vector3?)
 		endDrag(true)
 		beginRecording(if isExisting then "BuildIt: Move part" else "BuildIt: Place part")
+		if isExisting and opts.onPicked ~= nil then
+			(opts.onPicked :: (PVInstance) -> ())(source)
+		end
 
 		local grabLocal = Vector3.zero
 		if grabWorldPosition ~= nil then
