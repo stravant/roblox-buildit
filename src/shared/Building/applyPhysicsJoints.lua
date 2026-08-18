@@ -17,22 +17,12 @@
 
 local AssemblyGraph = require(script.Parent.AssemblyGraph)
 
-export type ConstraintPair = {
-	part0: BasePart,
-	part1: BasePart,
-	position: Vector3, -- joint position (world, at creation)
-	axis: Vector3, -- joint axis (world, at creation)
-	kind: string,
-}
-
 export type Applied = {
 	folder: Folder,
 	-- Part-level weld pairs (for rigid grouping).
 	weldedPairs: { { BasePart } },
-	-- Part-level articulated pairs with their joint geometry (for
-	-- walking the joint graph and deciding what a code-driven spin
-	-- carries along).
-	constraintPairs: { ConstraintPair },
+	-- Part-level articulated pairs (for walking the joint graph).
+	constraintPairs: { { BasePart } },
 	destroy: () -> (),
 }
 
@@ -82,15 +72,9 @@ local function createConstraint(
 	axis: Vector3,
 	folder: Folder,
 	created: { Instance },
-	constraintPairs: { ConstraintPair }
+	constraintPairs: { { BasePart } }
 )
-	table.insert(constraintPairs, {
-		part0 = part0,
-		part1 = part1,
-		position = position,
-		axis = axis,
-		kind = kind,
-	})
+	table.insert(constraintPairs, { part0, part1 })
 	local attachment0 = axisAttachment(part0, position, axis)
 	local attachment1 = axisAttachment(part1, position, axis)
 	table.insert(created, attachment0)
@@ -116,7 +100,7 @@ local function applyCompositeJoints(
 	unit: Instance,
 	folder: Folder,
 	created: { Instance },
-	constraintPairs: { ConstraintPair }
+	constraintPairs: { { BasePart } }
 )
 	if not unit:IsA("Model") then
 		return
@@ -164,7 +148,7 @@ local function apply(graph: AssemblyGraph.AssemblyGraph, unitFilter: { [any]: bo
 
 	local created: { Instance } = {}
 	local weldedPairs: { { BasePart } } = {}
-	local constraintPairs: { ConstraintPair } = {}
+	local constraintPairs: { { BasePart } } = {}
 
 	local function included(id: any): boolean
 		return unitFilter == nil or unitFilter[id] == true
