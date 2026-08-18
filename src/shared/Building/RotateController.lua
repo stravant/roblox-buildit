@@ -280,6 +280,17 @@ function RotateController.start(options: StartOptions?): Controller
 		end
 		if groupCount < 2 then
 			-- Fully rigid (or a lone part): nothing to articulate.
+			-- DEBUG: say so — a silently dead grab usually means the
+			-- grabbed unit's subassembly is DISCONNECTED from the rest in
+			-- the graph (a mate expected to hold isn't engaged).
+			local names = {}
+			for _, part in parts do
+				table.insert(names, part.Name)
+			end
+			warn(
+				`[BuildIt Rotate] fully rigid: {#parts} part(s) in 1 group, nothing to articulate.`
+					.. ` Connected component: {table.concat(names, ", ")}`
+			)
 			joints.destroy()
 			return
 		end
@@ -439,6 +450,22 @@ function RotateController.start(options: StartOptions?): Controller
 					end
 					return instance:FindFirstChildWhichIsA("BasePart", true)
 				end
+				-- DEBUG: report the gear drive plan alongside the session
+				-- diagnostics above.
+				local gearLines = {}
+				for _, mesh in meshes do
+					local partA = unitMainPart(mesh.a)
+					local partB = unitMainPart(mesh.b)
+					local inSimA = partA ~= nil and groupOf[partA :: BasePart] ~= nil
+					local inSimB = partB ~= nil and groupOf[partB :: BasePart] ~= nil
+					table.insert(
+						gearLines,
+						`  mesh: {if partA then (partA :: BasePart).Name else "?"}({mesh.teethA})`
+							.. `{if inSimA then "" else " [NOT IN SIM]"}`
+							.. ` <-> {if partB then (partB :: BasePart).Name else "?"}({mesh.teethB})`
+							.. `{if inSimB then "" else " [NOT IN SIM]"}`
+					)
+				end
 				local driven: { [BasePart]: boolean } = { [grabbedRoot] = true }
 				local frontier = { grabbedRoot }
 				while #frontier > 0 do
@@ -505,6 +532,11 @@ function RotateController.start(options: StartOptions?): Controller
 							end
 							driven[toRoot] = true
 							table.insert(nextFrontier, toRoot)
+							table.insert(
+								gearLines,
+								`  drive: {fromTeeth}t -> {toTeeth}t ratio={-fromTeeth / toTeeth}`
+									.. ` phase={math.deg(phase)}deg`
+							)
 							table.insert(gearSteps, {
 								fromParts = partsOfGroup[fromRoot] or {},
 								toParts = partsOfGroup[toRoot] or {},
@@ -522,6 +554,7 @@ function RotateController.start(options: StartOptions?): Controller
 					end
 					frontier = nextFrontier
 				end
+				warn(`[BuildIt Rotate] gears:\n{table.concat(gearLines, "\n")}`)
 			end
 		end
 

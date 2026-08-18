@@ -476,6 +476,68 @@ return function(t: TestTypes.TestContext)
 		t.expect(bigCenter).toBeCloseTo(Vector3.new(5, 3, 0))
 	end)
 
+	t.test("axle-pin gear chain on a studded beam plans fully", function()
+		-- The 40T-8T-24T chain: axle pins in a 1x12 technic brick, one
+		-- gear per pin. The 24T (3648b) bore is slightly SHORTER than the
+		-- pin's axle (0.9625 vs 1) and sits slid to the end of its
+		-- travel: the keyed mate is Prismatic rather than Fixed, but
+		-- fastener absorption must still weld the pin to the gear and
+		-- hinge it to the beam like its siblings.
+		local kZ = Vector3.new(0, 0, 1)
+		local function axlePin(id: string, x: number): AssemblyGraph.UnitInput
+			return {
+				id = id,
+				partNumber = "3749",
+				connectors = {
+					{ kind = "BarHole", position = Vector3.new(x, 0, 1.05), direction = -kZ, length = 0.9 },
+					{ kind = "TechnicPin", position = Vector3.new(x, 0, 1), direction = kZ, length = 1 },
+					{ kind = "Axle", position = Vector3.new(x, 0, 0), direction = -kZ, length = 1 },
+				},
+			}
+		end
+		local beamConnectors: { any } = {}
+		for x = -5, 5 do
+			table.insert(
+				beamConnectors,
+				{ kind = "PegHole", position = Vector3.new(x, 0, 1), direction = -kZ, length = 1 }
+			)
+		end
+		local function gear(id: string, partNumber: string, x: number, z: number, length: number): AssemblyGraph.UnitInput
+			return {
+				id = id,
+				partNumber = partNumber,
+				connectors = {
+					{ kind = "AxleHole", position = Vector3.new(x, 0, z), direction = -kZ, length = length },
+				},
+			}
+		end
+		local graph = AssemblyGraph.build({
+			{ id = "beam", partNumber = "3895", connectors = beamConnectors },
+			axlePin("pin24", -5),
+			axlePin("pin8", -3),
+			axlePin("pin40", 0),
+			gear("g24", "3648b", -5, -0.01875, 0.9625),
+			gear("g8", "3647", -3, 0, 1),
+			gear("g40", "3649", 0, 0, 1),
+		})
+		t.expect(#graph:partitionAssembly("g24")).toBe(7)
+		local joints = graph:physicsJoints()
+		t.expect(#joints.welds).toBe(3)
+		local gearWelds = 0
+		for _, weld in joints.welds do
+			local pair = `{tostring(weld.a)}/{tostring(weld.b)}`
+			if pair:find("pin") ~= nil and pair:find("g") ~= nil then
+				gearWelds += 1
+			end
+		end
+		t.expect(gearWelds).toBe(3)
+		t.expect(#joints.constraints).toBe(3)
+		for _, constraint in joints.constraints do
+			t.expect(constraint.kind).toBe("Hinge")
+		end
+		t.expect(#graph:gearMeshes()).toBe(2)
+	end)
+
 	t.test("two separated towballs hinge about the line through them", function()
 		local graph = AssemblyGraph.build({
 			{
