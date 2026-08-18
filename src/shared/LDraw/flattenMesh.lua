@@ -25,6 +25,10 @@ local kHugeVector = Vector3.one * math.huge
 
 type FlattenOptions = {
 	colorCode: number?,
+	-- Emit uncertified geometry single-sided (backface culling holes
+	-- possible) — fallback for parts whose double-sided triangle count
+	-- exceeds the MeshPart limit.
+	forceSingleSided: boolean?,
 }
 
 local function flattenMesh(
@@ -93,6 +97,9 @@ local function flattenMesh(
 			local doubleSided = not certified
 			if doubleSided then
 				mHasUncertified = true
+			end
+			if options ~= nil and options.forceSingleSided == true then
+				doubleSided = false
 			end
 
 			for _, tri in file.triangles do

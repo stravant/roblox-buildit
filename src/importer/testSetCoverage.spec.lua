@@ -43,15 +43,7 @@ return function(t: TestTypes.TestContext)
 		-- Models). Failures list as id(reason).
 		local folder = Instance.new("Folder")
 		local failures: { string } = {}
-		-- The 9V switches exceed the EditableMesh triangle limit (their
-		-- uncertified geometry imports double-sided); their connectors
-		-- are covered by the findConnections sweep above. Tracked in
-		-- AUDIT.md as a mesh-build limitation, not a connector gap.
-		local kMeshTooBig: { [string]: boolean } = { ["2861"] = true, ["2859"] = true }
 		for _, id in kTestSet do
-			if kMeshTooBig[id] then
-				continue
-			end
 			local ref = compositeParts.resolve(id .. ".dat")
 			local unit: Instance?, errorMessage: string?
 			if compositeParts.get(ref) ~= nil then

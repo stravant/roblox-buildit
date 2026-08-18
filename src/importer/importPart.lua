@@ -88,6 +88,13 @@ local function importPart(
 	local sockets = deriveSockets(connections, mesh)
 
 	local okBuild, editableMesh: any, buildStats: any = pcall(buildEditableMesh, mesh)
+	if not okBuild and tostring(editableMesh):find("limit") ~= nil then
+		-- Giant uncertified parts (9V switches) exceed the triangle
+		-- limit when emitted double-sided; retry single-sided (possible
+		-- backface holes beat not importing at all).
+		local slimMesh = flattenMesh(library, partRef, { forceSingleSided = true }) :: Types.FlatMesh
+		okBuild, editableMesh, buildStats = pcall(buildEditableMesh, slimMesh)
+	end
 	if not okBuild then
 		return nil, `Failed to build mesh: {editableMesh}`
 	end

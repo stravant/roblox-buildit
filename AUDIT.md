@@ -71,11 +71,11 @@ Genuinely remaining, by family:
 
 ## Known limitations (non-connector)
 
-- 9V switches 2861/2859 exceed the EditableMesh triangle limit at
-  import (large uncertified geometry imports double-sided). Their
-  connectors are correct; the mesh build needs either BFC-certified
-  reauthoring upstream or a decimation pass. Exempted in the
-  testSetCoverage import sweep.
+- 9V switches 2861/2859 exceed the MeshPart triangle limit at import
+  even with the single-sided fallback (importPart retries uncertified
+  geometry single-sided when the double-sided build hits the limit).
+  Fixing them needs a split-into-multiple-MeshParts import path.
+  Exempted in the testSetCoverage import sweep.
 
 ## Notes
 
