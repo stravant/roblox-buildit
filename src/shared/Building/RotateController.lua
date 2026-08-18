@@ -166,12 +166,30 @@ function RotateController.start(options: StartOptions?): Controller
 		finishRecording(session, commit)
 	end
 
-	local function beginSession(hitPart: BasePart, grabWorldPosition: Vector3)
-		endSession(false)
+	-- Sweep ALL leftover sim joints from the place, not just the ones
+	-- this session object remembers: previous sessions survive plugin
+	-- reloads, undo can resurrect committed joint folders, and the
+	-- debug keep-on-mouse-up behavior leaves them around by design.
+	local function destroyLeftoverJoints()
 		if mLeftoverJoints ~= nil then
 			pcall((mLeftoverJoints :: applyPhysicsJoints.Applied).destroy)
 			mLeftoverJoints = nil
 		end
+		for _, child in workspace:GetChildren() do
+			if child:IsA("Folder") and child.Name == "BuildItSimJoints" then
+				child:Destroy()
+			end
+		end
+		for _, descendant in workspace:GetDescendants() do
+			if descendant:IsA("Attachment") and (descendant.Name == "BuildItJoint" or descendant.Name == "BuildItDrive") then
+				descendant:Destroy()
+			end
+		end
+	end
+
+	local function beginSession(hitPart: BasePart, grabWorldPosition: Vector3)
+		endSession(false)
+		destroyLeftoverJoints()
 
 		local unit = unitForPart(hitPart)
 		if unit == nil then
