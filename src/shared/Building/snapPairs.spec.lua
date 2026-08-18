@@ -111,6 +111,17 @@ return function(t: TestTypes.TestContext)
 			expected = Vector3.new(-8.8, 8, 0),
 			startOffset = Vector3.new(3, -2, 0),
 		},
+		{
+			-- Both parts put their click pivot at local (30,10,0), so
+			-- with identity rotation the origins coincide (the physical
+			-- assembly adds a 180-degree yaw, which the solver leaves
+			-- to the user). Verifies the dimple-center pivots mate.
+			name = "click finger locks into the fork at the dimple",
+			drag = "30364.dat",
+			world = "30365.dat",
+			expected = Vector3.new(0, 0, 0),
+			startOffset = Vector3.new(0, -2, 1),
+		},
 	}
 
 	for _, case in kCases do

@@ -53,12 +53,12 @@ compositeParts.composites = {
 			{ type = "Hinge", position = Vector3.new(0, 8, 0), axis = Vector3.new(0, -1, 0) },
 		},
 	},
-	-- Hinge 1 x 2 (3937 base + 3938 top): tilts about a horizontal axis
-	-- through the finger knuckle (axis position approximate: knuckle
-	-- center sits above the base plate at the joint line).
+	-- Hinge 1 x 2 (3937 base + 3938 top): tilts about the horizontal
+	-- axis through the finger knuckle line at (0, 10, 0) — the tndis
+	-- knuckle discs sit at (+-16..20, 10, 0) in the base's frame.
 	["3937c01.dat"] = {
 		joints = {
-			{ type = "Hinge", position = Vector3.new(0, -8, 0), axis = Vector3.new(1, 0, 0) },
+			{ type = "Hinge", position = Vector3.new(0, 10, 0), axis = Vector3.new(1, 0, 0) },
 		},
 	},
 	-- Hinge Brick 1 x 8 (652 male + 653 female + 654 joining ring):

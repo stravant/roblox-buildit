@@ -201,18 +201,36 @@ add({ "arm1", "arm2", "arm3" }, {
 
 -- Click-lock hinges (modern locking finger hinges): single fingers
 -- (clh1 family) click between fork prongs (clh4 family, placed as two
--- halves at the same origin — they merge to one connector). Pivot axis
--- = local Z through the primitive origin.
-add({ "clh1", "clh2", "clh3", "clh6", "clh6d", "clh6u", "clh8", "clh9", "clh12", "clh13" }, {
-	type = "ClickFinger",
-	geometry = "axisZ",
-	length = 4,
-})
-add({ "clh4", "clh5", "clh7", "clh10", "clh11", "clh14" }, {
-	type = "ClickFork",
-	geometry = "axisZ",
-	length = 4,
-})
+-- halves whose emitted segments merge to one connector). The pivot is
+-- the CLICK DIMPLE center — the detent cones on the finger/prong side
+-- faces — on the primitive's local X axis; each variant carries its
+-- own dimple offset (mounting frames differ per variant).
+local kClickFingerPivots: { [string]: Vector3 } = {
+	clh1 = Vector3.new(0, 0, -10),
+	clh2 = Vector3.new(0, -7, 0),
+	clh3 = Vector3.new(0, 0, -10),
+	clh6 = Vector3.new(0, 0, -10),
+	clh6d = Vector3.new(0, 0, -10),
+	clh6u = Vector3.new(0, 0, -10),
+	clh8 = Vector3.new(0, 0, -7),
+	clh9 = Vector3.new(0, -7, 0),
+	clh12 = Vector3.new(0, -7, 0),
+	clh13 = Vector3.new(0, -7, 0),
+}
+for name, pivot in kClickFingerPivots do
+	add({ name }, { type = "ClickFinger", geometry = "axisX", offset = pivot, length = 4 })
+end
+local kClickForkPivots: { [string]: Vector3 } = {
+	clh4 = Vector3.new(0, 0, 4),
+	clh5 = Vector3.new(0, 0, 10),
+	clh7 = Vector3.new(0, 0, 4),
+	clh10 = Vector3.new(0, 0, 4),
+	clh11 = Vector3.new(0, 0, 4),
+	clh14 = Vector3.new(0, 0, 10),
+}
+for name, pivot in kClickForkPivots do
+	add({ name }, { type = "ClickFork", geometry = "axisX", offset = pivot, length = 4 })
+end
 
 -- The matching female side: "Corner Stud for Window/Door, Hole for Bump"
 -- (subpart shared by door/window frames 42205, 51239, 6798 and cupboard

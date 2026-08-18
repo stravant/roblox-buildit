@@ -5,6 +5,7 @@ local Types = require(script.Parent.Types)
 local LDrawLibrary = require(script.Parent.LDrawLibrary)
 local flattenMesh = require(script.Parent.flattenMesh)
 local findConnections = require(script.Parent.findConnections)
+local compositeParts = require(script.Parent.compositeParts)
 local deriveSockets = require(script.Parent.deriveSockets)
 
 local function countByType(connections: { Types.Connection }): { [string]: number }
@@ -663,6 +664,18 @@ return function(t: TestTypes.TestContext)
 			local connections = findConnections(library, ref) :: any
 			t.expect(countByType(connections).HingeFinger).toBe(1)
 		end
+		-- The 3937c01 composite's articulation joint must sit on the
+		-- same knuckle line the base's finger row detects.
+		local base = findConnections(library, "3937.dat") :: any
+		local knuckle: any = nil
+		for _, connection in base do
+			if connection.type == "HingeFinger" then
+				knuckle = connection
+			end
+		end
+		local joint = (compositeParts.get("3937c01.dat") :: any).joints[1]
+		t.expect(joint.position.Y).toBeCloseTo(knuckle.position.Y)
+		t.expect(joint.position.Z).toBeCloseTo(knuckle.position.Z)
 	end)
 
 	t.test("friends minidoll (92198/1006030): bar-based joints", function()
@@ -877,14 +890,31 @@ return function(t: TestTypes.TestContext)
 	end)
 
 	t.test("click hinges (30364/30365/44301/44302): finger and fork", function()
-		local singleBrick = findConnections(library, "30364.dat") :: any
-		t.expect(countByType(singleBrick).ClickFinger).toBe(1)
-		local dualBrick = findConnections(library, "30365.dat") :: any
-		t.expect(countByType(dualBrick).ClickFork).toBe(1)
-		local singlePlate = findConnections(library, "44301.dat") :: any
-		t.expect(countByType(singlePlate).ClickFinger).toBe(1)
-		local dualPlate = findConnections(library, "44302.dat") :: any
-		t.expect(countByType(dualPlate).ClickFork).toBe(1)
+		local function only(connections: any, kind: string): any
+			local found = nil
+			for _, connection in connections do
+				if connection.type == kind then
+					t.expect(found).toBe(nil)
+					found = connection
+				end
+			end
+			t.expect(found).toBeTruthy()
+			return found
+		end
+		-- Pivot = middle of the click dimple: half a stud beyond the
+		-- brick end face for both halves of the pair.
+		local finger = only(findConnections(library, "30364.dat"), "ClickFinger")
+		t.expect(finger.position.X).toBeCloseTo(30)
+		t.expect(finger.position.Y).toBeCloseTo(10)
+		t.expect(finger.position.Z).toBeCloseTo(0)
+		-- Pivot axis through the dimples: across the brick width.
+		t.expect(math.abs(finger.direction.Z)).toBeCloseTo(1)
+		local fork = only(findConnections(library, "30365.dat"), "ClickFork")
+		t.expect(fork.position.X).toBeCloseTo(30)
+		t.expect(fork.position.Y).toBeCloseTo(10)
+		t.expect(fork.position.Z).toBeCloseTo(0)
+		only(findConnections(library, "44301.dat"), "ClickFinger")
+		only(findConnections(library, "44302.dat"), "ClickFork")
 	end)
 
 	t.test("arm pieces (412/3612): arm finger rows detected", function()
