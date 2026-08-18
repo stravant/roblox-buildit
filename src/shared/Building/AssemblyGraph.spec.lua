@@ -442,6 +442,40 @@ return function(t: TestTypes.TestContext)
 		t.expect(#offset:gearMeshes()).toBe(0)
 	end)
 
+	t.test("multi-bore gear (3649) rotates about its hub center", function()
+		local kAxisZ2 = Vector3.new(0, 0, 1)
+		-- The 40t gear's bore layout: a center axle hole plus four
+		-- outboard ones 1 stud out on the cardinals. The hub center must
+		-- come from the bore centroid, not whichever bore lists first.
+		local bores = {}
+		for _, offset in
+			{ Vector3.new(1, 0, 0), Vector3.zero, Vector3.new(-1, 0, 0), Vector3.new(0, 1, 0), Vector3.new(0, -1, 0) }
+		do
+			table.insert(bores, {
+				kind = "AxleHole",
+				position = Vector3.new(5, 3, 0) + offset,
+				direction = kAxisZ2,
+				length = 0.78,
+			})
+		end
+		-- 40t (pitch r 2.5) meshing 8t (pitch r 0.5): centers 3 apart.
+		local graph = AssemblyGraph.build({
+			{ id = "big", partNumber = "3649", connectors = bores },
+			{
+				id = "small",
+				partNumber = "3647",
+				connectors = {
+					{ kind = "AxleHole", position = Vector3.new(8, 3, 0), direction = kAxisZ2, length = 0.4 },
+				},
+			},
+		})
+		local meshes = graph:gearMeshes()
+		t.expect(#meshes).toBe(1)
+		local mesh = meshes[1]
+		local bigCenter = if mesh.a == "big" then mesh.centerA else mesh.centerB
+		t.expect(bigCenter).toBeCloseTo(Vector3.new(5, 3, 0))
+	end)
+
 	t.test("two separated towballs hinge about the line through them", function()
 		local graph = AssemblyGraph.build({
 			{

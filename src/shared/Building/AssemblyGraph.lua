@@ -698,20 +698,37 @@ local function pitchRadius(teeth: number): number
 	return teeth / 16
 end
 
--- A gear's mounting axis and center: its axle hole (or pin hole for
--- freewheeling gears).
+-- A gear's rotation axis and center, from its axle holes (or pin holes
+-- for freewheeling gears). Gears can carry SEVERAL bores (the 40t gear
+-- has a center axle hole plus four outboard ones): the bores sit
+-- symmetric about the hub, so the hub center is their centroid, and
+-- the bore nearest that center supplies the axis and tooth reference.
 local function gearAxis(unit: UnitInput): (Vector3?, Vector3?, Vector3?)
-	local fallback: WorldConnector? = nil
-	for _, connector in unit.connectors do
-		if connector.kind == "AxleHole" then
-			return connector.position, connector.direction, connector.secondary
-		elseif connector.kind == "PegHole" and fallback == nil then
-			fallback = connector
+	for _, kind in { "AxleHole", "PegHole" } do
+		local sum = Vector3.zero
+		local count = 0
+		for _, connector in unit.connectors do
+			if connector.kind == kind then
+				sum += connector.position
+				count += 1
+			end
 		end
-	end
-	if fallback ~= nil then
-		local connector = fallback :: WorldConnector
-		return connector.position, connector.direction, connector.secondary
+		if count > 0 then
+			local center = sum / count
+			local best: WorldConnector? = nil
+			local bestDistance = math.huge
+			for _, connector in unit.connectors do
+				if connector.kind == kind then
+					local distance = (connector.position - center).Magnitude
+					if distance < bestDistance then
+						bestDistance = distance
+						best = connector
+					end
+				end
+			end
+			local bore = best :: WorldConnector
+			return center, bore.direction, bore.secondary
+		end
 	end
 	return nil, nil, nil
 end
