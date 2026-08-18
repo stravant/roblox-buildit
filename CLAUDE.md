@@ -133,6 +133,29 @@ instances).
   reject. Ranked by remaining degrees of freedom first (point/locked-
   axial = 0, ball = 0.5, sliding axial = 1), then score (distance +
   rotation penalty + grab bias).
+- `mates.lua` — shared mating logic: the partner table, mate rules,
+  and the engaged-pair check (are two world-placed connectors mated
+  within epsilon?). Both findSnapPlacement (matched-pair reporting)
+  and AssemblyGraph use it, so "connected" means one thing.
+- `AssemblyGraph.lua` — the assembly connection graph over placed
+  units (composite Models are single nodes; their internal joints
+  stay out). Built with a spatial hash over world connectors (axial
+  connectors inserted along their span), O(N x local density);
+  incremental addUnit/removeUnit. Two queries:
+  - partition(id, direction): the units that must move together when
+    dragging `id` along `direction` — an edge releases only if EVERY
+    mate on it separates that way (studs pull off along the stud
+    axis, bars slide out axially, balls/magnets release any way).
+    Lifting a mid-wall brick takes what's stacked above; dragging
+    down takes what's below; sideways takes everything.
+  - physicsPlan(): folds each edge's mates into a rigid-motion
+    archetype (Fixed/Hinge/Cylindrical/Ball) via an intersection
+    table (two offset pin lines -> Fixed; collinear -> Hinge; two
+    separated towballs -> Hinge through both), absorbs fastener
+    units (pins/axles/bars joining exactly two structural units)
+    into virtual mates between the pair, then union-finds Fixed
+    edges into weld clusters and emits constraints for the rest.
+    2000-unit wall: build + partition + plan ~250ms.
 - `RotateController.lua` — Edit-mode Rotate tool (plugin "Rotate"
   toolbar button): click-hold a composite segment, drag to swing it
   about its joint (the JointPivot where the segment is the CHILD; the

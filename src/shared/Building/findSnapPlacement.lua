@@ -42,6 +42,7 @@
 -- resolve toward the cursor).
 
 local getConnectors = require(script.Parent.getConnectors)
+local mates = require(script.Parent.mates)
 
 type Connector = getConnectors.Connector
 
@@ -61,99 +62,16 @@ export type SnapResult = {
 	matchedPairs: { { dragIndex: number, worldIndex: number } },
 }
 
--- Point mates: directions must be anti-parallel (a stud points up into a
--- socket that points down at it). Axial mates: |dot| must exceed the
--- threshold (sign-free).
-local kDirectionDotMax = -0.99
-local kAxisDotMin = 0.99
--- How close two mated connectors must be under the final placement.
-local kMatedEpsilon = 0.05
-
--- Axles fit through pin holes too (loose/rotating, but a valid build
--- connection), bars insert into hollow studs, and bars pass through
--- axle holes (a bevel gear sits on the differential cage's post).
-local kAxialPartners: { [string]: { [string]: boolean } } = {
-	TechnicPin = { PegHole = true },
-	PegHole = { TechnicPin = true, Axle = true },
-	Axle = { AxleHole = true, PegHole = true },
-	AxleHole = { Axle = true, Bar = true },
-	Bar = { Clip = true, HollowStud = true, BarHole = true, AxleHole = true },
-	Clip = { Bar = true },
-	HollowStud = { Bar = true },
-	BarHole = { Bar = true, WheelPin = true },
-	WheelPin = { WheelHole = true, BarHole = true },
-	WheelHole = { WheelPin = true },
-	SlideRail = { SlideGroove = true },
-	SlideGroove = { SlideRail = true },
-	MinidollHinge = { MinidollHinge = true },
-	SlipAxle = { SlipRing = true },
-	SlipRing = { SlipAxle = true },
-	HingePin = { HingeSocket = true },
-	HingeSocket = { HingePin = true },
-	HingeFinger = { HingeFinger = true },
-	ClickFinger = { ClickFork = true },
-	ClickFork = { ClickFinger = true },
-	ArmFinger = { ArmFinger = true },
-	TyreBore = { RimSeat = true },
-	RimSeat = { TyreBore = true },
-}
-
-type MateRule = "point" | "axial" | "ball" | "mouth"
-
-local function mateRule(a: string, b: string): MateRule?
-	if (a == "Stud" and b == "Socket") or (a == "Socket" and b == "Stud") then
-		return "point"
-	elseif a == "Magnet" and b == "Magnet" then
-		-- Pole faces couple coincident and anti-parallel, same as studs.
-		return "point"
-	elseif a == "TrackEnd" and b == "TrackEnd" then
-		-- Track ends join face-to-face, same shape as magnets.
-		return "point"
-	elseif a == "CoasterEnd" and b == "CoasterEnd" then
-		return "point"
-	elseif a == "MonoEnd" and b == "MonoEnd" then
-		return "point"
-	elseif a == "MonoRampJoint" and b == "MonoRampJoint" then
-		return "point"
-	elseif (a == "Towball" and b == "TowballSocket") or (a == "TowballSocket" and b == "Towball") then
-		return "ball"
-	elseif (a == "Stud" and b == "PegHole") or (a == "PegHole" and b == "Stud") then
-		return "mouth"
-	end
-	local partners = kAxialPartners[a]
-	if partners ~= nil and partners[b] then
-		return "axial"
-	end
-	return nil
-end
-
--- Size-keyed interfaces (TyreBore/RimSeat) carry a mating radius; a
--- candidate pair only mates when both radii agree within tolerance
--- (0.15 studs = 3 LDU covers the mm rounding in official part names).
-local kRadiusTolerance = 0.15
-
-local function radiusCompatible(a: { radius: number? }, b: { radius: number? }): boolean
-	if a.radius == nil and b.radius == nil then
-		return true
-	end
-	if a.radius == nil or b.radius == nil then
-		return false
-	end
-	return math.abs((a.radius :: number) - (b.radius :: number)) <= kRadiusTolerance
-end
-
--- Both mouths of a hole connector (its segment ends; a bare mouth with
--- no length is its own single mouth).
-local function holeMouths(position: Vector3, direction: Vector3, length: number?): (Vector3, Vector3)
-	local halfSpan = direction * ((length or 0) / 2)
-	return position - halfSpan, position + halfSpan
-end
-
--- The dragged element may slide along the axis by half the length
--- difference before it would poke out of / lose its partner.
-local function slideRange(lengthA: number?, lengthB: number?): number
-	return math.abs((lengthA or 0) - (lengthB or 0)) / 2
-end
+-- Mating rules, partner table, and geometric helpers live in mates.lua
+-- (shared with AssemblyGraph so "engaged" means the same thing there).
+local kDirectionDotMax = mates.kDirectionDotMax
+local kAxisDotMin = mates.kAxisDotMin
+local kMatedEpsilon = mates.kMatedEpsilon
+type MateRule = mates.MateRule
+local mateRule = mates.rule
+local radiusCompatible = mates.radiusCompatible
+local holeMouths = mates.holeMouths
+local slideRange = mates.slideRange
 
 -- Secondary scoring weight for distance from the grab point: strong
 -- enough to resolve ties toward the cursor, weak enough that a genuinely
@@ -189,10 +107,7 @@ end
 -- One-sided (blind bore) mating interval: position of the male element's
 -- center along the female's OPEN direction, from bottomed-out flush at the
 -- bore floor (sMin) to half-engaged in the bore (sMax).
-local function oneSidedInterval(maleLength: number, femaleLength: number): (number, number)
-	local sMin = (maleLength - femaleLength) / 2
-	return sMin, math.max(sMin, maleLength / 2)
-end
+local oneSidedInterval = mates.oneSidedInterval
 
 local function findSnapPlacement(
 	ghostCFrame: CFrame,
@@ -325,51 +240,14 @@ local function findSnapPlacement(
 		local dragPosition = snappedCFrame:PointToWorldSpace(drag.position)
 		local dragDirection = snappedCFrame:VectorToWorldSpace(drag.direction)
 		for worldIndex, world in worldConnectors do
-			local rule = mateRule(drag.kind, world.kind)
-			if rule ~= nil and not radiusCompatible(drag, world) then
-				rule = nil
-			end
-			local mated = false
-			if rule == "point" then
-				mated = (dragPosition - world.position).Magnitude <= kMatedEpsilon
-					and dragDirection:Dot(world.direction) <= kDirectionDotMax
-			elseif rule == "ball" then
-				mated = (dragPosition - world.position).Magnitude <= kMatedEpsilon
-			elseif rule == "mouth" then
-				if math.abs(dragDirection:Dot(world.direction)) >= kAxisDotMin then
-					local studPosition = if drag.kind == "Stud" then dragPosition else world.position
-					local holePosition = if drag.kind == "Stud" then world.position else dragPosition
-					local holeDirection = if drag.kind == "Stud" then world.direction else dragDirection
-					local holeLength = if drag.kind == "Stud" then world.length else drag.length
-					local mouthA, mouthB = holeMouths(holePosition, holeDirection, holeLength)
-					mated = (studPosition - mouthA).Magnitude <= kMatedEpsilon
-						or (studPosition - mouthB).Magnitude <= kMatedEpsilon
-				end
-			elseif rule == "axial" then
-				if math.abs(dragDirection:Dot(world.direction)) >= kAxisDotMin then
-					if world.oneSided or drag.oneSided then
-						local femaleIsWorld = world.oneSided == true
-						local femaleDirection = if femaleIsWorld then world.direction else dragDirection
-						local femaleLength = (if femaleIsWorld then world.length else drag.length) or 0
-						local maleLength = (if femaleIsWorld then drag.length else world.length) or 0
-						local sMin, sMax = oneSidedInterval(maleLength, femaleLength)
-						local delta = if femaleIsWorld
-							then dragPosition - world.position
-							else world.position - dragPosition
-						local s = delta:Dot(femaleDirection)
-						local perpendicular = (delta - femaleDirection * s).Magnitude
-						mated = perpendicular <= kMatedEpsilon
-							and s >= sMin - kMatedEpsilon
-							and s <= sMax + kMatedEpsilon
-					else
-						local delta = dragPosition - world.position
-						local along = delta:Dot(world.direction)
-						local perpendicular = (delta - world.direction * along).Magnitude
-						mated = perpendicular <= kMatedEpsilon
-							and math.abs(along) <= slideRange(drag.length, world.length) + kMatedEpsilon
-					end
-				end
-			end
+			local mated = mates.check({
+				kind = drag.kind,
+				position = dragPosition,
+				direction = dragDirection,
+				length = drag.length,
+				oneSided = drag.oneSided,
+				radius = drag.radius,
+			}, world :: any) ~= nil
 			if mated then
 				table.insert(matchedPairs, { dragIndex = dragIndex, worldIndex = worldIndex })
 				break
