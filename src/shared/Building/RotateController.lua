@@ -102,6 +102,10 @@ function RotateController.start(options: StartOptions?): Controller
 	local pluginRef = opts.plugin
 
 	local mSession: Session? = nil
+	-- DEBUG AID: joints from the previous session are left in the place
+	-- on mouse up (inspect them with constraint visualization); they are
+	-- only cleaned up when the next session begins.
+	local mLeftoverJoints: applyPhysicsJoints.Applied? = nil
 
 	local function mouseRay(): Ray
 		local camera = workspace.CurrentCamera
@@ -134,7 +138,9 @@ function RotateController.start(options: StartOptions?): Controller
 		for _, connection in session.connections do
 			connection:Disconnect()
 		end
-		session.joints.destroy()
+		-- Keep the joints around for inspection (destroyed at the start
+		-- of the next session).
+		mLeftoverJoints = session.joints
 		for _, part in session.simParts do
 			part.AssemblyLinearVelocity = Vector3.zero
 			part.AssemblyAngularVelocity = Vector3.zero
@@ -150,6 +156,10 @@ function RotateController.start(options: StartOptions?): Controller
 
 	local function beginSession(hitPart: BasePart, grabWorldPosition: Vector3)
 		endSession(false)
+		if mLeftoverJoints ~= nil then
+			pcall((mLeftoverJoints :: applyPhysicsJoints.Applied).destroy)
+			mLeftoverJoints = nil
+		end
 
 		local unit = unitForPart(hitPart)
 		if unit == nil then
