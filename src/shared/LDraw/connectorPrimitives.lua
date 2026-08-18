@@ -1008,16 +1008,18 @@ connectorPrimitives.partOverrides = {
 	-- Container Cupboard 2x6x7: hinge stacks on both side rails (top
 	-- hole boss + bottom well at x=+-52, z=-16); pin-line socket seats
 	-- the door center at y=138.
+	-- Socket line y from the official 2042c01 assembly, which seats the
+	-- door origins at y=135.
 	["2042.dat"] = {
 		{
 			type = "HingeSocket",
-			position = Vector3.new(52, 138, -16),
+			position = Vector3.new(52, 135, -16),
 			direction = Vector3.new(0, -1, 0),
 			length = 52,
 		},
 		{
 			type = "HingeSocket",
-			position = Vector3.new(-52, 138, -16),
+			position = Vector3.new(-52, 135, -16),
 			direction = Vector3.new(0, -1, 0),
 			length = 52,
 		},

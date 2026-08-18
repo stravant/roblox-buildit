@@ -76,6 +76,45 @@ compositeParts.composites = {
 			{ type = "Hinge", position = Vector3.zero, axis = Vector3.new(1, 0, 0), segments = { 3, 2 } },
 		},
 	},
+	-- Turntable 4x4 dimpled/round variants: vertical swivel like 3403c01.
+	["3404cc01.dat"] = {
+		joints = {
+			{ type = "Hinge", position = Vector3.zero, axis = Vector3.new(0, -1, 0) },
+		},
+	},
+	["3404ec01.dat"] = {
+		joints = {
+			{ type = "Hinge", position = Vector3.zero, axis = Vector3.new(0, -1, 0) },
+		},
+	},
+	-- Train coupling hook on plate 3x2: the hook swings about the
+	-- vertical axis through its round base mount. Both authored poses
+	-- share the joint.
+	["3176c01-f1.dat"] = {
+		joints = {
+			{ type = "Hinge", position = Vector3.new(0, 9.5, -29.5), axis = Vector3.new(0, -1, 0) },
+		},
+	},
+	["3176c01-f2.dat"] = {
+		joints = {
+			{ type = "Hinge", position = Vector3.new(0, 9.5, -29.5), axis = Vector3.new(0, -1, 0) },
+		},
+	},
+	-- Crane slope brick: the hook (3136) dangles from the molded arm's
+	-- tip and swings across the arm.
+	["3135c01.dat"] = {
+		joints = {
+			{ type = "Hinge", position = Vector3.new(0, -19, 63), axis = Vector3.new(1, 0, 0) },
+		},
+	},
+	-- Container Cupboard 2x6x7 with both doors: each door swings on its
+	-- side rail's vertical hinge line (doors are refs 2 and 3).
+	["2042c01.dat"] = {
+		joints = {
+			{ type = "Hinge", position = Vector3.new(-52, 0, -16), axis = Vector3.new(0, -1, 0), segments = { 1, 2 } },
+			{ type = "Hinge", position = Vector3.new(52, 0, -16), axis = Vector3.new(0, -1, 0), segments = { 1, 3 } },
+		},
+	},
 	-- Car steering: the wheel spins on its tilted column (axis = the
 	-- wheel placement's local Y in assembly space).
 	["3829c01.dat"] = {
@@ -200,6 +239,18 @@ local kRedirects: { [string]: string } = {
 	["30640.dat"] = "30640c01.dat",
 	["30663.dat"] = "30640c01.dat",
 	["30640c02.dat"] = "30640c01.dat",
+	["3404c.dat"] = "3404cc01.dat",
+	["3404bc01.dat"] = "3404cc01.dat",
+	["3404cc02.dat"] = "3404cc01.dat",
+	["3404e.dat"] = "3404ec01.dat",
+	["3404dc01.dat"] = "3404ec01.dat",
+	["3176.dat"] = "3176c01-f1.dat",
+	["3135.dat"] = "3135c01.dat",
+	["3136.dat"] = "3135c01.dat",
+	["3135c02.dat"] = "3135c01.dat",
+	["3135c03.dat"] = "3135c01.dat",
+	["2042c02.dat"] = "2042c01.dat",
+	["2042c03.dat"] = "2042c01.dat",
 	["3815.dat"] = "3815c01.dat",
 	["3816.dat"] = "3815c01.dat",
 	["3817.dat"] = "3815c01.dat",

@@ -156,4 +156,8 @@ return {
 	"3324d", -- Hinge Plate 2x9 (long vehicle hinge composite)
 	"3829", -- Car Steering Stand and Wheel (composite)
 	"30640", -- Car Steering Wheel Holder 2x2 (composite)
+	"3404cc01", -- Turntable 4x4 Dimpled (composite)
+	"3176c01-f1", -- Train coupling hook on plate (composite)
+	"3135", -- Crane slope brick with swinging hook (composite)
+	"2042c01", -- Cupboard 2x6x7 with both doors (composite)
 }
