@@ -29,6 +29,9 @@ local kRaycastDistance = 500
 -- orientation entirely to the mechanism's joints.
 local kTranslateStiffness = 1
 local kRotateStiffness = 0
+-- DEBUG: drive disabled while we validate the generated constraints
+-- (sessions only build joints for inspection; nothing moves).
+local kDriveEnabled = false
 
 type Session = {
 	grabbedPart: BasePart,
@@ -288,15 +291,17 @@ function RotateController.start(options: StartOptions?): Controller
 			local part = session.grabbedPart
 			local rotatedGrab = part.CFrame:VectorToWorldSpace(session.grabLocal)
 			local target = part.CFrame.Rotation + (planeTarget - rotatedGrab)
-			pcall(function()
-				(workspace :: any):IKMoveTo(
-					part,
-					target,
-					kTranslateStiffness,
-					kRotateStiffness,
-					Enum.IKCollisionsMode.NoCollisions
-				)
-			end)
+			if kDriveEnabled then
+				pcall(function()
+					(workspace :: any):IKMoveTo(
+						part,
+						target,
+						kTranslateStiffness,
+						kRotateStiffness,
+						Enum.IKCollisionsMode.NoCollisions
+					)
+				end)
+			end
 		end))
 
 		table.insert(session.connections, UserInputService.InputEnded:Connect(function(input, _gameProcessed)
