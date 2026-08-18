@@ -37,7 +37,13 @@ local kDriveEnabled = true
 
 type Session = {
 	grabbedPart: BasePart,
-	grabLocal: Vector3, -- grab point in the grabbed part's space
+	-- Invisible massless handle welded to the grabbed part at the click
+	-- point. IKMoveTo drives a part's ORIGIN toward the target - for a
+	-- part whose origin sits on the joint axis (a beam centered on its
+	-- pin) no translation is reachable and nothing moves. The handle's
+	-- origin IS the grab point, always off-axis, so its position error
+	-- is reducible by articulating the mechanism.
+	handle: BasePart,
 	simParts: { BasePart },
 	anchoredParts: { BasePart },
 	originalCFrames: { [BasePart]: CFrame },
@@ -326,10 +332,27 @@ function RotateController.start(options: StartOptions?): Controller
 			part.Anchored = false
 		end
 
+		-- The manipulation handle (see Session.handle).
+		local handle = Instance.new("Part")
+		handle.Name = "BuildItHandle"
+		handle.Size = Vector3.new(0.2, 0.2, 0.2)
+		handle.CFrame = CFrame.new(grabWorldPosition)
+		handle.Transparency = 1
+		handle.CanCollide = false
+		handle.CanQuery = false
+		handle.CanTouch = false
+		handle.Massless = true
+		handle.Anchored = false
+		handle.Parent = joints.folder
+		local handleWeld = Instance.new("WeldConstraint")
+		handleWeld.Part0 = handle
+		handleWeld.Part1 = hitPart
+		handleWeld.Parent = joints.folder
+
 		local camera = workspace.CurrentCamera
 		local session: Session = {
 			grabbedPart = hitPart,
-			grabLocal = hitPart.CFrame:PointToObjectSpace(grabWorldPosition),
+			handle = handle,
 			simParts = simParts,
 			anchoredParts = anchoredParts,
 			originalCFrames = originalCFrames,
@@ -355,12 +378,12 @@ function RotateController.start(options: StartOptions?): Controller
 			end
 			local planeTarget = ray.Origin + ray.Direction * t
 
-			-- Target CFrame: keep the part's current rotation, translate
-			-- so the grabbed point lands on the cursor; rotate stiffness
-			-- 0 leaves orientation to the mechanism's joints.
-			local part = session.grabbedPart
-			local rotatedGrab = part.CFrame:VectorToWorldSpace(session.grabLocal)
-			local target = part.CFrame.Rotation + (planeTarget - rotatedGrab)
+			-- Drive the HANDLE: its origin is the grab point, so the
+			-- target is simply the cursor point on the drag plane (with
+			-- the handle's current rotation - orientation follows the
+			-- mechanism).
+			local part = session.handle
+			local target = part.CFrame.Rotation + planeTarget
 			if kDriveEnabled then
 				local ok, problem = pcall(function()
 					(workspace :: any):IKMoveTo(
