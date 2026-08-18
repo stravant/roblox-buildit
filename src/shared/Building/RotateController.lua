@@ -242,7 +242,9 @@ function RotateController.start(options: StartOptions?): Controller
 		end
 		local structuralPart: { [BasePart]: boolean } = {}
 		for id in assemblySet do
-			local structural = not graph:isFastenerUnit(id)
+			-- Structural = frame parts. Fasteners (pins/axles) and GEARS
+			-- are machine elements: anchoring a gear defeats the drive.
+			local structural = not graph:isFastenerUnit(id) and not graph:isGearUnit(id)
 			forEachUnitPart(id :: Instance, function(part)
 				table.insert(parts, part)
 				groupOf[part] = part

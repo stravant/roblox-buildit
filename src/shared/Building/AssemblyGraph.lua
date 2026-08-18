@@ -783,6 +783,16 @@ function AssemblyGraph.isFastenerUnit(self: AssemblyGraph, id: any): boolean
 	return unit ~= nil and isFastener(unit)
 end
 
+-- Is this unit a gear? Gears are rotating machine elements, not frame:
+-- like fasteners they make poor anchors (their one axle bore counts as
+-- an "inlet" but grounding a gear defeats the mechanism).
+function AssemblyGraph.isGearUnit(self: AssemblyGraph, id: any): boolean
+	local unit = self.units[id]
+	return unit ~= nil
+		and unit.partNumber ~= nil
+		and gearInfo[unit.partNumber :: string] ~= nil
+end
+
 -- The instantiation-oriented joint list: one entry per PHYSICAL joint
 -- to create between units (contrast physicsPlan, which is the analysis
 -- view). Every Fixed edge is a weld; every articulated edge is a
