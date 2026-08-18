@@ -163,4 +163,6 @@ return {
 	"19001", -- Tipper Bucket 8x12 with hinge plate (composite)
 	"44570", -- Hinge Plate 3x4 Locking Dual (clh forks)
 	"2648c01-f2", -- Container lifting grab (scissor composite)
+	"2605", -- Shock absorber (Slider composite)
+	"19478-f1", -- Pneumatic cylinder 2x11 (Slider composite)
 }

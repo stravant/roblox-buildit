@@ -12,7 +12,7 @@
 -- assembly, since the halves are never used separately.
 
 export type Joint = {
-	type: string, -- "Hinge"
+	type: string, -- "Hinge" (rotates about axis) | "Slider" (translates along axis)
 	position: Vector3, -- assembly space (LDU)
 	axis: Vector3, -- articulation axis (LDraw space, unit)
 	-- Segment indices (1-based, assembly ref order) this joint connects;
@@ -114,6 +114,34 @@ compositeParts.composites = {
 			{ type = "Hinge", position = Vector3.new(-52, 0, -16), axis = Vector3.new(0, -1, 0), segments = { 1, 2 } },
 			{ type = "Hinge", position = Vector3.new(52, 0, -16), axis = Vector3.new(0, -1, 0), segments = { 1, 3 } },
 		},
+	},
+	-- Shock absorber 2x1x2.333 (spring 70864 + piston 2606 + body
+	-- 2605): the piston slides vertically; the spring stays with the
+	-- body segment visually.
+	["2605c01.dat"] = {
+		joints = {
+			{ type = "Slider", position = Vector3.new(0, 0, 10), axis = Vector3.new(0, -1, 0), segments = { 3, 2 } },
+		},
+	},
+	-- Modern pneumatic cylinders (body + piston rod, both authored
+	-- poses): the rod slides along the cylinder axis.
+	["19475-f1.dat"] = {
+		joints = { { type = "Slider", position = Vector3.zero, axis = Vector3.new(0, -1, 0) } },
+	},
+	["19475-f2.dat"] = {
+		joints = { { type = "Slider", position = Vector3.zero, axis = Vector3.new(0, -1, 0) } },
+	},
+	["19476-f1.dat"] = {
+		joints = { { type = "Slider", position = Vector3.zero, axis = Vector3.new(0, -1, 0) } },
+	},
+	["19476-f2.dat"] = {
+		joints = { { type = "Slider", position = Vector3.zero, axis = Vector3.new(0, -1, 0) } },
+	},
+	["19478-f1.dat"] = {
+		joints = { { type = "Slider", position = Vector3.zero, axis = Vector3.new(0, -1, 0) } },
+	},
+	["19478-f2.dat"] = {
+		joints = { { type = "Slider", position = Vector3.zero, axis = Vector3.new(0, -1, 0) } },
 	},
 	-- Tipper Bucket 8x12 (click hinge plate 44570 + bucket 18926): the
 	-- bucket tips on the plate's clh fork line, which lands on the X
@@ -281,6 +309,10 @@ local kRedirects: { [string]: string } = {
 	["18926.dat"] = "19001.dat",
 	["19001p01.dat"] = "19001.dat",
 	["2648c01.dat"] = "2648c01-f2.dat",
+	["2605.dat"] = "2605c01.dat",
+	["2606.dat"] = "2605c01.dat",
+	["19466c01.dat"] = "19478-f1.dat",
+	["19467c01.dat"] = "19478-f1.dat",
 	["3815.dat"] = "3815c01.dat",
 	["3816.dat"] = "3815c01.dat",
 	["3817.dat"] = "3815c01.dat",

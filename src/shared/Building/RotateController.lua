@@ -24,7 +24,9 @@ type JointInfo = {
 type Session = {
 	pivotPosition: Vector3,
 	axis: Vector3,
+	jointType: string, -- "Hinge" rotates about axis; "Slider" translates along it
 	startVector: Vector3,
+	startParameter: number,
 	initialCFrames: { [BasePart]: CFrame },
 	recording: string?,
 	connections: { RBXScriptConnection },
@@ -151,6 +153,19 @@ function RotateController.start(options: StartOptions?): Controller
 		return vector.Unit
 	end
 
+	-- Parameter along the joint axis of the point on the axis line
+	-- closest to the mouse ray; nil when the ray runs parallel to it.
+	local function axisParameter(session: Session): number?
+		local ray = mouseRay()
+		local b = session.axis:Dot(ray.Direction)
+		local denominator = 1 - b * b
+		if denominator < 1e-6 then
+			return nil
+		end
+		local w = session.pivotPosition - ray.Origin
+		return (b * w:Dot(ray.Direction) - w:Dot(session.axis)) / denominator
+	end
+
 	local function finishRecording(session: Session, commit: boolean)
 		if pluginRef == nil then
 			return
@@ -217,7 +232,9 @@ function RotateController.start(options: StartOptions?): Controller
 		local session: Session = {
 			pivotPosition = pivotWorld.Position,
 			axis = pivotWorld.YVector,
+			jointType = (joint.childPivot:GetAttribute("JointType") :: string?) or "Hinge",
 			startVector = Vector3.xAxis,
+			startParameter = 0,
 			initialCFrames = {},
 			recording = nil,
 			connections = {},
@@ -225,17 +242,36 @@ function RotateController.start(options: StartOptions?): Controller
 		for _, part in moving :: { BasePart } do
 			session.initialCFrames[part] = part.CFrame
 		end
-		local start = planeVector(session)
-		if start == nil then
-			return -- looking edge-on at the rotation plane
+		if session.jointType == "Slider" then
+			local start = axisParameter(session)
+			if start == nil then
+				return -- looking along the slide axis
+			end
+			session.startParameter = start :: number
+		else
+			local start = planeVector(session)
+			if start == nil then
+				return -- looking edge-on at the rotation plane
+			end
+			session.startVector = start :: Vector3
 		end
-		session.startVector = start :: Vector3
 		if pluginRef ~= nil then
 			session.recording = ChangeHistoryService:TryBeginRecording("BuildIt: Rotate joint")
 		end
 		mSession = session
 
 		table.insert(session.connections, RunService.RenderStepped:Connect(function()
+			if session.jointType == "Slider" then
+				local current = axisParameter(session)
+				if current == nil then
+					return
+				end
+				local offset = session.axis * ((current :: number) - session.startParameter)
+				for part, initial in session.initialCFrames do
+					part.CFrame = initial + offset
+				end
+				return
+			end
 			local current = planeVector(session)
 			if current == nil then
 				return
