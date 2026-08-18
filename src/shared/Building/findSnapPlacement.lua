@@ -52,6 +52,7 @@ export type WorldConnector = {
 	direction: Vector3, -- world unit, points toward the mating part
 	length: number?, -- extent along direction (axial connectors)
 	oneSided: boolean?, -- blind female bore, open only toward `direction`
+	secondary: Vector3?, -- axle cross orientation (keyed roll alignment)
 	part: BasePart?,
 	attachment: Attachment?,
 }
@@ -109,6 +110,16 @@ end
 -- bore floor (sMin) to half-engaged in the bore (sMax).
 local oneSidedInterval = mates.oneSidedInterval
 
+-- Keyed pairs roll-align on snap: the axle cross has 4-fold symmetry,
+-- so the dragged unit additionally rotates about the mate axis to the
+-- nearest 90-degree cross fit.
+local kKeyedRollPairs: { [string]: { [string]: boolean } } = {
+	Axle = { AxleHole = true },
+	AxleHole = { Axle = true },
+	SlipAxle = { SlipRing = true },
+	SlipRing = { SlipAxle = true },
+}
+
 local function findSnapPlacement(
 	ghostCFrame: CFrame,
 	dragConnectors: { Connector },
@@ -159,6 +170,28 @@ local function findSnapPlacement(
 				end
 			end
 			local candidateRotation = (alignment :: CFrame) * rotation
+			-- Keyed cross roll alignment (axle in axle hole).
+			if
+				rule == "axial"
+				and kKeyedRollPairs[drag.kind] ~= nil
+				and kKeyedRollPairs[drag.kind][world.kind]
+				and drag.secondary ~= nil
+				and world.secondary ~= nil
+			then
+				local axis = world.direction
+				local from = candidateRotation:VectorToWorldSpace(drag.secondary :: Vector3)
+				from -= axis * from:Dot(axis)
+				local to = (world.secondary :: Vector3) - axis * (world.secondary :: Vector3):Dot(axis)
+				if from.Magnitude > 1e-3 and to.Magnitude > 1e-3 then
+					from = from.Unit
+					to = to.Unit
+					local angle = math.atan2(from:Cross(to):Dot(axis), from:Dot(to))
+					local quarter = math.pi / 2
+					-- Minimal roll to the nearest quarter-turn fit.
+					local roll = angle - math.round(angle / quarter) * quarter
+					candidateRotation = CFrame.fromAxisAngle(axis, roll) * candidateRotation
+				end
+			end
 			local dragDirection = candidateRotation:VectorToWorldSpace(drag.direction)
 			local dragPosition = ghostCFrame.Position + candidateRotation:VectorToWorldSpace(drag.position)
 

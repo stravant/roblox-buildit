@@ -36,13 +36,33 @@ local function cleanDescription(description: string?): string?
 	return if #cleaned > 0 then cleaned else nil
 end
 
+-- Axial attachment orientation: YVector = the connector axis, XVector =
+-- the SECONDARY axis (the axle cross flat orientation, taken from the
+-- source primitive's transform). Keyed mates (axle in axle hole) use
+-- the secondary to roll-align the cross on snap.
+local function axialAttachmentCFrame(connection: Types.Connection, meshCenter: Vector3): CFrame
+	local position = RobloxConvert.position(connection.position) - meshCenter
+	local direction = RobloxConvert.direction(connection.direction)
+	local transform = connection.transform
+	local candidate = transform.XVector
+	if candidate.Magnitude < 1e-6 or math.abs(candidate.Unit:Dot(connection.direction.Unit)) > 0.7 then
+		candidate = transform.ZVector
+	end
+	if candidate.Magnitude < 1e-6 then
+		return RobloxConvert.frameWithUp(position, direction)
+	end
+	local secondary = RobloxConvert.direction(candidate)
+	secondary -= direction * secondary:Dot(direction)
+	if secondary.Magnitude < 1e-3 then
+		return RobloxConvert.frameWithUp(position, direction)
+	end
+	return CFrame.fromMatrix(position, secondary.Unit, direction)
+end
+
 local function addAxialAttachment(parent: MeshPart, connection: Types.Connection, meshCenter: Vector3)
 	local attachment = Instance.new("Attachment")
 	attachment.Name = connection.type
-	attachment.CFrame = RobloxConvert.frameWithUp(
-		RobloxConvert.position(connection.position) - meshCenter,
-		RobloxConvert.direction(connection.direction)
-	)
+	attachment.CFrame = axialAttachmentCFrame(connection, meshCenter)
 	attachment:SetAttribute("ConnectorType", connection.type)
 	if connection.length ~= nil then
 		attachment:SetAttribute("Length", connection.length * RobloxConvert.kDefaultScale)

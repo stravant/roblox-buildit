@@ -94,6 +94,7 @@ type UnitConnector = {
 	direction: Vector3, -- unit pivot space
 	length: number?,
 	oneSided: boolean?,
+	secondary: Vector3?, -- unit pivot space (axle cross orientation)
 	part: BasePart, -- owning segment (for markers)
 	partLocalPosition: Vector3, -- in the segment's space (for markers)
 }
@@ -178,6 +179,9 @@ local function unitConnectors(unit: PVInstance): { UnitConnector }
 				length = connector.length,
 				oneSided = connector.oneSided,
 				radius = connector.radius,
+				secondary = if connector.secondary ~= nil
+					then pivot:VectorToObjectSpace(part.CFrame:VectorToWorldSpace(connector.secondary :: Vector3))
+					else nil,
 				part = part,
 				partLocalPosition = connector.position,
 			})
@@ -496,6 +500,9 @@ function BuildController.start(options: StartOptions?): Controller
 					length = connector.length,
 					oneSided = connector.oneSided,
 					radius = connector.radius,
+					secondary = if connector.secondary ~= nil
+						then offset:VectorToWorldSpace(connector.secondary :: Vector3)
+						else nil,
 					part = connector.part,
 					partLocalPosition = connector.partLocalPosition,
 				})
@@ -575,6 +582,9 @@ function BuildController.start(options: StartOptions?): Controller
 					length = connector.length,
 					oneSided = connector.oneSided,
 					radius = connector.radius,
+					secondary = if connector.secondary ~= nil
+						then part.CFrame:VectorToWorldSpace(connector.secondary :: Vector3)
+						else nil,
 					part = part,
 					attachment = connector.attachment,
 				})

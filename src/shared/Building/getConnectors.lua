@@ -23,6 +23,9 @@ export type Connector = {
 	oneSided: boolean?,
 	-- Mating radius (studs) for size-keyed interfaces (TyreBore/RimSeat).
 	radius: number?,
+	-- Secondary axis (attachment XVector): the axle cross flat
+	-- orientation for keyed mates.
+	secondary: Vector3?,
 	attachment: Attachment, -- the source attachment (shared by grid cells)
 }
 
@@ -52,6 +55,7 @@ local function getConnectors(part: BasePart): { Connector }
 				length = if type(length) == "number" then length else nil,
 				oneSided = if child:GetAttribute("OneSided") == true then true else nil,
 				radius = if type(radius) == "number" then radius else nil,
+				secondary = child.CFrame.XVector,
 				attachment = child,
 			})
 			continue

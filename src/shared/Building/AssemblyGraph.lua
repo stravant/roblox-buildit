@@ -31,12 +31,14 @@
 
 local mates = require(script.Parent.mates)
 local getConnectors = require(script.Parent.getConnectors)
+local gearInfo = require(script.Parent.gearInfo)
 
 export type WorldConnector = mates.MateConnector
 
 export type UnitInput = {
 	id: any,
 	connectors: { WorldConnector },
+	partNumber: string?, -- for gear lookup
 }
 
 export type Edge = {
@@ -686,6 +688,93 @@ function AssemblyGraph.physicsPlan(self: AssemblyGraph): PhysicsPlan
 	return { clusters = clusters, constraints = constraints }
 end
 
+export type GearMesh = {
+	a: any,
+	b: any,
+	teethA: number,
+	teethB: number,
+	axisA: Vector3,
+	axisB: Vector3,
+	centerA: Vector3,
+	centerB: Vector3,
+}
+
+-- LEGO gear pitch radius in studs = teeth / 16.
+local function pitchRadius(teeth: number): number
+	return teeth / 16
+end
+
+-- A gear's mounting axis and center: its axle hole (or pin hole for
+-- freewheeling gears).
+local function gearAxis(unit: UnitInput): (Vector3?, Vector3?)
+	local fallback: WorldConnector? = nil
+	for _, connector in unit.connectors do
+		if connector.kind == "AxleHole" then
+			return connector.position, connector.direction
+		elseif connector.kind == "PegHole" and fallback == nil then
+			fallback = connector
+		end
+	end
+	if fallback ~= nil then
+		return (fallback :: WorldConnector).position, (fallback :: WorldConnector).direction
+	end
+	return nil, nil
+end
+
+local kMeshAxisDot = 0.98
+local kMeshRadialTolerance = 0.35 -- studs
+local kMeshAxialTolerance = 0.6 -- studs (tooth faces must overlap)
+
+-- Pairs of gears meshing at their pitch radius: parallel axes, center
+-- distance perpendicular to the axis ~ the pitch radius sum, roughly
+-- coplanar along the axis. Gears cannot be treated physically (too
+-- many teeth); callers give meshing pairs a NoCollisionConstraint and
+-- drive rotation by tooth ratio in code.
+function AssemblyGraph.gearMeshes(self: AssemblyGraph): { GearMesh }
+	local gears: { { id: any, teeth: number, center: Vector3, axis: Vector3 } } = {}
+	for id, unit in self.units do
+		local info = if unit.partNumber ~= nil then gearInfo[unit.partNumber :: string] else nil
+		if info == nil then
+			continue
+		end
+		local center, axis = gearAxis(unit)
+		if center == nil or axis == nil then
+			continue
+		end
+		table.insert(gears, { id = id, teeth = info.teeth, center = center :: Vector3, axis = (axis :: Vector3).Unit })
+	end
+	local meshes: { GearMesh } = {}
+	for i = 1, #gears do
+		for j = i + 1, #gears do
+			local gearA, gearB = gears[i], gears[j]
+			if math.abs(gearA.axis:Dot(gearB.axis)) < kMeshAxisDot then
+				continue
+			end
+			local delta = gearB.center - gearA.center
+			local axial = delta:Dot(gearA.axis)
+			if math.abs(axial) > kMeshAxialTolerance then
+				continue
+			end
+			local radial = (delta - gearA.axis * axial).Magnitude
+			local pitch = pitchRadius(gearA.teeth) + pitchRadius(gearB.teeth)
+			if math.abs(radial - pitch) > kMeshRadialTolerance then
+				continue
+			end
+			table.insert(meshes, {
+				a = gearA.id,
+				b = gearB.id,
+				teethA = gearA.teeth,
+				teethB = gearB.teeth,
+				axisA = gearA.axis,
+				axisB = gearB.axis,
+				centerA = gearA.center,
+				centerB = gearB.center,
+			})
+		end
+	end
+	return meshes
+end
+
 -- Is this unit a fastener (pin/axle/bar rod)? Exposed for callers that
 -- want to prefer structural parts (bricks, beams - anything with studs
 -- and inlets) over loose rods, e.g. when picking what to anchor.
@@ -788,7 +877,12 @@ function AssemblyGraph.collectUnits(units: { Instance }): { UnitInput }
 				})
 			end
 		end
-		table.insert(inputs, { id = unit, connectors = connectors })
+		local partNumber = unit:GetAttribute("PartNumber")
+		table.insert(inputs, {
+			id = unit,
+			connectors = connectors,
+			partNumber = if typeof(partNumber) == "string" then partNumber else nil,
+		})
 	end
 	return inputs
 end

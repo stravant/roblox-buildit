@@ -402,6 +402,46 @@ return function(t: TestTypes.TestContext)
 		t.expect(#joints.welds > 0).toBe(true)
 	end)
 
+	t.test("gear meshes detect at the pitch radius sum", function()
+		local kAxisZ2 = Vector3.new(0, 0, 1)
+		local function gear(id: string, partNumber: string, x: number, z: number?): AssemblyGraph.UnitInput
+			return {
+				id = id,
+				partNumber = partNumber,
+				connectors = {
+					{
+						kind = "AxleHole",
+						position = Vector3.new(x, 0, z or 0),
+						direction = kAxisZ2,
+						length = 0.4,
+					},
+				},
+			}
+		end
+		-- 8t (pitch r 0.5) meshing 24t (pitch r 1.5): centers 2 apart.
+		local meshing = AssemblyGraph.build({
+			gear("small", "3647", 0),
+			gear("big", "3648", 2),
+		})
+		local meshes = meshing:gearMeshes()
+		t.expect(#meshes).toBe(1)
+		t.expect(meshes[1].teethA + meshes[1].teethB).toBe(32)
+
+		-- Too far apart: no mesh.
+		local apart = AssemblyGraph.build({
+			gear("small", "3647", 0),
+			gear("big", "3648", 2.6),
+		})
+		t.expect(#apart:gearMeshes()).toBe(0)
+
+		-- Offset along the axis beyond tooth overlap: no mesh.
+		local offset = AssemblyGraph.build({
+			gear("small", "3647", 0),
+			gear("big", "3648", 2, 1.5),
+		})
+		t.expect(#offset:gearMeshes()).toBe(0)
+	end)
+
 	t.test("two separated towballs hinge about the line through them", function()
 		local graph = AssemblyGraph.build({
 			{

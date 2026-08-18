@@ -47,6 +47,26 @@ type Session = {
 	simParts: { BasePart },
 	anchoredParts: { BasePart },
 	originalCFrames: { [BasePart]: CFrame },
+	-- Gear drive: propagation steps in BFS order from the grabbed
+	-- group. Each step reads the FROM group's accumulated rotation
+	-- about its gear axis and poses the TO group about its own axis by
+	-- the tooth ratio (external mesh reverses direction). Gears mesh
+	-- with too many teeth to simulate; the meshing pairs get
+	-- NoCollisionConstraints and this code supplies the gearing.
+	gearSteps: {
+		{
+			fromParts: { BasePart },
+			toParts: { BasePart },
+			fromAxis: Vector3,
+			fromCenter: Vector3,
+			toAxis: Vector3,
+			toCenter: Vector3,
+			ratio: number, -- signed: driven = ratio * driver angle
+			fromReference: BasePart,
+			lastAngle: number,
+			accumulated: number,
+		}
+	},
 	reportedDriveError: boolean?,
 	joints: applyPhysicsJoints.Applied,
 	planeOrigin: Vector3,
@@ -368,6 +388,83 @@ function RotateController.start(options: StartOptions?): Controller
 			warn(table.concat(lines, "\n"))
 		end
 
+		-- Gear drive chain: BFS through meshing pairs starting from the
+		-- grabbed group. Each mesh whose far side isn't yet driven
+		-- becomes a propagation step; the anchored group never gets
+		-- driven (it is ground).
+		local gearSteps = {}
+		do
+			local meshes = graph:gearMeshes()
+			if #meshes > 0 then
+				local partsOfGroup: { [BasePart]: { BasePart } } = {}
+				for _, part in parts do
+					local root = find(part)
+					partsOfGroup[root] = partsOfGroup[root] or {}
+					table.insert(partsOfGroup[root] :: { BasePart }, part)
+				end
+				local function unitMainPart(id: any): BasePart?
+					local instance = id :: Instance
+					if instance:IsA("BasePart") then
+						return instance
+					end
+					return instance:FindFirstChildWhichIsA("BasePart", true)
+				end
+				local driven: { [BasePart]: boolean } = { [grabbedRoot] = true }
+				local frontier = { grabbedRoot }
+				while #frontier > 0 do
+					local nextFrontier = {}
+					for _, mesh in meshes do
+						local partA = unitMainPart(mesh.a)
+						local partB = unitMainPart(mesh.b)
+						if partA == nil or partB == nil or groupOf[partA :: BasePart] == nil or groupOf[partB :: BasePart] == nil then
+							continue
+						end
+						local rootA = find(partA :: BasePart)
+						local rootB = find(partB :: BasePart)
+						if rootA == rootB then
+							continue -- welded together (same axle): no gearing
+						end
+						for _, current in frontier do
+							local forward = rootA == current and not driven[rootB]
+							local backward = rootB == current and not driven[rootA]
+							if not forward and not backward then
+								continue
+							end
+							local fromRoot = if forward then rootA else rootB
+							local toRoot = if forward then rootB else rootA
+							if toRoot == anchoredRoot then
+								continue -- never drive the ground
+							end
+							local fromAxis = if forward then mesh.axisA else mesh.axisB
+							local toAxis = if forward then mesh.axisB else mesh.axisA
+							-- Express both rotations about a COMMON axis
+							-- direction; external gears counter-rotate.
+							if toAxis:Dot(fromAxis) < 0 then
+								toAxis = -toAxis
+							end
+							local fromTeeth = if forward then mesh.teethA else mesh.teethB
+							local toTeeth = if forward then mesh.teethB else mesh.teethA
+							driven[toRoot] = true
+							table.insert(nextFrontier, toRoot)
+							table.insert(gearSteps, {
+								fromParts = partsOfGroup[fromRoot] or {},
+								toParts = partsOfGroup[toRoot] or {},
+								fromAxis = fromAxis,
+								fromCenter = if forward then mesh.centerA else mesh.centerB,
+								toAxis = toAxis,
+								toCenter = if forward then mesh.centerB else mesh.centerA,
+								ratio = -fromTeeth / toTeeth,
+								fromReference = if forward then partA :: BasePart else partB :: BasePart,
+								lastAngle = 0,
+								accumulated = 0,
+							})
+						end
+					end
+					frontier = nextFrontier
+				end
+			end
+		end
+
 		local recording: string? = nil
 		if pluginRef ~= nil then
 			recording = ChangeHistoryService:TryBeginRecording("BuildIt: Pose assembly")
@@ -401,6 +498,7 @@ function RotateController.start(options: StartOptions?): Controller
 			simParts = simParts,
 			anchoredParts = anchoredParts,
 			originalCFrames = originalCFrames,
+			gearSteps = gearSteps,
 			joints = joints,
 			planeOrigin = grabWorldPosition,
 			planeNormal = -camera.CFrame.LookVector,
@@ -442,6 +540,48 @@ function RotateController.start(options: StartOptions?): Controller
 				if not ok and not session.reportedDriveError then
 					session.reportedDriveError = true
 					warn(`[BuildIt Rotate] IKMoveTo failed: {problem}`)
+				end
+
+				-- Gear the driven groups off the solved pose. Angles are
+				-- accumulated frame to frame (valid while no gear turns
+				-- more than half a revolution per frame).
+				for _, step in session.gearSteps do
+					local reference = step.fromReference
+					local original = session.originalCFrames[reference]
+					if original == nil then
+						continue
+					end
+					local deltaRotation = reference.CFrame.Rotation * original.Rotation:Inverse()
+					local seed = step.fromAxis:Cross(Vector3.yAxis)
+					if seed.Magnitude < 1e-3 then
+						seed = step.fromAxis:Cross(Vector3.xAxis)
+					end
+					seed = seed.Unit
+					local rotated = deltaRotation * seed
+					rotated -= step.fromAxis * rotated:Dot(step.fromAxis)
+					local raw = 0
+					if rotated.Magnitude > 1e-4 then
+						raw = math.atan2(seed:Cross(rotated.Unit):Dot(step.fromAxis), seed:Dot(rotated.Unit))
+					end
+					local wrap = raw - step.lastAngle
+					if wrap > math.pi then
+						wrap -= 2 * math.pi
+					elseif wrap < -math.pi then
+						wrap += 2 * math.pi
+					end
+					step.lastAngle = raw
+					step.accumulated += wrap
+
+					local drivenAngle = step.accumulated * step.ratio
+					local spin = CFrame.new(step.toCenter)
+						* CFrame.fromAxisAngle(step.toAxis, drivenAngle)
+						* CFrame.new(-step.toCenter)
+					for _, toPart in step.toParts do
+						local toOriginal = session.originalCFrames[toPart]
+						if toOriginal ~= nil then
+							toPart.CFrame = spin * toOriginal
+						end
+					end
 				end
 			end
 		end))

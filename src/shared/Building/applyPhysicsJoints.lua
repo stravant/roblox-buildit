@@ -197,6 +197,24 @@ local function apply(graph: AssemblyGraph.AssemblyGraph, unitFilter: { [any]: bo
 		end
 	end
 
+	-- Meshing gears can't collide physically (far too many tooth
+	-- contacts): free each meshing pair; the pose code drives driven
+	-- gears by tooth ratio instead.
+	for _, mesh in graph:gearMeshes() do
+		if not included(mesh.a) or not included(mesh.b) then
+			continue
+		end
+		local part0 = nearestPart(mesh.a :: Instance, mesh.centerA)
+		local part1 = nearestPart(mesh.b :: Instance, mesh.centerB)
+		if part0 == nil or part1 == nil then
+			continue
+		end
+		local noCollision = Instance.new("NoCollisionConstraint")
+		noCollision.Part0 = part0
+		noCollision.Part1 = part1
+		noCollision.Parent = folder
+	end
+
 	local function destroy()
 		folder:Destroy()
 		for _, instance in created do
