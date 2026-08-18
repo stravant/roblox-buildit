@@ -39,6 +39,7 @@ type Session = {
 	simParts: { BasePart },
 	anchoredParts: { BasePart },
 	originalCFrames: { [BasePart]: CFrame },
+	reportedDriveError: boolean?,
 	joints: applyPhysicsJoints.Applied,
 	planeOrigin: Vector3,
 	planeNormal: Vector3,
@@ -284,6 +285,37 @@ function RotateController.start(options: StartOptions?): Controller
 			end
 		end
 
+		-- DEBUG: report what the session built so anchoring/joint issues
+		-- are visible at a glance.
+		do
+			local lines = { `[BuildIt Rotate] {groupCount} rigid groups, grabbed = {hitPart:GetFullName()}` }
+			local membersByRoot: { [BasePart]: { string } } = {}
+			for _, part in parts do
+				local root = find(part)
+				membersByRoot[root] = membersByRoot[root] or {}
+				table.insert(membersByRoot[root], part.Name)
+			end
+			for root, members in membersByRoot do
+				local tags = {}
+				if root == grabbedRoot then
+					table.insert(tags, "GRABBED")
+				end
+				if root == anchoredRoot then
+					table.insert(tags, "ANCHORED")
+				end
+				local suffix = if #tags > 0 then ` [{table.concat(tags, ", ")}]` else ""
+				table.insert(lines, `  group (d={distance[root] or "-"}){suffix}: {table.concat(members, ", ")}`)
+			end
+			for _, pair in joints.weldedPairs do
+				table.insert(lines, `  weld: {pair[1].Name} <-> {pair[2].Name}`)
+			end
+			for _, pair in joints.constraintPairs do
+				table.insert(lines, `  constraint: {pair[1].Name} <-> {pair[2].Name}`)
+			end
+			warn(table.concat(lines, "
+"))
+		end
+
 		local recording: string? = nil
 		if pluginRef ~= nil then
 			recording = ChangeHistoryService:TryBeginRecording("BuildIt: Pose assembly")
@@ -329,7 +361,7 @@ function RotateController.start(options: StartOptions?): Controller
 			local rotatedGrab = part.CFrame:VectorToWorldSpace(session.grabLocal)
 			local target = part.CFrame.Rotation + (planeTarget - rotatedGrab)
 			if kDriveEnabled then
-				pcall(function()
+				local ok, problem = pcall(function()
 					(workspace :: any):IKMoveTo(
 						part,
 						target,
@@ -338,6 +370,10 @@ function RotateController.start(options: StartOptions?): Controller
 						Enum.IKCollisionsMode.NoCollisions
 					)
 				end)
+				if not ok and not session.reportedDriveError then
+					session.reportedDriveError = true
+					warn(`[BuildIt Rotate] IKMoveTo failed: {problem}`)
+				end
 			end
 		end))
 
