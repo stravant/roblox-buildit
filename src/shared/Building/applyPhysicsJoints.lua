@@ -54,8 +54,11 @@ local function axisAttachment(part: BasePart, position: Vector3, axis: Vector3):
 	perpendicular = perpendicular.Unit
 	local attachment = Instance.new("Attachment")
 	attachment.Name = "BuildItJoint"
-	attachment.WorldCFrame = CFrame.fromMatrix(position, axis, perpendicular)
+	-- Parent FIRST: WorldCFrame on an unparented attachment writes the
+	-- local CFrame (there is no part frame yet), which would land the
+	-- attachment at part.CFrame * worldPose once parented.
 	attachment.Parent = part
+	attachment.WorldCFrame = CFrame.fromMatrix(position, axis, perpendicular)
 	return attachment
 end
 

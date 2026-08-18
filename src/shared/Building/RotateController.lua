@@ -257,8 +257,10 @@ function RotateController.start(options: StartOptions?): Controller
 
 		local driveAttachment = Instance.new("Attachment")
 		driveAttachment.Name = "BuildItDrive"
-		driveAttachment.WorldPosition = grabWorldPosition
+		-- Parent BEFORE setting the world pose (world setters on an
+		-- unparented attachment write the local CFrame instead).
 		driveAttachment.Parent = hitPart
+		driveAttachment.WorldPosition = grabWorldPosition
 		local drive = Instance.new("AlignPosition")
 		drive.Mode = Enum.PositionAlignmentMode.OneAttachment
 		drive.Attachment0 = driveAttachment
