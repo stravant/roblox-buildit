@@ -1,33 +1,53 @@
 --!strict
 
--- Edit-mode Rotate tool: click and hold a composite segment, then drag
--- to swing it about a joint. Joint choice: of all the composite's
--- joints, pick the one whose cut leaves the clicked segment in the
--- SMALLEST connected component — that component rotates. Clicking a
--- hand turns just the hand (wrist); clicking an arm turns arm+hand
--- (shoulder); either side of a lone hinge can be rotated. Release
--- commits (one undo recording); RMB/Esc cancels.
+-- Edit-mode Rotate tool, physics-driven: click and hold any part of a
+-- placed assembly and drag. The connected assembly gets real physics
+-- joints (WeldConstraints inside rigid groups; Hinge/Cylindrical/
+-- Prismatic/BallSocket constraints between them; composite JointPivot
+-- pairs as hinges/prismatics), everything except the largest rigid
+-- group is unanchored, and the grabbed point is pulled toward the
+-- cursor by an AlignPosition while the simulation is stepped manually
+-- with workspace:StepPhysics. Mechanisms respond the way they're
+-- built: a hinge top swings, a 4-bar linkage follows, a shock's piston
+-- slides, liftarms pinned twice stay rigid.
+--
+-- Gravity is zeroed and velocities damped each step, so this is
+-- posing, not free simulation: the assembly only moves where the drag
+-- pulls it, and it stops when the mouse stops. Release commits the
+-- pose (one undo recording); RMB/Esc cancels and restores.
 
 local ChangeHistoryService = game:GetService("ChangeHistoryService")
 local GuiService = game:GetService("GuiService")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
-local kRaycastDistance = 500
+local getConnectors = require(script.Parent.getConnectors)
+local AssemblyGraph = require(script.Parent.AssemblyGraph)
+local applyPhysicsJoints = require(script.Parent.applyPhysicsJoints)
 
-type JointInfo = {
-	parentPart: BasePart,
-	childPart: BasePart,
-	childPivot: Attachment,
-}
+local kRaycastDistance = 500
+-- Drive strength: strong enough to pose crisply, bounded so an
+-- impossible target (dragging against a locked joint) strains instead
+-- of exploding.
+local kDriveMaxForce = 1e6
+local kDriveResponsiveness = 60
+-- Per-step velocity damping: kills oscillation and stops the assembly
+-- when the mouse stops.
+local kVelocityDamping = 0.5
+local kMaxStepDelta = 1 / 45
+local kSubsteps = 3
 
 type Session = {
-	pivotPosition: Vector3,
-	axis: Vector3,
-	jointType: string, -- "Hinge" rotates about axis; "Slider" translates along it
-	startVector: Vector3,
-	startParameter: number,
-	initialCFrames: { [BasePart]: CFrame },
+	grabbedPart: BasePart,
+	simParts: { BasePart },
+	anchoredParts: { BasePart },
+	originalCFrames: { [BasePart]: CFrame },
+	joints: applyPhysicsJoints.Applied,
+	driveAttachment: Attachment,
+	drive: AlignPosition,
+	planeOrigin: Vector3,
+	planeNormal: Vector3,
+	originalGravity: number,
 	recording: string?,
 	connections: { RBXScriptConnection },
 }
@@ -42,82 +62,48 @@ export type Controller = {
 
 local RotateController = {}
 
--- Collect the composite's joints from its JointPivot attachments.
-local function collectJoints(model: Model): { [number]: JointInfo }
-	local bySegment: { [number]: BasePart } = {}
-	for _, child in model:GetChildren() do
-		if child:IsA("BasePart") then
-			local index = child:GetAttribute("JointSegment")
-			if type(index) == "number" then
-				bySegment[index] = child
-			end
+local function forEachUnitPart(unit: Instance, fn: (BasePart) -> ())
+	if unit:IsA("BasePart") then
+		fn(unit)
+	end
+	for _, descendant in unit:GetDescendants() do
+		if descendant:IsA("BasePart") then
+			fn(descendant)
 		end
 	end
-	local joints: { [number]: JointInfo } = {}
-	for _, part in bySegment do
-		for _, attachment in part:GetChildren() do
-			if not attachment:IsA("Attachment") or attachment.Name:match("^JointPivot") == nil then
-				continue
-			end
-			local jointIndex = attachment:GetAttribute("JointIndex")
-			if type(jointIndex) ~= "number" then
-				jointIndex = 1
-			end
-			local info = joints[jointIndex :: number]
-			if info == nil then
-				info = { parentPart = part, childPart = part, childPivot = attachment }
-				joints[jointIndex :: number] = info
-			end
-			if attachment:GetAttribute("JointRole") == "child" then
-				(info :: JointInfo).childPart = part;
-				(info :: JointInfo).childPivot = attachment
-			else
-				(info :: JointInfo).parentPart = part
-			end
-		end
-	end
-	return joints
 end
 
--- Connected component of the joint graph containing `start` when the
--- joint `cutIndex` is removed.
-local function componentContaining(
-	joints: { [number]: JointInfo },
-	cutIndex: number,
-	start: BasePart
-): { BasePart }
-	local component: { [BasePart]: boolean } = { [start] = true }
-	local grew = true
-	while grew do
-		grew = false
-		for index, info in joints do
-			if index == cutIndex then
-				continue
-			end
-			if component[info.parentPart] and not component[info.childPart] then
-				component[info.childPart] = true
-				grew = true
-			end
-			if component[info.childPart] and not component[info.parentPart] then
-				component[info.parentPart] = true
-				grew = true
+-- All placed units eligible for the assembly graph (same criteria as
+-- the build tool): composite Models and connector-annotated parts.
+local function collectGraphUnits(): { Instance }
+	local units: { Instance } = {}
+	local function scan(container: Instance)
+		for _, child in container:GetChildren() do
+			if child:IsA("Model") and child:GetAttribute("LDrawFile") ~= nil then
+				table.insert(units, child)
+			elseif child:IsA("BasePart") then
+				if #getConnectors(child) > 0 then
+					table.insert(units, child)
+				end
+			elseif child:IsA("Folder") or child:IsA("Model") then
+				scan(child)
 			end
 		end
 	end
-	local list = {}
-	for part in component do
-		table.insert(list, part)
-	end
-	return list
+	scan(workspace)
+	return units
 end
 
-local function componentVolume(parts: { BasePart }): number
-	local volume = 0
-	for _, part in parts do
-		local size = part.Size
-		volume += size.X * size.Y * size.Z
+-- The graph unit a clicked part belongs to.
+local function unitForPart(part: BasePart): Instance?
+	local model = part:FindFirstAncestorOfClass("Model")
+	if model ~= nil and model:GetAttribute("LDrawFile") ~= nil then
+		return model
 	end
-	return volume
+	if #getConnectors(part) > 0 then
+		return part
+	end
+	return nil
 end
 
 function RotateController.start(options: StartOptions?): Controller
@@ -133,53 +119,18 @@ function RotateController.start(options: StartOptions?): Controller
 		return camera:ViewportPointToRay(mouse.X - inset.X, mouse.Y - inset.Y)
 	end
 
-	-- Intersect the mouse ray with the rotation plane; nil when parallel.
-	local function planeVector(session: Session): Vector3?
-		local ray = mouseRay()
-		local denominator = ray.Direction:Dot(session.axis)
-		if math.abs(denominator) < 1e-4 then
-			return nil
-		end
-		local t = (session.pivotPosition - ray.Origin):Dot(session.axis) / denominator
-		if t < 0 then
-			return nil
-		end
-		local hit = ray.Origin + ray.Direction * t
-		local vector = hit - session.pivotPosition
-		vector -= session.axis * vector:Dot(session.axis)
-		if vector.Magnitude < 0.05 then
-			return nil
-		end
-		return vector.Unit
-	end
-
-	-- Parameter along the joint axis of the point on the axis line
-	-- closest to the mouse ray; nil when the ray runs parallel to it.
-	local function axisParameter(session: Session): number?
-		local ray = mouseRay()
-		local b = session.axis:Dot(ray.Direction)
-		local denominator = 1 - b * b
-		if denominator < 1e-6 then
-			return nil
-		end
-		local w = session.pivotPosition - ray.Origin
-		return (b * w:Dot(ray.Direction) - w:Dot(session.axis)) / denominator
-	end
-
 	local function finishRecording(session: Session, commit: boolean)
 		if pluginRef == nil then
 			return
 		end
 		if session.recording ~= nil then
 			ChangeHistoryService:FinishRecording(
-				session.recording,
+				session.recording :: string,
 				if commit
 					then Enum.FinishRecordingOperation.Commit
 					else Enum.FinishRecordingOperation.Cancel
 			)
 			session.recording = nil
-		elseif commit then
-			ChangeHistoryService:SetWaypoint("BuildIt: Rotate joint")
 		end
 	end
 
@@ -192,100 +143,175 @@ function RotateController.start(options: StartOptions?): Controller
 		for _, connection in session.connections do
 			connection:Disconnect()
 		end
+		session.drive:Destroy()
+		session.driveAttachment:Destroy()
+		session.joints.destroy()
+		workspace.Gravity = session.originalGravity
+		for _, part in session.simParts do
+			part.AssemblyLinearVelocity = Vector3.zero
+			part.AssemblyAngularVelocity = Vector3.zero
+			part.Anchored = true
+		end
 		if not commit then
-			for part, cframe in session.initialCFrames do
+			for part, cframe in session.originalCFrames do
 				part.CFrame = cframe
 			end
 		end
 		finishRecording(session, commit)
 	end
 
-	local function beginSession(hit: BasePart, model: Model)
-		local joints = collectJoints(model)
-		-- Rotate the SMALLEST component containing the clicked segment:
-		-- clicking a hand turns the hand, clicking the arm turns arm+hand.
-		local chosen: JointInfo? = nil
-		local moving: { BasePart }? = nil
-		local bestCount = math.huge
-		local bestVolume = math.huge
-		for index, info in joints do
-			local component = componentContaining(joints, index, hit)
-			-- Cutting an unrelated joint leaves the whole model connected
-			-- through other joints; only proper splits are candidates.
-			if #component == 0 or table.find(component, info.parentPart) and table.find(component, info.childPart) then
+	local function beginSession(hitPart: BasePart, grabWorldPosition: Vector3)
+		endSession(false)
+
+		local unit = unitForPart(hitPart)
+		if unit == nil then
+			return
+		end
+
+		-- Rebuild the graph from scratch (Edit mode: undo and external
+		-- edits make the workspace the only source of truth).
+		local graph = AssemblyGraph.build(AssemblyGraph.collectUnits(collectGraphUnits()))
+		if graph.units[unit] == nil then
+			return
+		end
+		local assemblySet: { [any]: boolean } = {}
+		for _, id in graph:partitionAssembly(unit) do
+			assemblySet[id] = true
+		end
+
+		local joints = applyPhysicsJoints(graph, assemblySet)
+
+		-- Part-level rigid groups: parts welded (directly or transitively)
+		-- move as one body; constraints articulate between groups.
+		local parts: { BasePart } = {}
+		local groupOf: { [BasePart]: BasePart } = {}
+		local function find(part: BasePart): BasePart
+			while groupOf[part] ~= part do
+				groupOf[part] = groupOf[groupOf[part]]
+				part = groupOf[part]
+			end
+			return part
+		end
+		for id in assemblySet do
+			forEachUnitPart(id :: Instance, function(part)
+				table.insert(parts, part)
+				groupOf[part] = part
+			end)
+		end
+		for _, pair in joints.weldedPairs do
+			local rootA, rootB = find(pair[1]), find(pair[2])
+			if rootA ~= rootB then
+				groupOf[rootA] = rootB
+			end
+		end
+		local groupVolume: { [BasePart]: number } = {}
+		local groupCount = 0
+		for _, part in parts do
+			local root = find(part)
+			if groupVolume[root] == nil then
+				groupVolume[root] = 0
+				groupCount += 1
+			end
+			local size = part.Size
+			groupVolume[root] += size.X * size.Y * size.Z
+		end
+		if groupCount < 2 then
+			-- Fully rigid (or a lone part): nothing to articulate.
+			joints.destroy()
+			return
+		end
+
+		-- The largest rigid group that ISN'T the grabbed one stays
+		-- anchored as ground; everything else simulates.
+		local grabbedRoot = find(hitPart)
+		local anchoredRoot: BasePart? = nil
+		for root, volume in groupVolume do
+			if root == grabbedRoot then
 				continue
 			end
-			local volume = componentVolume(component)
-			if #component < bestCount or (#component == bestCount and volume < bestVolume) then
-				bestCount = #component
-				bestVolume = volume
-				chosen = info
-				moving = component
+			if anchoredRoot == nil or volume > groupVolume[anchoredRoot :: BasePart] then
+				anchoredRoot = root
 			end
 		end
-		if chosen == nil or moving == nil then
-			return -- no joint separates this segment from the rest
-		end
-		local joint = chosen :: JointInfo
 
-		local pivotWorld = joint.childPart.CFrame * joint.childPivot.CFrame
+		local simParts: { BasePart } = {}
+		local anchoredParts: { BasePart } = {}
+		local originalCFrames: { [BasePart]: CFrame } = {}
+		for _, part in parts do
+			originalCFrames[part] = part.CFrame
+			if find(part) == anchoredRoot then
+				table.insert(anchoredParts, part)
+			else
+				table.insert(simParts, part)
+			end
+		end
+
+		local recording: string? = nil
+		if pluginRef ~= nil then
+			recording = ChangeHistoryService:TryBeginRecording("BuildIt: Pose assembly")
+		end
+
+		for _, part in simParts do
+			part.Anchored = false
+		end
+
+		local driveAttachment = Instance.new("Attachment")
+		driveAttachment.Name = "BuildItDrive"
+		driveAttachment.WorldPosition = grabWorldPosition
+		driveAttachment.Parent = hitPart
+		local drive = Instance.new("AlignPosition")
+		drive.Mode = Enum.PositionAlignmentMode.OneAttachment
+		drive.Attachment0 = driveAttachment
+		drive.MaxForce = kDriveMaxForce
+		drive.MaxVelocity = math.huge
+		drive.Responsiveness = kDriveResponsiveness
+		drive.Position = grabWorldPosition
+		drive.Parent = joints.folder
+
+		local camera = workspace.CurrentCamera
 		local session: Session = {
-			pivotPosition = pivotWorld.Position,
-			axis = pivotWorld.YVector,
-			jointType = (joint.childPivot:GetAttribute("JointType") :: string?) or "Hinge",
-			startVector = Vector3.xAxis,
-			startParameter = 0,
-			initialCFrames = {},
-			recording = nil,
+			grabbedPart = hitPart,
+			simParts = simParts,
+			anchoredParts = anchoredParts,
+			originalCFrames = originalCFrames,
+			joints = joints,
+			driveAttachment = driveAttachment,
+			drive = drive,
+			planeOrigin = grabWorldPosition,
+			planeNormal = -camera.CFrame.LookVector,
+			originalGravity = workspace.Gravity,
+			recording = recording,
 			connections = {},
 		}
-		for _, part in moving :: { BasePart } do
-			session.initialCFrames[part] = part.CFrame
-		end
-		if session.jointType == "Slider" then
-			local start = axisParameter(session)
-			if start == nil then
-				return -- looking along the slide axis
-			end
-			session.startParameter = start :: number
-		else
-			local start = planeVector(session)
-			if start == nil then
-				return -- looking edge-on at the rotation plane
-			end
-			session.startVector = start :: Vector3
-		end
-		if pluginRef ~= nil then
-			session.recording = ChangeHistoryService:TryBeginRecording("BuildIt: Rotate joint")
-		end
+		workspace.Gravity = 0
 		mSession = session
 
-		table.insert(session.connections, RunService.RenderStepped:Connect(function()
-			if session.jointType == "Slider" then
-				local current = axisParameter(session)
-				if current == nil then
-					return
+		table.insert(session.connections, RunService.RenderStepped:Connect(function(deltaTime: number)
+			-- Cursor target on the camera-facing plane through the grab
+			-- point (the classic 3D drag plane).
+			local ray = mouseRay()
+			local denominator = ray.Direction:Dot(session.planeNormal)
+			if math.abs(denominator) > 1e-4 then
+				local t = (session.planeOrigin - ray.Origin):Dot(session.planeNormal) / denominator
+				if t > 0 then
+					session.drive.Position = ray.Origin + ray.Direction * t
 				end
-				local offset = session.axis * ((current :: number) - session.startParameter)
-				for part, initial in session.initialCFrames do
-					part.CFrame = initial + offset
+			end
+
+			-- Step the simulation manually: only the assembly's sim parts
+			-- integrate; the rest of the place is untouched.
+			local step = math.min(deltaTime, kMaxStepDelta) / kSubsteps
+			for _ = 1, kSubsteps do
+				local ok = pcall(function()
+					(workspace :: any):StepPhysics(step, session.simParts)
+				end)
+				if not ok then
+					break
 				end
-				return
-			end
-			local current = planeVector(session)
-			if current == nil then
-				return
-			end
-			local vector = current :: Vector3
-			local angle = math.atan2(
-				session.startVector:Cross(vector):Dot(session.axis),
-				session.startVector:Dot(vector)
-			)
-			local spin = CFrame.new(session.pivotPosition)
-				* CFrame.fromAxisAngle(session.axis, angle)
-				* CFrame.new(-session.pivotPosition)
-			for part, initial in session.initialCFrames do
-				part.CFrame = spin * initial
+				for _, part in session.simParts do
+					part.AssemblyLinearVelocity *= kVelocityDamping
+					part.AssemblyAngularVelocity *= kVelocityDamping
+				end
 			end
 		end))
 
@@ -301,12 +327,23 @@ function RotateController.start(options: StartOptions?): Controller
 				or input.KeyCode == Enum.KeyCode.Escape
 			then
 				endSession(false)
+			elseif
+				input.KeyCode == Enum.KeyCode.Z
+				and (
+					UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
+					or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
+				)
+			then
+				endSession(false)
 			end
 		end))
 	end
 
-	local mPressConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-		if gameProcessed or input.UserInputType ~= Enum.UserInputType.MouseButton1 then
+	local mPickupConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed then
+			return
+		end
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1 then
 			return
 		end
 		if mSession ~= nil then
@@ -320,15 +357,15 @@ function RotateController.start(options: StartOptions?): Controller
 		if result == nil then
 			return
 		end
-		local model = result.Instance:FindFirstAncestorOfClass("Model")
-		if model ~= nil and model:GetAttribute("JointType") ~= nil then
-			beginSession(result.Instance, model)
+		local hit = result.Instance
+		if hit:IsA("BasePart") then
+			beginSession(hit, result.Position)
 		end
 	end)
 
 	local function stop()
 		endSession(false)
-		mPressConnection:Disconnect()
+		mPickupConnection:Disconnect()
 	end
 
 	return {

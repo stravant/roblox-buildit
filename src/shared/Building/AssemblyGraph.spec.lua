@@ -307,6 +307,54 @@ return function(t: TestTypes.TestContext)
 		t.expect(table.concat(assembly, ",")).toBe("axle,gear,technicBrick")
 	end)
 
+	t.test("physicsJoints: single pin welds to one arm, hinges the other", function()
+		local graph = liftarmScene({ { position = Vector3.zero, axis = kAxisZ } })
+		local joints = graph:physicsJoints()
+		t.expect(#joints.welds).toBe(1)
+		t.expect(#joints.constraints).toBe(1)
+		t.expect(joints.constraints[1].kind).toBe("Hinge")
+	end)
+
+	t.test("physicsJoints: two offset pins become two offset hinges", function()
+		local graph = liftarmScene({
+			{ position = Vector3.zero, axis = kAxisZ },
+			{ position = Vector3.new(3, 0, 0), axis = kAxisZ },
+		})
+		local joints = graph:physicsJoints()
+		-- Each pin welds to one arm and hinges the other; the two offset
+		-- hinge lines make the pair rigid through the solver.
+		t.expect(#joints.welds).toBe(2)
+		t.expect(#joints.constraints).toBe(2)
+	end)
+
+	t.test("keyed axle in an axle hole is prismatic, not cylindrical", function()
+		local kAxisZ2 = Vector3.new(0, 0, 1)
+		local graph = AssemblyGraph.build({
+			{
+				id = "axle",
+				connectors = {
+					{ kind = "Axle", position = Vector3.zero, direction = kAxisZ2, length = 4 },
+				},
+			},
+			{
+				id = "gear",
+				connectors = {
+					{ kind = "AxleHole", position = Vector3.new(0, 0, 1), direction = kAxisZ2, length = 1 },
+				},
+			},
+		})
+		local joints = graph:physicsJoints()
+		t.expect(#joints.constraints).toBe(1)
+		t.expect(joints.constraints[1].kind).toBe("Prismatic")
+	end)
+
+	t.test("physicsJoints: stud pyramid is all welds", function()
+		local graph = pyramid()
+		local joints = graph:physicsJoints()
+		t.expect(#joints.constraints).toBe(0)
+		t.expect(#joints.welds > 0).toBe(true)
+	end)
+
 	t.test("two separated towballs hinge about the line through them", function()
 		local graph = AssemblyGraph.build({
 			{

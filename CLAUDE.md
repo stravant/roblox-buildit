@@ -156,11 +156,24 @@ instances).
     into virtual mates between the pair, then union-finds Fixed
     edges into weld clusters and emits constraints for the rest.
     2000-unit wall: build + partition + plan ~250ms.
+- `applyPhysicsJoints.lua` — instantiates real Roblox joints for an
+  assembly: WeldConstraints for graph physicsJoints() welds (nearest
+  segment parts), Hinge/Cylindrical/Prismatic/BallSocket constraints
+  for the articulated edges (fresh attachments with primary axis =
+  joint axis), and composite JointPivot pairs as hinge/prismatic
+  constraints. Returns the created folder, the weld part-pairs (for
+  part-level rigid grouping), and destroy().
 - `RotateController.lua` — Edit-mode Rotate tool (plugin "Rotate"
-  toolbar button): click-hold a composite segment, drag to swing it
-  about its joint (the JointPivot where the segment is the CHILD; the
-  downstream subtree via JointRole follows — rotating an arm carries
-  the hand). Release commits one undo recording, RMB/Esc cancels.
+  toolbar button), PHYSICS-DRIVEN: click-hold any part of a placed
+  assembly and drag. Rebuilds the AssemblyGraph from scratch, applies
+  physics joints over the connected assembly, unanchors everything
+  except the largest rigid part-group (excluding the grabbed one),
+  then drives the grab point toward the cursor with an AlignPosition
+  while stepping the sim manually (workspace:StepPhysics on just the
+  sim parts, gravity zeroed, velocities damped per substep) — so a
+  hinge swings, a 4-bar follows, a piston slides, and double-pinned
+  liftarms stay rigid through the solver. Release commits the pose
+  (one undo recording); RMB/Esc/Ctrl+Z cancels and restores.
 - `PartPalette.lua` — panel UI listing PartLibrary templates with
   ViewportFrame thumbnails.
 - `BuildController.lua` — drag/ghost/marker/placement controller. Drag out

@@ -46,17 +46,30 @@ export type Edge = {
 }
 
 export type Archetype = {
-	kind: "Fixed" | "Hinge" | "Cylindrical" | "Ball",
+	kind: "Fixed" | "Hinge" | "Cylindrical" | "Prismatic" | "Ball",
 	position: Vector3?,
 	axis: Vector3?,
 }
 
 export type Constraint = {
-	kind: "Hinge" | "Cylindrical" | "Ball",
+	kind: "Hinge" | "Cylindrical" | "Prismatic" | "Ball",
 	a: any,
 	b: any,
 	position: Vector3,
 	axis: Vector3,
+}
+
+export type WeldJoint = {
+	a: any,
+	b: any,
+	position: Vector3,
+}
+
+-- Instantiation-oriented joint list: one entry per physical joint to
+-- create (see physicsJoints).
+export type PhysicsJoints = {
+	welds: { WeldJoint },
+	constraints: { Constraint },
 }
 
 export type PhysicsPlan = {
@@ -413,6 +426,36 @@ end
 
 local kFixed: Archetype = { kind = "Fixed" }
 
+-- KEYED axial pairs lock relative rotation (the axle cross keys into
+-- the hole) and leave only sliding - prismatic rather than cylindrical.
+local kKeyedPairs: { [string]: { [string]: boolean } } = {
+	Axle = { AxleHole = true },
+	AxleHole = { Axle = true },
+	SlipAxle = { SlipRing = true },
+	SlipRing = { SlipAxle = true },
+}
+
+-- Line joints carry rotate/slide freedom flags: Hinge = rotate only,
+-- Prismatic = slide only, Cylindrical = both.
+local function lineArchetype(rotates: boolean, slides: boolean, position: Vector3, axis: Vector3): Archetype
+	if rotates and slides then
+		return { kind = "Cylindrical", position = position, axis = axis }
+	elseif rotates then
+		return { kind = "Hinge", position = position, axis = axis }
+	elseif slides then
+		return { kind = "Prismatic", position = position, axis = axis }
+	end
+	return kFixed
+end
+
+local function archetypeRotates(archetype: Archetype): boolean
+	return archetype.kind == "Hinge" or archetype.kind == "Cylindrical"
+end
+
+local function archetypeSlides(archetype: Archetype): boolean
+	return archetype.kind == "Prismatic" or archetype.kind == "Cylindrical"
+end
+
 local function mateArchetype(mate: mates.Mate): Archetype
 	if mate.class == "point" or mate.class == "face" then
 		-- A single stud cell can physically rotate, but rigid is the
@@ -424,10 +467,9 @@ local function mateArchetype(mate: mates.Mate): Archetype
 	elseif mate.class == "mouth" then
 		return { kind = "Hinge", position = mate.position, axis = mate.axis }
 	else -- axial
-		if mate.slide > mates.kMatedEpsilon then
-			return { kind = "Cylindrical", position = mate.position, axis = mate.axis }
-		end
-		return { kind = "Hinge", position = mate.position, axis = mate.axis }
+		local keyed = kKeyedPairs[mate.aKind] ~= nil and kKeyedPairs[mate.aKind][mate.bKind] == true
+		local slides = mate.slide > mates.kMatedEpsilon
+		return lineArchetype(not keyed, slides, mate.position, mate.axis)
 	end
 end
 
@@ -450,21 +492,25 @@ local function intersectArchetypes(x: Archetype, y: Archetype): Archetype
 		x, y = y, x -- normalize: ball second
 	end
 	if y.kind == "Ball" then
-		-- Line joint + ball: the ball pins translation at its point; if
-		-- that point lies on the line, rotation about the line remains.
-		if pointOnLine(y.position :: Vector3, x.position :: Vector3, x.axis :: Vector3) then
+		-- Line joint + ball: the ball pins translation at its point,
+		-- killing any slide; if the point lies on the line, rotation
+		-- about the line remains.
+		if pointOnLine(y.position :: Vector3, x.position :: Vector3, x.axis :: Vector3) and archetypeRotates(x) then
 			return { kind = "Hinge", position = x.position, axis = x.axis }
 		end
 		return kFixed
 	end
-	-- Both are line joints (Hinge/Cylindrical).
+	-- Both are line joints: on the same line the freedoms AND together
+	-- (rotate and/or slide); on different lines nothing survives.
 	if not sameLine(x.position :: Vector3, x.axis :: Vector3, y.position :: Vector3, y.axis :: Vector3) then
 		return kFixed
 	end
-	if x.kind == "Cylindrical" and y.kind == "Cylindrical" then
-		return { kind = "Cylindrical", position = x.position, axis = x.axis }
-	end
-	return { kind = "Hinge", position = x.position, axis = x.axis }
+	return lineArchetype(
+		archetypeRotates(x) and archetypeRotates(y),
+		archetypeSlides(x) and archetypeSlides(y),
+		x.position :: Vector3,
+		x.axis :: Vector3
+	)
 end
 
 local function foldArchetype(matesList: { mates.Mate }): Archetype
@@ -618,6 +664,66 @@ function AssemblyGraph.physicsPlan(self: AssemblyGraph): PhysicsPlan
 	end
 
 	return { clusters = clusters, constraints = constraints }
+end
+
+-- The instantiation-oriented joint list: one entry per PHYSICAL joint
+-- to create between units (contrast physicsPlan, which is the analysis
+-- view). Every Fixed edge is a weld; every articulated edge is a
+-- constraint. A fastener (pin/axle/bar joining exactly two structural
+-- units) welds to its first neighbor and constrains to the second, so
+-- two offset pins between liftarms become two offset hinges - rigid
+-- through the solver, exactly like the real parts.
+function AssemblyGraph.physicsJoints(self: AssemblyGraph): PhysicsJoints
+	local welds: { WeldJoint } = {}
+	local constraints: { Constraint } = {}
+	local absorbedEdges: { [Edge]: boolean } = {}
+
+	local function emit(a: any, b: any, archetype: Archetype, fallbackPosition: Vector3)
+		if archetype.kind == "Fixed" then
+			table.insert(welds, { a = a, b = b, position = fallbackPosition })
+		else
+			table.insert(constraints, {
+				kind = archetype.kind :: "Hinge" | "Cylindrical" | "Prismatic" | "Ball",
+				a = a,
+				b = b,
+				position = (archetype.position :: Vector3?) or fallbackPosition,
+				axis = (archetype.axis :: Vector3?) or Vector3.yAxis,
+			})
+		end
+	end
+
+	for id, unit in self.units do
+		if not isFastener(unit) then
+			continue
+		end
+		local neighbors = {}
+		for otherId in self.adjacency[id] or {} do
+			table.insert(neighbors, otherId)
+		end
+		if #neighbors ~= 2 then
+			continue
+		end
+		local edgeA = self.adjacency[id][neighbors[1]]
+		local edgeB = self.adjacency[id][neighbors[2]]
+		absorbedEdges[edgeA] = true
+		absorbedEdges[edgeB] = true
+		-- Ride with the first neighbor; articulate against the second.
+		table.insert(welds, { a = id, b = neighbors[1], position = edgeA.mates[1].position })
+		emit(id, neighbors[2], foldArchetype(edgeB.mates), edgeB.mates[1].position)
+	end
+
+	local seenEdges: { [Edge]: boolean } = {}
+	for _, adjacency in self.adjacency do
+		for _, edge in adjacency do
+			if seenEdges[edge] or absorbedEdges[edge] then
+				continue
+			end
+			seenEdges[edge] = true
+			emit(edge.a, edge.b, foldArchetype(edge.mates), edge.mates[1].position)
+		end
+	end
+
+	return { welds = welds, constraints = constraints }
 end
 
 --------------------------------------------------------------------------
