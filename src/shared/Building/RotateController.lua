@@ -312,8 +312,7 @@ function RotateController.start(options: StartOptions?): Controller
 			for _, pair in joints.constraintPairs do
 				table.insert(lines, `  constraint: {pair[1].Name} <-> {pair[2].Name}`)
 			end
-			warn(table.concat(lines, "
-"))
+			warn(table.concat(lines, "\n"))
 		end
 
 		local recording: string? = nil
