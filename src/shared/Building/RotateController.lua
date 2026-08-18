@@ -5,16 +5,15 @@
 -- joints (WeldConstraints inside rigid groups; Hinge/Cylindrical/
 -- Prismatic/BallSocket constraints between them; composite JointPivot
 -- pairs as hinges/prismatics), everything except the largest rigid
--- group is unanchored, and the grabbed point is pulled toward the
--- cursor by an AlignPosition while the simulation is stepped manually
--- with workspace:StepPhysics. Mechanisms respond the way they're
--- built: a hinge top swings, a 4-bar linkage follows, a shock's piston
--- slides, liftarms pinned twice stay rigid.
+-- group is unanchored, and the grabbed part is moved toward the
+-- cursor with workspace:IKMoveTo — the same constraint-respecting
+-- inverse-kinematics solve Studio's own draggers use. Mechanisms
+-- respond the way they're built: a hinge top swings, a 4-bar linkage
+-- follows, a shock's piston slides, liftarms pinned twice stay rigid,
+-- and anchored parts act as ground.
 --
--- Gravity is zeroed and velocities damped each step, so this is
--- posing, not free simulation: the assembly only moves where the drag
--- pulls it, and it stops when the mouse stops. Release commits the
--- pose (one undo recording); RMB/Esc cancels and restores.
+-- Release commits the pose (one undo recording); RMB/Esc cancels and
+-- restores.
 
 local ChangeHistoryService = game:GetService("ChangeHistoryService")
 local GuiService = game:GetService("GuiService")
@@ -26,28 +25,20 @@ local AssemblyGraph = require(script.Parent.AssemblyGraph)
 local applyPhysicsJoints = require(script.Parent.applyPhysicsJoints)
 
 local kRaycastDistance = 500
--- Drive strength: strong enough to pose crisply, bounded so an
--- impossible target (dragging against a locked joint) strains instead
--- of exploding.
-local kDriveMaxForce = 1e6
-local kDriveResponsiveness = 60
--- Per-step velocity damping: kills oscillation and stops the assembly
--- when the mouse stops.
-local kVelocityDamping = 0.5
-local kMaxStepDelta = 1 / 45
-local kSubsteps = 3
+-- IKMoveTo stiffnesses: drive the grab position hard, leave the
+-- orientation entirely to the mechanism's joints.
+local kTranslateStiffness = 1
+local kRotateStiffness = 0
 
 type Session = {
 	grabbedPart: BasePart,
+	grabLocal: Vector3, -- grab point in the grabbed part's space
 	simParts: { BasePart },
 	anchoredParts: { BasePart },
 	originalCFrames: { [BasePart]: CFrame },
 	joints: applyPhysicsJoints.Applied,
-	driveAttachment: Attachment,
-	drive: AlignPosition,
 	planeOrigin: Vector3,
 	planeNormal: Vector3,
-	originalGravity: number,
 	recording: string?,
 	connections: { RBXScriptConnection },
 }
@@ -143,10 +134,7 @@ function RotateController.start(options: StartOptions?): Controller
 		for _, connection in session.connections do
 			connection:Disconnect()
 		end
-		session.drive:Destroy()
-		session.driveAttachment:Destroy()
 		session.joints.destroy()
-		workspace.Gravity = session.originalGravity
 		for _, part in session.simParts do
 			part.AssemblyLinearVelocity = Vector3.zero
 			part.AssemblyAngularVelocity = Vector3.zero
@@ -255,66 +243,50 @@ function RotateController.start(options: StartOptions?): Controller
 			part.Anchored = false
 		end
 
-		local driveAttachment = Instance.new("Attachment")
-		driveAttachment.Name = "BuildItDrive"
-		-- Parent BEFORE setting the world pose (world setters on an
-		-- unparented attachment write the local CFrame instead).
-		driveAttachment.Parent = hitPart
-		driveAttachment.WorldPosition = grabWorldPosition
-		local drive = Instance.new("AlignPosition")
-		drive.Mode = Enum.PositionAlignmentMode.OneAttachment
-		drive.Attachment0 = driveAttachment
-		drive.MaxForce = kDriveMaxForce
-		drive.MaxVelocity = math.huge
-		drive.Responsiveness = kDriveResponsiveness
-		drive.Position = grabWorldPosition
-		drive.Parent = joints.folder
-
 		local camera = workspace.CurrentCamera
 		local session: Session = {
 			grabbedPart = hitPart,
+			grabLocal = hitPart.CFrame:PointToObjectSpace(grabWorldPosition),
 			simParts = simParts,
 			anchoredParts = anchoredParts,
 			originalCFrames = originalCFrames,
 			joints = joints,
-			driveAttachment = driveAttachment,
-			drive = drive,
 			planeOrigin = grabWorldPosition,
 			planeNormal = -camera.CFrame.LookVector,
-			originalGravity = workspace.Gravity,
 			recording = recording,
 			connections = {},
 		}
-		workspace.Gravity = 0
 		mSession = session
 
-		table.insert(session.connections, RunService.RenderStepped:Connect(function(deltaTime: number)
+		table.insert(session.connections, RunService.RenderStepped:Connect(function(_deltaTime: number)
 			-- Cursor target on the camera-facing plane through the grab
 			-- point (the classic 3D drag plane).
 			local ray = mouseRay()
 			local denominator = ray.Direction:Dot(session.planeNormal)
-			if math.abs(denominator) > 1e-4 then
-				local t = (session.planeOrigin - ray.Origin):Dot(session.planeNormal) / denominator
-				if t > 0 then
-					session.drive.Position = ray.Origin + ray.Direction * t
-				end
+			if math.abs(denominator) < 1e-4 then
+				return
 			end
+			local t = (session.planeOrigin - ray.Origin):Dot(session.planeNormal) / denominator
+			if t <= 0 then
+				return
+			end
+			local planeTarget = ray.Origin + ray.Direction * t
 
-			-- Step the simulation manually: only the assembly's sim parts
-			-- integrate; the rest of the place is untouched.
-			local step = math.min(deltaTime, kMaxStepDelta) / kSubsteps
-			for _ = 1, kSubsteps do
-				local ok = pcall(function()
-					(workspace :: any):StepPhysics(step, session.simParts)
-				end)
-				if not ok then
-					break
-				end
-				for _, part in session.simParts do
-					part.AssemblyLinearVelocity *= kVelocityDamping
-					part.AssemblyAngularVelocity *= kVelocityDamping
-				end
-			end
+			-- Target CFrame: keep the part's current rotation, translate
+			-- so the grabbed point lands on the cursor; rotate stiffness
+			-- 0 leaves orientation to the mechanism's joints.
+			local part = session.grabbedPart
+			local rotatedGrab = part.CFrame:VectorToWorldSpace(session.grabLocal)
+			local target = part.CFrame.Rotation + (planeTarget - rotatedGrab)
+			pcall(function()
+				(workspace :: any):IKMoveTo(
+					part,
+					target,
+					kTranslateStiffness,
+					kRotateStiffness,
+					Enum.IKCollisionsMode.NoCollisions
+				)
+			end)
 		end))
 
 		table.insert(session.connections, UserInputService.InputEnded:Connect(function(input, _gameProcessed)
