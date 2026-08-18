@@ -237,6 +237,8 @@ function AssemblyGraph._addMate(self: AssemblyGraph, idA: any, idB: any, mate: m
 		end
 		table.insert(edge.mates, {
 			class = mate.class,
+			aKind = mate.bKind,
+			bKind = mate.aKind,
 			position = mate.position,
 			axis = mate.axis,
 			slide = mate.slide,
@@ -272,6 +274,96 @@ local function edgeReleases(edge: Edge, movingId: any, direction: Vector3): bool
 		end
 	end
 	return true
+end
+
+-- Kind pairs that are LOOSE: freely rotating/sliding connections with
+-- no clutch (an axle spinning in a round pin hole, a bar through a
+-- pin's bore). These hold nothing when handling parts — only "move
+-- assembly" carries them.
+local kLoosePairs: { [string]: { [string]: boolean } } = {
+	Axle = { PegHole = true },
+	PegHole = { Axle = true },
+	Bar = { BarHole = true, AxleHole = true },
+	BarHole = { Bar = true },
+	AxleHole = { Bar = true },
+}
+
+local function mateIsLoose(mate: mates.Mate): boolean
+	local partners = kLoosePairs[mate.aKind]
+	return partners ~= nil and partners[mate.bKind] == true
+end
+
+-- Chunk rule for one mate: does it carry the neighbor when the
+-- `movingIsA` side is dragged?
+--  - Loose pairs never carry.
+--  - Stud-type mates (point/mouth) carry only what sits on the MOVING
+--    side's studs: the picked part's sockets always break away from
+--    what's underneath, its studs always keep what's stacked on them.
+--  - Faces (magnets/track ends) lift apart: never carry.
+--  - Everything else engaged (pins, clips, hinges, balls, slides)
+--    is captive with clutch: always carries.
+local function mateCarriesInChunk(mate: mates.Mate, movingIsA: boolean): boolean
+	if mateIsLoose(mate) then
+		return false
+	end
+	if mate.class == "point" or mate.class == "mouth" then
+		local movingKind = if movingIsA then mate.aKind else mate.bKind
+		return movingKind == "Stud"
+	end
+	if mate.class == "face" then
+		return false
+	end
+	return true
+end
+
+-- "Move chunk": everything reachable through carrying mates. The
+-- picked unit's studs (and captive joints like pins/clips/hinges)
+-- carry; its sockets break; loose spin/slide fits stay behind.
+function AssemblyGraph.partitionChunk(self: AssemblyGraph, id: any): { any }
+	local moving: { [any]: boolean } = { [id] = true }
+	local queue = { id }
+	while #queue > 0 do
+		local current = table.remove(queue) :: any
+		for otherId, edge in self.adjacency[current] or {} do
+			if moving[otherId] then
+				continue
+			end
+			local movingIsA = edge.a == current
+			for _, mate in edge.mates do
+				if mateCarriesInChunk(mate, movingIsA) then
+					moving[otherId] = true
+					table.insert(queue, otherId)
+					break
+				end
+			end
+		end
+	end
+	local result = {}
+	for unitId in moving do
+		table.insert(result, unitId)
+	end
+	return result
+end
+
+-- "Move assembly": the full connected component, every engaged mate
+-- counts (axles through holes, frictionless spins, magnets, all of it).
+function AssemblyGraph.partitionAssembly(self: AssemblyGraph, id: any): { any }
+	local moving: { [any]: boolean } = { [id] = true }
+	local queue = { id }
+	while #queue > 0 do
+		local current = table.remove(queue) :: any
+		for otherId in self.adjacency[current] or {} do
+			if not moving[otherId] then
+				moving[otherId] = true
+				table.insert(queue, otherId)
+			end
+		end
+	end
+	local result = {}
+	for unitId in moving do
+		table.insert(result, unitId)
+	end
+	return result
 end
 
 -- The set of units that must move together when `id` is dragged along

@@ -255,6 +255,58 @@ return function(t: TestTypes.TestContext)
 		t.expect(os.clock() - planClock < 2).toBe(true)
 	end)
 
+	t.test("chunk: picked brick keeps its studs side, breaks its sockets side", function()
+		local graph = pyramid()
+		-- Regardless of drag direction: what's ON mid2's studs comes,
+		-- what mid2's sockets sit on stays.
+		local moving = sorted(graph:partitionChunk("mid2"))
+		t.expect(table.concat(moving, ",")).toBe("mid2,top1,top3")
+		-- Chains upward: bottom1 carries mid0/mid2, which carry the top
+		-- row; bottom3 and mid4 are reached only through THEIR studs
+		-- holding others, not the other way, so they stay.
+		local fromBottom = sorted(graph:partitionChunk("bottom1"))
+		t.expect(table.concat(fromBottom, ",")).toBe("bottom1,mid0,mid2,top1,top3")
+		-- A top brick carries nothing.
+		t.expect(#graph:partitionChunk("top1")).toBe(1)
+	end)
+
+	t.test("assembly: full connected component", function()
+		local graph = pyramid()
+		t.expect(#graph:partitionAssembly("mid2")).toBe(7)
+		t.expect(#graph:partitionAssembly("top1")).toBe(7)
+	end)
+
+	t.test("axle through a pin hole: loose in chunk, carried in assembly", function()
+		local kAxisZ2 = Vector3.new(0, 0, 1)
+		local graph = AssemblyGraph.build({
+			{
+				id = "axle",
+				connectors = {
+					{ kind = "Axle", position = Vector3.zero, direction = kAxisZ2, length = 4 },
+				},
+			},
+			{
+				id = "technicBrick",
+				connectors = {
+					{ kind = "PegHole", position = Vector3.new(0, 0, 0.5), direction = kAxisZ2, length = 1 },
+				},
+			},
+			{
+				id = "gear",
+				connectors = {
+					{ kind = "AxleHole", position = Vector3.new(0, 0, -1), direction = kAxisZ2, length = 1 },
+				},
+			},
+		})
+		-- The keyed gear is captive on the axle; the round pin hole spins
+		-- and slides freely, so the technic brick only comes along in
+		-- assembly mode.
+		local chunk = sorted(graph:partitionChunk("axle"))
+		t.expect(table.concat(chunk, ",")).toBe("axle,gear")
+		local assembly = sorted(graph:partitionAssembly("axle"))
+		t.expect(table.concat(assembly, ",")).toBe("axle,gear,technicBrick")
+	end)
+
 	t.test("two separated towballs hinge about the line through them", function()
 		local graph = AssemblyGraph.build({
 			{

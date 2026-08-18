@@ -185,18 +185,21 @@ instances).
   per-frame GetPartBoundsInRadius query around the ghost picks candidate
   parts (lazy per-part connector cache, cleared per drag), and markers
   come from a bounded pool reassigned to whatever is in range.
-  GROUP DRAGGING: picking up a placed unit rebuilds the AssemblyGraph
-  from scratch (undo/external edits make the workspace the only source
-  of truth in Edit mode; ~250ms at 2000 units); once the ghost moves
-  past a small threshold, the drag direction partitions the graph and
-  every unit that cannot separate along that direction joins the drag
-  (hidden in place, ghosted at a fixed offset from the primary,
-  connectors contributing to snapping/markers). Lifting a mid-wall
-  brick carries the bricks stacked above it; dragging down carries the
-  ones below; sideways carries the whole connected chunk. The group is
-  committed once per drag; placement moves all members rigidly and
-  cancel restores them untouched, inside the same single undo
-  recording.
+  GROUP DRAGGING: a three-mode toggle (top of the build panel) decides
+  what a pickup carries. "Part" = just the picked unit. "Chunk"
+  (default) = units held by clutched joints — what sits on the picked
+  unit's STUDS comes along and its SOCKETS always break from what's
+  underneath (no drag-direction guessing), plus captive joints (pins,
+  clips, hinges, balls, slides); loose fits (axle spinning in a round
+  hole, bar through a bore) stay behind. "Assembly" = the whole
+  connected component including loose fits. Picking up rebuilds the
+  AssemblyGraph from scratch (undo/external edits make the workspace
+  the only source of truth in Edit mode; ~250ms at 2000 units); the
+  group lifts immediately: hidden in place, ghosted at fixed offsets
+  from the primary, connectors contributing to snapping/markers.
+  Placement moves all members rigidly and cancel restores them
+  untouched, inside the same single undo recording. Test-set imports
+  are tinted with typical real-world colors (testSetColors.lua).
 
 `src/entry/BuildTool.client.lua` — StarterPlayerScripts bootstrap for the
 build tool (mounted only by default.project.json, never the test plugin).

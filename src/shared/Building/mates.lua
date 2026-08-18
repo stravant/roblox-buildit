@@ -37,6 +37,8 @@ export type MateClass = "point" | "mouth" | "axial" | "ball" | "face"
 
 export type Mate = {
 	class: MateClass,
+	aKind: string, -- connector kinds on each side (a = the A-side unit)
+	bKind: string,
 	position: Vector3, -- representative point on the joint (world)
 	axis: Vector3, -- joint axis (unit; separation/rotation axis)
 	slide: number, -- residual slide freedom along axis (0 = locked)
@@ -168,6 +170,8 @@ function mates.check(a: MateConnector, b: MateConnector): Mate?
 		if kFaceKinds[a.kind] then
 			return {
 				class = "face" :: MateClass,
+				aKind = a.kind,
+				bKind = b.kind,
 				position = a.position,
 				axis = a.direction,
 				slide = 0,
@@ -179,6 +183,8 @@ function mates.check(a: MateConnector, b: MateConnector): Mate?
 		local aSeparation = if a.kind == "Stud" then -maleDirection else maleDirection
 		return {
 			class = "point" :: MateClass,
+			aKind = a.kind,
+			bKind = b.kind,
 			position = a.position,
 			axis = maleDirection,
 			slide = 0,
@@ -190,6 +196,8 @@ function mates.check(a: MateConnector, b: MateConnector): Mate?
 		end
 		return {
 			class = "ball" :: MateClass,
+			aKind = a.kind,
+			bKind = b.kind,
 			position = a.position,
 			axis = a.direction,
 			slide = 0,
@@ -210,6 +218,8 @@ function mates.check(a: MateConnector, b: MateConnector): Mate?
 		local aSeparation = if a.kind == "Stud" then -a.direction else b.direction
 		return {
 			class = "mouth" :: MateClass,
+			aKind = a.kind,
+			bKind = b.kind,
 			position = stud.position,
 			axis = hole.direction,
 			slide = 0,
@@ -236,6 +246,8 @@ function mates.check(a: MateConnector, b: MateConnector): Mate?
 			local aSeparation = if a.oneSided then -female.direction else female.direction
 			return {
 				class = "axial" :: MateClass,
+				aKind = a.kind,
+				bKind = b.kind,
 				position = female.position,
 				axis = female.direction,
 				slide = (sMax - sMin) / 2,
@@ -251,6 +263,8 @@ function mates.check(a: MateConnector, b: MateConnector): Mate?
 		end
 		return {
 			class = "axial" :: MateClass,
+			aKind = a.kind,
+			bKind = b.kind,
 			position = (a.position + b.position) / 2,
 			axis = b.direction,
 			slide = slide,

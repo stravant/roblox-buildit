@@ -15,6 +15,7 @@ local importPart = require(script.Parent.importPart)
 local importComposite = require(script.Parent.importComposite)
 local importModel = require(script.Parent.importModel)
 local kTestSet = require(script.Parent.testSet)
+local kTestSetColors = require(script.Parent.testSetColors)
 local wsFileProvider = require(script.Parent.wsFileProvider)
 
 local kServerUrl = "ws://localhost:38742"
@@ -152,12 +153,31 @@ local function main(widget: DockWidgetPluginGui)
 
 	-- Routes a ref through composite resolution: hinge halves import as
 	-- their full articulated assembly (a Model of jointed segments).
+	-- Test-set parts get their typical real-world color so the imported
+	-- catalog reads at a glance.
 	local function importUnit(ref: string, parentInstance: Instance): (Instance?, string?)
 		local resolved = compositeParts.resolve(ref)
+		local unit: Instance?, errorMessage: string?
 		if compositeParts.get(resolved) ~= nil then
-			return importComposite(getLibrary(), resolved, parentInstance)
+			unit, errorMessage = importComposite(getLibrary(), resolved, parentInstance)
+		else
+			unit, errorMessage = importPart(getLibrary(), ref, parentInstance)
 		end
-		return importPart(getLibrary(), ref, parentInstance)
+		if unit ~= nil then
+			local partNumber = tostring(unit:GetAttribute("PartNumber") or ref:gsub("%.dat$", ""))
+			local color = kTestSetColors[partNumber] or kTestSetColors[(ref:gsub("%.dat$", ""))]
+			if color ~= nil then
+				if unit:IsA("BasePart") then
+					unit.Color = color
+				end
+				for _, descendant in unit:GetDescendants() do
+					if descendant:IsA("BasePart") then
+						descendant.Color = color
+					end
+				end
+			end
+		end
+		return unit, errorMessage
 	end
 
 	-- "3001" imports one part; "3001,3010" imports every existing part in

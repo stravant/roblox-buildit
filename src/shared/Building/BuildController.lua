@@ -120,14 +120,9 @@ type DragState = {
 	originalCFrame: CFrame?,
 	ghostConnectors: { UnitConnector },
 	ghostMarkers: { Marker },
-	-- Group dragging (existing picks only). The assembly graph is
-	-- rebuilt FROM SCRATCH at pickup: undo and external edits mean the
-	-- workspace is the only reliable source of truth in Edit mode.
-	-- Once the drag direction is established (the ghost has moved past
-	-- the threshold), the graph partition lifts every unit that cannot
-	-- separate along that direction into the drag: hidden in place like
-	-- the primary, ghosted at a fixed offset from the primary ghost.
-	partitionGraph: AssemblyGraph.AssemblyGraph?,
+	-- Group dragging (existing picks only): units traveling with the
+	-- primary per the current move mode, hidden in place like the
+	-- primary and ghosted at fixed offsets from the primary ghost.
 	groupGhosts: { { ghost: PVInstance, offset: CFrame, original: PVInstance } },
 	-- Pooled adornments reassigned each frame to the nearby connectors.
 	markerPool: { Marker },
@@ -235,10 +230,6 @@ function BuildController.start(options: StartOptions?): Controller
 		return folder
 	end
 
-	-- Distance the ghost must move from the pickup pose before the drag
-	-- direction is trusted for the group partition.
-	local kPartitionMinDistance = 1.25
-
 	-- All placed units eligible for the assembly graph: composite Models
 	-- (LDrawFile attribute) and connector-annotated loose parts, found
 	-- under the placement container (recursing through folders/models
@@ -260,6 +251,64 @@ function BuildController.start(options: StartOptions?): Controller
 		end
 		scan(getPlacementParent())
 		return units
+	end
+
+	-- Move mode: what comes along when picking up a placed unit.
+	--   "part"     - just the picked unit.
+	--   "chunk"    - units held by clutched joints: what sits on the
+	--                picked unit's studs, plus pins/clips/hinges/etc.
+	--                Its sockets always break from what's underneath.
+	--   "assembly" - the whole connected component, including loose
+	--                fits (axles spinning in holes, frictionless pins).
+	local mMoveMode: "part" | "chunk" | "assembly" = "chunk"
+	local mModeBar: Frame? = nil
+
+	do
+		local kModes: { { mode: "part" | "chunk" | "assembly", label: string } } = {
+			{ mode = "part", label = "Part" },
+			{ mode = "chunk", label = "Chunk" },
+			{ mode = "assembly", label = "Assembly" },
+		}
+		local bar = Instance.new("Frame")
+		bar.Name = "MoveModeBar"
+		bar.Position = UDim2.new(0, 10, 0, 8)
+		bar.Size = UDim2.new(0, 240, 0, 26)
+		bar.BackgroundTransparency = 1
+		local layout = Instance.new("UIListLayout")
+		layout.FillDirection = Enum.FillDirection.Horizontal
+		layout.Padding = UDim.new(0, 4)
+		layout.Parent = bar
+		local buttons: { [string]: TextButton } = {}
+		local function restyle()
+			for mode, button in buttons do
+				local active = mode == mMoveMode
+				button.BackgroundColor3 = if active
+					then Color3.fromRGB(0, 90, 158)
+					else Color3.fromRGB(58, 58, 58)
+				button.TextColor3 = if active
+					then Color3.fromRGB(255, 255, 255)
+					else Color3.fromRGB(190, 190, 190)
+			end
+		end
+		for _, entry in kModes do
+			local button = Instance.new("TextButton")
+			button.Name = entry.label
+			button.Size = UDim2.new(0, 76, 1, 0)
+			button.Text = entry.label
+			button.Font = Enum.Font.SourceSansBold
+			button.TextSize = 14
+			button.BorderSizePixel = 0
+			button.AutoButtonColor = true
+			button.Parent = bar
+			buttons[entry.mode] = button
+			button.Activated:Connect(function()
+				mMoveMode = entry.mode
+				restyle()
+			end)
+		end
+		restyle()
+		bar.Parent = guiParent
+		mModeBar = bar
 	end
 
 	local mDragState: DragState? = nil
@@ -394,23 +443,14 @@ function BuildController.start(options: StartOptions?): Controller
 		return camera:ViewportPointToRay(mouse.X - inset.X, mouse.Y - inset.Y)
 	end
 
-	-- Commit the direction-dependent drag group: partition the assembly
-	-- graph along the established drag direction and lift every unit
-	-- that cannot separate that way into the drag (hide in place, ghost
-	-- at a fixed offset, contribute connectors to snapping/markers).
-	-- Runs once per drag; the group stays committed afterwards.
-	local function resolveGroup(state: DragState, intendedPosition: Vector3)
-		local graph = state.partitionGraph
-		if graph == nil or state.existingPart == nil then
+	-- Lift the move group into the drag: every unit in `moving` (except
+	-- the primary) is hidden in place, ghosted at a fixed offset, and
+	-- contributes its connectors to snapping/markers.
+	local function liftGroup(state: DragState, moving: { any })
+		if state.existingPart == nil then
 			return
 		end
 		local sourcePivot = state.originalCFrame :: CFrame
-		local delta = intendedPosition - sourcePivot.Position
-		if delta.Magnitude < kPartitionMinDistance then
-			return
-		end
-		state.partitionGraph = nil -- committed
-		local moving = graph:partition(state.existingPart, delta.Unit)
 		local saved = state.hiddenProperties :: { [BasePart]: HiddenProperties }
 		for _, movingUnit in moving do
 			if movingUnit == state.existingPart then
@@ -511,11 +551,6 @@ function BuildController.start(options: StartOptions?): Controller
 			hitPoint.Z - rotatedGrab.Z
 		)
 		local grabWorldPosition = baseCFrame:PointToWorldSpace(state.grabLocal)
-
-		-- The intended (pre-snap) position defines the drag direction for
-		-- the group partition. Newly hidden group members drop out of the
-		-- snap query below via CanQuery.
-		resolveGroup(state, baseCFrame.Position)
 
 		-- Spatial query: only connectors near the ghost participate in
 		-- snapping and get markers.
@@ -639,7 +674,7 @@ function BuildController.start(options: StartOptions?): Controller
 		-- BEFORE the ghost clone enters the workspace so the ghost's
 		-- connectors never pollute the graph.
 		local partitionGraph: AssemblyGraph.AssemblyGraph? = nil
-		if isExisting then
+		if isExisting and mMoveMode ~= "part" then
 			partitionGraph = AssemblyGraph.build(AssemblyGraph.collectUnits(collectGraphUnits()))
 		end
 
@@ -710,7 +745,6 @@ function BuildController.start(options: StartOptions?): Controller
 			originalCFrame = originalCFrame,
 			ghostConnectors = ghostConnectors,
 			ghostMarkers = ghostMarkers,
-			partitionGraph = partitionGraph,
 			groupGhosts = {},
 			markerPool = {},
 			markerFolder = markerFolder,
@@ -718,6 +752,17 @@ function BuildController.start(options: StartOptions?): Controller
 			connections = {},
 		}
 		mDragState = state
+
+		-- The move mode decides the group up front (no drag direction
+		-- needed): the picked unit's studs carry what's stacked on them
+		-- and its sockets break away ("chunk"), or the whole connected
+		-- component comes along ("assembly").
+		if partitionGraph ~= nil then
+			local moving = if mMoveMode == "assembly"
+				then partitionGraph:partitionAssembly(source)
+				else partitionGraph:partitionChunk(source)
+			liftGroup(state, moving)
+		end
 
 		table.insert(state.connections, RunService.RenderStepped:Connect(function()
 			updateGhost(state)
@@ -848,6 +893,10 @@ function BuildController.start(options: StartOptions?): Controller
 	local function stop()
 		endDrag(true)
 		mPickupConnection:Disconnect()
+		if mModeBar ~= nil then
+			(mModeBar :: Frame):Destroy()
+			mModeBar = nil
+		end
 		if mOwnsPalette and mPalette ~= nil then
 			(mPalette :: PartPalette.PartPalette).destroy()
 		end
