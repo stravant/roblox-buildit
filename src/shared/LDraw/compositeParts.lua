@@ -53,6 +53,45 @@ compositeParts.composites = {
 			{ type = "Hinge", position = Vector3.new(0, 8, 0), axis = Vector3.new(0, -1, 0) },
 		},
 	},
+	-- Classic vehicle hinge plates (pivot pin 313 + top 314d/e + base):
+	-- refs order in the assemblies is pin(1), top(2), base(3); the top
+	-- swings about the pin's rod line at the assembly origin, axis X.
+	["3149dc01.dat"] = {
+		joints = {
+			{ type = "Hinge", position = Vector3.zero, axis = Vector3.new(1, 0, 0), segments = { 3, 2 } },
+		},
+	},
+	["3149ec01.dat"] = {
+		joints = {
+			{ type = "Hinge", position = Vector3.zero, axis = Vector3.new(1, 0, 0), segments = { 3, 2 } },
+		},
+	},
+	["3324dc01.dat"] = {
+		joints = {
+			{ type = "Hinge", position = Vector3.zero, axis = Vector3.new(1, 0, 0), segments = { 3, 2 } },
+		},
+	},
+	["3324ec01.dat"] = {
+		joints = {
+			{ type = "Hinge", position = Vector3.zero, axis = Vector3.new(1, 0, 0), segments = { 3, 2 } },
+		},
+	},
+	-- Car steering: the wheel spins on its tilted column (axis = the
+	-- wheel placement's local Y in assembly space).
+	["3829c01.dat"] = {
+		joints = {
+			{ type = "Hinge", position = Vector3.new(0, -26.32, -0.24), axis = Vector3.new(0, 0.6, -0.8) },
+		},
+	},
+	["30640c01.dat"] = {
+		joints = {
+			{
+				type = "Hinge",
+				position = Vector3.new(0, -19.799, 11.515),
+				axis = Vector3.new(0, 0.707107, -0.707107),
+			},
+		},
+	},
 	-- Hinge 1 x 2 (3937 base + 3938 top): tilts about the horizontal
 	-- axis through the finger knuckle line at (0, 10, 0) — the tndis
 	-- knuckle discs sit at (+-16..20, 10, 0) in the base's frame.
@@ -84,8 +123,8 @@ compositeParts.composites = {
 	-- leg swings independently about the shared hip pin axis at y=12.
 	["3815c01.dat"] = {
 		joints = {
-			{ type = "Hinge", position = Vector3.new(0, 12, 0), axis = Vector3.new(1, 0, 0), segments = { 1, 2 } },
-			{ type = "Hinge", position = Vector3.new(0, 12, 0), axis = Vector3.new(1, 0, 0), segments = { 1, 3 } },
+			{ type = "Hinge", position = Vector3.new(0, 16, 0), axis = Vector3.new(1, 0, 0), segments = { 1, 2 } },
+			{ type = "Hinge", position = Vector3.new(0, 16, 0), axis = Vector3.new(1, 0, 0), segments = { 1, 3 } },
 		},
 	},
 	-- Minifig torso with arms and hands (973 + 3818 + 3819 + 2x 3820):
@@ -146,6 +185,21 @@ local kRedirects: { [string]: string } = {
 	["30516.dat"] = "30516c01.dat",
 	["30658.dat"] = "30516c01.dat",
 	["30516c02.dat"] = "30516c01.dat",
+	-- 313/314d are shared by the 2x5 and 2x9 hinge plates; redirect to
+	-- the more common 2x5.
+	["313.dat"] = "3149dc01.dat",
+	["314d.dat"] = "3149dc01.dat",
+	["314e.dat"] = "3149ec01.dat",
+	["3149d.dat"] = "3149dc01.dat",
+	["3149e.dat"] = "3149ec01.dat",
+	["3324d.dat"] = "3324dc01.dat",
+	["3324e.dat"] = "3324ec01.dat",
+	["3829.dat"] = "3829c01.dat",
+	["3829a.dat"] = "3829c01.dat",
+	["3828.dat"] = "3829c01.dat",
+	["30640.dat"] = "30640c01.dat",
+	["30663.dat"] = "30640c01.dat",
+	["30640c02.dat"] = "30640c01.dat",
 	["3815.dat"] = "3815c01.dat",
 	["3816.dat"] = "3815c01.dat",
 	["3817.dat"] = "3815c01.dat",

@@ -152,4 +152,8 @@ return {
 	"30261", -- Roadsign Clip-on Round: rear C-channel
 	"50862", -- Wheel 6x14 Spoked with Stub Axles
 	"2415", -- Plate 2x2 with Wheel Clips Angled
+	"3149d", -- Hinge Plate 2x5 (classic vehicle hinge composite)
+	"3324d", -- Hinge Plate 2x9 (long vehicle hinge composite)
+	"3829", -- Car Steering Stand and Wheel (composite)
+	"30640", -- Car Steering Wheel Holder 2x2 (composite)
 }

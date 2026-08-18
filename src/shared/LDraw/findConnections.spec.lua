@@ -659,6 +659,20 @@ return function(t: TestTypes.TestContext)
 		t.expect(countByType(holder).HingePin).toBe(2)
 	end)
 
+	t.test("vehicle hinge plates and steering resolve to composites", function()
+		for _, case in {
+			{ "313.dat", "3149dc01.dat" },
+			{ "3149d.dat", "3149dc01.dat" },
+			{ "3324e.dat", "3324ec01.dat" },
+			{ "3828.dat", "3829c01.dat" },
+			{ "30663.dat", "30640c01.dat" },
+		} do
+			local resolved = compositeParts.resolve(case[1] :: any)
+			t.expect(resolved).toBe(case[2])
+			t.expect(compositeParts.get(resolved)).toBeTruthy()
+		end
+	end)
+
 	t.test("hand-built finger rows (3937/2440/3314/3433/2347)", function()
 		for _, ref in { "3937.dat", "2440.dat", "3314.dat", "3433.dat", "2347.dat" } do
 			local connections = findConnections(library, ref) :: any
