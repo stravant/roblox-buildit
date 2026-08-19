@@ -80,6 +80,11 @@ type Session = {
 			-- alignment. `engaged` is just the previous frame's state,
 			-- for transition messages.
 			engaged: boolean,
+			-- The driven rigid group's union-find root: several bridges
+			-- may target the same group (a sliding transmission axle
+			-- carries two gear pairs between the same two axles); per
+			-- frame at most ONE bridge drives a given root.
+			toRoot: BasePart,
 			fromTeeth: number,
 			toTeeth: number,
 			fromCenterLocal: Vector3,
@@ -444,10 +449,14 @@ function RotateController.start(options: StartOptions?): Controller
 			warn(table.concat(lines, "\n"))
 		end
 
-		-- Gear drive chain: BFS through meshing pairs starting from the
-		-- grabbed group. Each mesh whose far side isn't yet driven
-		-- becomes a propagation step; the anchored group never gets
-		-- driven (it is ground).
+		-- Gear drive chain: BFS through meshing pairs from the grabbed
+		-- group establishes the drive TREE (one step per newly reached
+		-- group); leftover meshes between two groups the tree already
+		-- reaches become ALTERNATE bridges - a sliding transmission
+		-- axle carries two gear pairs between the same two axles, and
+		-- whichever pair is currently aligned drives (per frame at most
+		-- one bridge drives a given group). The anchored group never
+		-- gets driven (it is ground).
 		local gearSteps = {}
 		do
 			local meshes = graph:gearMeshes()
@@ -505,14 +514,85 @@ function RotateController.start(options: StartOptions?): Controller
 							.. `{if inSimB then "" else " [NOT IN SIM]"}`
 					)
 				end
+
+				local function resolveMesh(mesh): (BasePart?, BasePart?)
+					local partA = unitMainPart(mesh.a)
+					local partB = unitMainPart(mesh.b)
+					if
+						partA == nil
+						or partB == nil
+						or groupOf[partA :: BasePart] == nil
+						or groupOf[partB :: BasePart] == nil
+					then
+						return nil, nil
+					end
+					return partA, partB
+				end
+
+				local function buildStep(mesh, forward: boolean, partA: BasePart, partB: BasePart, alternate: boolean)
+					local fromAxis = if forward then mesh.axisA else mesh.axisB
+					local toAxis = if forward then mesh.axisB else mesh.axisA
+					-- Express both rotations about a COMMON axis direction;
+					-- external gears counter-rotate.
+					if toAxis:Dot(fromAxis) < 0 then
+						toAxis = -toAxis
+					end
+					local fromTeeth = if forward then mesh.teethA else mesh.teethB
+					local toTeeth = if forward then mesh.teethB else mesh.teethA
+					local fromCenter = if forward then mesh.centerA else mesh.centerB
+					local toCenter = if forward then mesh.centerB else mesh.centerA
+					-- Tooth phase correction so the teeth interleave at the
+					-- contact (see gearMeshPhase for the derivation and sign
+					-- convention).
+					local phase = gearMeshPhase(
+						if forward then mesh.secondaryA else mesh.secondaryB,
+						if forward then mesh.secondaryB else mesh.secondaryA,
+						fromAxis,
+						fromCenter,
+						toCenter,
+						fromTeeth,
+						toTeeth
+					)
+					local fromPart = if forward then partA else partB
+					local toPart = if forward then partB else partA
+					table.insert(
+						gearLines,
+						`  {if alternate then "alt-drive" else "drive"}: {fromTeeth}t -> {toTeeth}t`
+							.. ` ratio={-fromTeeth / toTeeth} phase={math.deg(phase)}deg`
+							.. `{if meshAligned[mesh] == true then "" else " [dormant]"}`
+					)
+					table.insert(gearSteps, {
+						fromReference = fromPart,
+						fromAxis = fromAxis,
+						toReference = toPart,
+						toAxis = toAxis,
+						toCenter = toCenter,
+						ratio = -fromTeeth / toTeeth,
+						phase = phase,
+						lastAngle = 0,
+						accumulated = 0,
+						engaged = meshAligned[mesh] == true,
+						toRoot = find(toPart),
+						fromTeeth = fromTeeth,
+						toTeeth = toTeeth,
+						fromCenterLocal = fromPart.CFrame:PointToObjectSpace(fromCenter),
+						fromAxisLocal = fromPart.CFrame:VectorToObjectSpace(fromAxis),
+						toCenterLocal = toPart.CFrame:PointToObjectSpace(toCenter),
+						toAxisLocal = toPart.CFrame:VectorToObjectSpace(toAxis),
+					})
+				end
+
 				local driven: { [BasePart]: boolean } = { [grabbedRoot] = true }
+				local depth: { [BasePart]: number } = { [grabbedRoot] = 0 }
+				local usedMesh: { [any]: boolean } = {}
 				local frontier = { grabbedRoot }
+				local round = 0
 				while #frontier > 0 do
+					round += 1
 					local nextFrontier = {}
 					for _, mesh in meshes do
-						local partA = unitMainPart(mesh.a)
-						local partB = unitMainPart(mesh.b)
-						if partA == nil or partB == nil or groupOf[partA :: BasePart] == nil or groupOf[partB :: BasePart] == nil then
+						local partA, partB = resolveMesh(mesh)
+						if partA == nil or partB == nil then
 							continue
 						end
 						local rootA = find(partA :: BasePart)
@@ -526,64 +606,49 @@ function RotateController.start(options: StartOptions?): Controller
 							if not forward and not backward then
 								continue
 							end
-							local fromRoot = if forward then rootA else rootB
 							local toRoot = if forward then rootB else rootA
 							if toRoot == anchoredRoot then
 								continue -- never drive the ground
 							end
-							local fromAxis = if forward then mesh.axisA else mesh.axisB
-							local toAxis = if forward then mesh.axisB else mesh.axisA
-							-- Express both rotations about a COMMON axis
-							-- direction; external gears counter-rotate.
-							if toAxis:Dot(fromAxis) < 0 then
-								toAxis = -toAxis
-							end
-							local fromTeeth = if forward then mesh.teethA else mesh.teethB
-							local toTeeth = if forward then mesh.teethB else mesh.teethA
-							local fromCenter = if forward then mesh.centerA else mesh.centerB
-							local toCenter = if forward then mesh.centerB else mesh.centerA
-							-- Tooth phase correction so the teeth
-							-- interleave at the contact (see gearMeshPhase
-							-- for the derivation and sign convention).
-							local phase = gearMeshPhase(
-								if forward then mesh.secondaryA else mesh.secondaryB,
-								if forward then mesh.secondaryB else mesh.secondaryA,
-								fromAxis,
-								fromCenter,
-								toCenter,
-								fromTeeth,
-								toTeeth
-							)
 							driven[toRoot] = true
+							depth[toRoot] = round
+							usedMesh[mesh] = true
 							table.insert(nextFrontier, toRoot)
-							table.insert(
-								gearLines,
-								`  drive: {fromTeeth}t -> {toTeeth}t ratio={-fromTeeth / toTeeth}`
-									.. ` phase={math.deg(phase)}deg`
-							)
-							local fromPart = if forward then partA :: BasePart else partB :: BasePart
-							local toPart = if forward then partB :: BasePart else partA :: BasePart
-							table.insert(gearSteps, {
-								fromReference = fromPart,
-								fromAxis = fromAxis,
-								toReference = toPart,
-								toAxis = toAxis,
-								toCenter = toCenter,
-								ratio = -fromTeeth / toTeeth,
-								phase = phase,
-								lastAngle = 0,
-								accumulated = 0,
-								engaged = meshAligned[mesh] == true,
-								fromTeeth = fromTeeth,
-								toTeeth = toTeeth,
-								fromCenterLocal = fromPart.CFrame:PointToObjectSpace(fromCenter),
-								fromAxisLocal = fromPart.CFrame:VectorToObjectSpace(fromAxis),
-								toCenterLocal = toPart.CFrame:PointToObjectSpace(toCenter),
-								toAxisLocal = toPart.CFrame:VectorToObjectSpace(toAxis),
-							})
+							buildStep(mesh, forward, partA :: BasePart, partB :: BasePart, false)
 						end
 					end
 					frontier = nextFrontier
+				end
+
+				-- ALTERNATE bridges: unused meshes whose two groups the
+				-- tree already reaches at different depths, oriented from
+				-- the shallower (driver) side. Same-depth pairs are gear
+				-- loops: skipped, the tree already drives both sides.
+				for _, mesh in meshes do
+					if usedMesh[mesh] then
+						continue
+					end
+					local partA, partB = resolveMesh(mesh)
+					if partA == nil or partB == nil then
+						continue
+					end
+					local rootA = find(partA :: BasePart)
+					local rootB = find(partB :: BasePart)
+					if rootA == rootB then
+						continue
+					end
+					local depthA = depth[rootA]
+					local depthB = depth[rootB]
+					if depthA == nil or depthB == nil or depthA == depthB then
+						continue
+					end
+					buildStep(
+						mesh,
+						(depthA :: number) < (depthB :: number),
+						partA :: BasePart,
+						partB :: BasePart,
+						true
+					)
 				end
 				warn(`[BuildIt Rotate] gears:\n{table.concat(gearLines, "\n")}`)
 			end
@@ -675,6 +740,7 @@ function RotateController.start(options: StartOptions?): Controller
 				-- lets the constraint solver move its whole island.
 				-- Angles are accumulated frame to frame (valid while no
 				-- gear turns more than half a revolution per frame).
+				local claimedRoots: { [BasePart]: boolean } = {}
 				for _, step in session.gearSteps do
 					-- Alignment gate from CURRENT poses: an axle sliding
 					-- mid-drag can pull the pair out of mesh; sliding back
@@ -720,13 +786,16 @@ function RotateController.start(options: StartOptions?): Controller
 						wrap += 2 * math.pi
 					end
 					step.lastAngle = raw
-					if not aligned then
-						-- Teeth slipping past each other: track the driver
-						-- (so wrap accounting stays valid) but do not
-						-- accumulate - on re-engagement the driven gear
-						-- resumes from where it is, no catch-up jump.
+					if not aligned or claimedRoots[step.toRoot] then
+						-- Teeth slipping past each other (or another
+						-- bridge already drives this group this frame):
+						-- track the driver so wrap accounting stays
+						-- valid, but do not accumulate - on
+						-- (re-)engagement the driven gear resumes from
+						-- where it is, no catch-up jump.
 						continue
 					end
+					claimedRoots[step.toRoot] = true
 					step.accumulated += wrap
 
 					local drivenAngle = step.accumulated * step.ratio + step.phase
