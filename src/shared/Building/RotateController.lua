@@ -71,6 +71,18 @@ type Session = {
 			phase: number,
 			lastAngle: number,
 			accumulated: number,
+			-- Per-frame alignment gate: gear centers/axes in their
+			-- reference parts' LOCAL space, re-projected each frame - an
+			-- axle sliding mid-drag can pull the gears out of mesh, and
+			-- a misaligned bridge DISENGAGES (permanently for this drag;
+			-- re-engagement would need fresh tooth phasing).
+			engaged: boolean,
+			fromTeeth: number,
+			toTeeth: number,
+			fromCenterLocal: Vector3,
+			fromAxisLocal: Vector3,
+			toCenterLocal: Vector3,
+			toAxisLocal: Vector3,
 		}
 	},
 	reportedDriveError: boolean?,
@@ -516,16 +528,25 @@ function RotateController.start(options: StartOptions?): Controller
 								`  drive: {fromTeeth}t -> {toTeeth}t ratio={-fromTeeth / toTeeth}`
 									.. ` phase={math.deg(phase)}deg`
 							)
+							local fromPart = if forward then partA :: BasePart else partB :: BasePart
+							local toPart = if forward then partB :: BasePart else partA :: BasePart
 							table.insert(gearSteps, {
-								fromReference = if forward then partA :: BasePart else partB :: BasePart,
+								fromReference = fromPart,
 								fromAxis = fromAxis,
-								toReference = if forward then partB :: BasePart else partA :: BasePart,
+								toReference = toPart,
 								toAxis = toAxis,
 								toCenter = toCenter,
 								ratio = -fromTeeth / toTeeth,
 								phase = phase,
 								lastAngle = 0,
 								accumulated = 0,
+								engaged = true,
+								fromTeeth = fromTeeth,
+								toTeeth = toTeeth,
+								fromCenterLocal = fromPart.CFrame:PointToObjectSpace(fromCenter),
+								fromAxisLocal = fromPart.CFrame:VectorToObjectSpace(fromAxis),
+								toCenterLocal = toPart.CFrame:PointToObjectSpace(toCenter),
+								toAxisLocal = toPart.CFrame:VectorToObjectSpace(toAxis),
 							})
 						end
 					end
@@ -622,6 +643,29 @@ function RotateController.start(options: StartOptions?): Controller
 				-- Angles are accumulated frame to frame (valid while no
 				-- gear turns more than half a revolution per frame).
 				for _, step in session.gearSteps do
+					if not step.engaged then
+						continue
+					end
+					-- Alignment pre-check from CURRENT poses: an axle
+					-- sliding mid-drag can pull the pair out of mesh.
+					local fromNow = step.fromReference.CFrame
+					local toNow = step.toReference.CFrame
+					local stillAligned = AssemblyGraph.gearsAligned(
+						fromNow:PointToWorldSpace(step.fromCenterLocal),
+						fromNow:VectorToWorldSpace(step.fromAxisLocal),
+						step.fromTeeth,
+						toNow:PointToWorldSpace(step.toCenterLocal),
+						toNow:VectorToWorldSpace(step.toAxisLocal),
+						step.toTeeth
+					)
+					if not stillAligned then
+						step.engaged = false
+						warn(
+							`[BuildIt Rotate] gear mesh {step.fromTeeth}t -> {step.toTeeth}t`
+								.. ` slid out of alignment: drive disengaged for this drag`
+						)
+						continue
+					end
 					local reference = step.fromReference
 					local original = session.originalCFrames[reference]
 					if original == nil then

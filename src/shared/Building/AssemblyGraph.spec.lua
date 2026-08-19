@@ -556,6 +556,29 @@ return function(t: TestTypes.TestContext)
 		t.expect(#offset:gearMeshes()).toBe(0)
 	end)
 
+	t.test("gearsAligned: the per-frame mesh gate", function()
+		local kAxisZ2 = Vector3.new(0, 0, 1)
+		-- 8t (pitch 0.5) + 24t (pitch 1.5) at 2 studs: aligned.
+		local center8 = Vector3.new(0, 0, 0)
+		local center24 = Vector3.new(2, 0, 0)
+		t.expect(AssemblyGraph.gearsAligned(center8, kAxisZ2, 8, center24, kAxisZ2, 24)).toBe(true)
+		-- Slid along the axis past tooth overlap: disengaged.
+		t.expect(
+			AssemblyGraph.gearsAligned(center8, kAxisZ2, 8, center24 + Vector3.new(0, 0, 0.8), kAxisZ2, 24)
+		).toBe(false)
+		-- Still overlapping a little: engaged.
+		t.expect(
+			AssemblyGraph.gearsAligned(center8, kAxisZ2, 8, center24 + Vector3.new(0, 0, 0.4), kAxisZ2, 24)
+		).toBe(true)
+		-- Pulled radially apart: disengaged.
+		t.expect(
+			AssemblyGraph.gearsAligned(center8, kAxisZ2, 8, center24 + Vector3.new(0.6, 0, 0), kAxisZ2, 24)
+		).toBe(false)
+		-- Axes bent apart: disengaged.
+		local bent = (CFrame.fromAxisAngle(Vector3.xAxis, math.rad(20)) * kAxisZ2)
+		t.expect(AssemblyGraph.gearsAligned(center8, kAxisZ2, 8, center24, bent, 24)).toBe(false)
+	end)
+
 	t.test("multi-bore gear (3649) rotates about its hub center", function()
 		local kAxisZ2 = Vector3.new(0, 0, 1)
 		-- The 40t gear's bore layout: a center axle hole plus four

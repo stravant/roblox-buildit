@@ -912,6 +912,31 @@ local kMeshAxisDot = 0.98
 local kMeshRadialTolerance = 0.35 -- studs
 local kMeshAxialTolerance = 0.6 -- studs (tooth faces must overlap)
 
+-- Are two gears in meshing alignment: axes parallel, tooth faces
+-- axially overlapping, centers a pitch-radius sum apart? Used both to
+-- DISCOVER meshes (gearMeshes) and re-checked per frame while driving
+-- (an axle sliding during a rotate can pull a gear out of alignment,
+-- disengaging the drive).
+function AssemblyGraph.gearsAligned(
+	centerA: Vector3,
+	axisA: Vector3,
+	teethA: number,
+	centerB: Vector3,
+	axisB: Vector3,
+	teethB: number
+): boolean
+	if math.abs(axisA:Dot(axisB)) < kMeshAxisDot then
+		return false
+	end
+	local delta = centerB - centerA
+	local axial = delta:Dot(axisA)
+	if math.abs(axial) > kMeshAxialTolerance then
+		return false
+	end
+	local radial = (delta - axisA * axial).Magnitude
+	return math.abs(radial - (pitchRadius(teethA) + pitchRadius(teethB))) <= kMeshRadialTolerance
+end
+
 -- Pairs of gears meshing at their pitch radius: parallel axes, center
 -- distance perpendicular to the axis ~ the pitch radius sum, roughly
 -- coplanar along the axis. Gears cannot be treated physically (too
@@ -940,17 +965,16 @@ function AssemblyGraph.gearMeshes(self: AssemblyGraph): { GearMesh }
 	for i = 1, #gears do
 		for j = i + 1, #gears do
 			local gearA, gearB = gears[i], gears[j]
-			if math.abs(gearA.axis:Dot(gearB.axis)) < kMeshAxisDot then
-				continue
-			end
-			local delta = gearB.center - gearA.center
-			local axial = delta:Dot(gearA.axis)
-			if math.abs(axial) > kMeshAxialTolerance then
-				continue
-			end
-			local radial = (delta - gearA.axis * axial).Magnitude
-			local pitch = pitchRadius(gearA.teeth) + pitchRadius(gearB.teeth)
-			if math.abs(radial - pitch) > kMeshRadialTolerance then
+			if
+				not AssemblyGraph.gearsAligned(
+					gearA.center,
+					gearA.axis,
+					gearA.teeth,
+					gearB.center,
+					gearB.axis,
+					gearB.teeth
+				)
+			then
 				continue
 			end
 			table.insert(meshes, {
