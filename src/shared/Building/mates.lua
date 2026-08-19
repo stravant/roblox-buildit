@@ -46,6 +46,13 @@ export type Mate = {
 	axis: Vector3, -- joint axis (unit; separation/rotation axis)
 	slide: number, -- residual slide freedom along axis (0 = locked)
 	separationsA: { Vector3 }?,
+	-- Per-side connector geometry (axial mates only): center position
+	-- and span of each side, for reasoning about what occupies an
+	-- axle's length (e.g. keyed stops limiting slide through a hole).
+	aPosition: Vector3?,
+	bPosition: Vector3?,
+	aLength: number?,
+	bLength: number?,
 }
 
 export type MateRule = "point" | "axial" | "ball" | "mouth"
@@ -273,6 +280,10 @@ function mates.check(a: MateConnector, b: MateConnector): Mate?
 				axis = female.direction,
 				slide = (sMax - sMin) / 2,
 				separationsA = { aSeparation },
+				aPosition = a.position,
+				bPosition = b.position,
+				aLength = a.length,
+				bLength = b.length,
 			}
 		end
 		local delta = a.position - b.position
@@ -290,6 +301,10 @@ function mates.check(a: MateConnector, b: MateConnector): Mate?
 			axis = b.direction,
 			slide = slide,
 			separationsA = { b.direction, -b.direction },
+			aPosition = a.position,
+			bPosition = b.position,
+			aLength = a.length,
+			bLength = b.length,
 		}
 	end
 	return nil

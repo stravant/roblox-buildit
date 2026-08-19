@@ -335,7 +335,7 @@ return function(t: TestTypes.TestContext)
 		t.expect(#joints.constraints).toBe(2)
 	end)
 
-	t.test("keyed axle in an axle hole is prismatic, not cylindrical", function()
+	t.test("keyed axle in an axle hole is rigid (the clutch grips)", function()
 		local kAxisZ2 = Vector3.new(0, 0, 1)
 		local graph = AssemblyGraph.build({
 			{
@@ -352,8 +352,75 @@ return function(t: TestTypes.TestContext)
 			},
 		})
 		local joints = graph:physicsJoints()
+		t.expect(#joints.welds).toBe(1)
+		t.expect(#joints.constraints).toBe(0)
+	end)
+
+	t.test("long pin in a pin hole is a hinge - the stops hold it axially", function()
+		local kAxisZ2 = Vector3.new(0, 0, 1)
+		local graph = AssemblyGraph.build({
+			{
+				id = "pin",
+				connectors = {
+					{ kind = "TechnicPin", position = Vector3.zero, direction = kAxisZ2, length = 3 },
+				},
+			},
+			{
+				id = "beam",
+				connectors = {
+					{ kind = "PegHole", position = Vector3.new(0, 0, 0.5), direction = kAxisZ2, length = 1 },
+				},
+			},
+		})
+		local joints = graph:physicsJoints()
 		t.expect(#joints.constraints).toBe(1)
-		t.expect(joints.constraints[1].kind).toBe("Prismatic")
+		t.expect(joints.constraints[1].kind).toBe("Hinge")
+	end)
+
+	t.test("axle through a round hole: cylindrical until keyed stops trap it", function()
+		local kAxisZ2 = Vector3.new(0, 0, 1)
+		local function chassis(withSecondGear: boolean)
+			local units = {
+				{
+					id = "axle",
+					connectors = {
+						{ kind = "Axle", position = Vector3.zero, direction = kAxisZ2, length = 3 } :: any,
+					},
+				},
+				{
+					id = "beam",
+					connectors = {
+						{ kind = "PegHole", position = Vector3.zero, direction = kAxisZ2, length = 1 } :: any,
+					},
+				},
+				{
+					id = "gear1",
+					connectors = {
+						{ kind = "AxleHole", position = Vector3.new(0, 0, -1), direction = kAxisZ2, length = 1 } :: any,
+					},
+				},
+			}
+			if withSecondGear then
+				table.insert(units, {
+					id = "gear2",
+					connectors = {
+						{ kind = "AxleHole", position = Vector3.new(0, 0, 1), direction = kAxisZ2, length = 1 } :: any,
+					},
+				})
+			end
+			return AssemblyGraph.build(units)
+		end
+
+		-- One gear: the axle can still slide the other way.
+		local open = chassis(false):physicsJoints()
+		t.expect(#open.constraints).toBe(1)
+		t.expect(open.constraints[1].kind).toBe("Cylindrical")
+
+		-- Gears keyed on BOTH ends butt against the beam hole: no axial
+		-- travel left - it is just a hinge.
+		local trapped = chassis(true):physicsJoints()
+		t.expect(#trapped.constraints).toBe(1)
+		t.expect(trapped.constraints[1].kind).toBe("Hinge")
 	end)
 
 	t.test("physicsJoints: axle welds to its keyed gear, spins in round holes", function()
@@ -511,9 +578,8 @@ return function(t: TestTypes.TestContext)
 		-- The 40T-8T-24T chain: axle pins in a 1x12 technic brick, one
 		-- gear per pin. The 24T (3648b) bore is slightly SHORTER than the
 		-- pin's axle (0.9625 vs 1) and sits slid to the end of its
-		-- travel: the keyed mate is Prismatic rather than Fixed, but
-		-- fastener absorption must still weld the pin to the gear and
-		-- hinge it to the beam like its siblings.
+		-- travel: the keyed mate is rigid regardless (the clutch grips),
+		-- so every gear welds to its pin and hinges on the beam.
 		local kZ = Vector3.new(0, 0, 1)
 		local function axlePin(id: string, x: number): AssemblyGraph.UnitInput
 			return {

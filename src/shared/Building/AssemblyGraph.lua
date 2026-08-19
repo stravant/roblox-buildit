@@ -272,6 +272,10 @@ function AssemblyGraph._addMate(self: AssemblyGraph, idA: any, idB: any, mate: m
 			axis = mate.axis,
 			slide = mate.slide,
 			separationsA = flipped,
+			aPosition = mate.bPosition,
+			bPosition = mate.aPosition,
+			aLength = mate.bLength,
+			bLength = mate.aLength,
 		})
 	end
 end
@@ -431,14 +435,36 @@ end
 
 local kFixed: Archetype = { kind = "Fixed" }
 
--- KEYED axial pairs lock relative rotation (the axle cross keys into
--- the hole) and leave only sliding - prismatic rather than cylindrical.
-local kKeyedPairs: { [string]: { [string]: boolean } } = {
+-- Physical joint semantics for the axial pairs (what the plastic
+-- actually does, not just the geometry):
+--   Axle in AXLE hole: the cross keys rotation AND the clutch grips
+--     axially - RIGID. (Sliding an axle through its keyed hole takes
+--     deliberate force; mechanisms treat it as fixed.)
+--   Pin in pin hole: spins freely, but the pin's center flange and
+--     end lips STOP axial slip - HINGE, never cylindrical.
+--   Axle in round PIN hole: spins AND slides - the one true
+--     cylindrical joint - except where keyed stops on the axle
+--     (gears, bushes) butt against the hole and pin it axially (a 3L
+--     axle with a gear on each end through a beam hole is a hinge).
+--   SlipAxle/SlipRing: the transmission ring rides splined (rotation
+--     locked) and SLIDES BY DESIGN - prismatic.
+local kRigidAxialPairs: { [string]: { [string]: boolean } } = {
 	Axle = { AxleHole = true },
 	AxleHole = { Axle = true },
+}
+local kSplinedPairs: { [string]: { [string]: boolean } } = {
 	SlipAxle = { SlipRing = true },
 	SlipRing = { SlipAxle = true },
 }
+local kStoppedPinPairs: { [string]: { [string]: boolean } } = {
+	TechnicPin = { PegHole = true },
+	PegHole = { TechnicPin = true },
+}
+
+local function pairIn(table_: { [string]: { [string]: boolean } }, a: string, b: string): boolean
+	local partners = table_[a]
+	return partners ~= nil and partners[b] == true
+end
 
 -- Line joints carry rotate/slide freedom flags: Hinge = rotate only,
 -- Prismatic = slide only, Cylindrical = both.
@@ -461,7 +487,57 @@ local function archetypeSlides(archetype: Archetype): boolean
 	return archetype.kind == "Prismatic" or archetype.kind == "Cylindrical"
 end
 
-local function mateArchetype(mate: mates.Mate): Archetype
+-- How far an axle can actually slide through a round pin hole before
+-- a KEYED stop on the axle (a gear or bush gripping it) butts against
+-- the hole: walk the axle unit's other keyed mates on the same line
+-- and clamp the geometric slide by the gaps between their spans and
+-- the hole's span. Returns the larger single-direction allowance (a
+-- stop on ONE side still leaves the other way free).
+local function axleThroughHoleSlide(self: AssemblyGraph, edge: Edge, mate: mates.Mate): number
+	local axleIsA = mate.aKind == "Axle"
+	local axleId = if axleIsA then edge.a else edge.b
+	local axis = mate.axis
+	local holeCenter = ((if axleIsA then mate.bPosition else mate.aPosition) or mate.position):Dot(axis)
+	local holeHalf = ((if axleIsA then mate.bLength else mate.aLength) or 0) / 2
+	local holeLow, holeHigh = holeCenter - holeHalf, holeCenter + holeHalf
+	local positiveAllowance = mate.slide
+	local negativeAllowance = mate.slide
+	for _, otherEdge in self.adjacency[axleId] or {} do
+		for _, other in otherEdge.mates do
+			if other == mate or other.class ~= "axial" then
+				continue
+			end
+			if not pairIn(kRigidAxialPairs, other.aKind, other.bKind) then
+				continue
+			end
+			if not sameLine(mate.position, axis, other.position, other.axis) then
+				continue
+			end
+			-- The stop is the AxleHole side's span (the gear hub / bush
+			-- body gripping the axle; wider than the pin hole, so it
+			-- cannot pass through).
+			local stopIsA = other.aKind == "AxleHole"
+			-- Orientation: `other` is expressed for ITS edge; the axle
+			-- unit may be side a or b there. The AxleHole side is always
+			-- the stop regardless.
+			local stopCenter = ((if stopIsA then other.aPosition else other.bPosition) or other.position):Dot(axis)
+			local stopHalf = ((if stopIsA then other.aLength else other.bLength) or 0) / 2
+			local stopLow, stopHigh = stopCenter - stopHalf, stopCenter + stopHalf
+			if stopHigh <= holeLow + mates.kMatedEpsilon then
+				positiveAllowance = math.min(positiveAllowance, holeLow - stopHigh)
+			elseif stopLow >= holeHigh - mates.kMatedEpsilon then
+				negativeAllowance = math.min(negativeAllowance, stopLow - holeHigh)
+			else
+				-- Stop overlapping the hole span: jammed.
+				positiveAllowance = 0
+				negativeAllowance = 0
+			end
+		end
+	end
+	return math.max(positiveAllowance, negativeAllowance)
+end
+
+local function mateArchetype(self: AssemblyGraph, edge: Edge, mate: mates.Mate): Archetype
 	if mate.class == "point" or mate.class == "face" then
 		-- A single stud cell can physically rotate, but rigid is the
 		-- sane default for building; grid regions of 2+ cells become
@@ -472,9 +548,20 @@ local function mateArchetype(mate: mates.Mate): Archetype
 	elseif mate.class == "mouth" then
 		return { kind = "Hinge", position = mate.position, axis = mate.axis }
 	else -- axial
-		local keyed = kKeyedPairs[mate.aKind] ~= nil and kKeyedPairs[mate.aKind][mate.bKind] == true
-		local slides = mate.slide > mates.kMatedEpsilon
-		return lineArchetype(not keyed, slides, mate.position, mate.axis)
+		if pairIn(kRigidAxialPairs, mate.aKind, mate.bKind) then
+			return kFixed
+		end
+		if pairIn(kStoppedPinPairs, mate.aKind, mate.bKind) then
+			return { kind = "Hinge", position = mate.position, axis = mate.axis }
+		end
+		if pairIn(kSplinedPairs, mate.aKind, mate.bKind) then
+			return lineArchetype(false, mate.slide > mates.kMatedEpsilon, mate.position, mate.axis)
+		end
+		local slide = mate.slide
+		if (mate.aKind == "Axle" and mate.bKind == "PegHole") or (mate.aKind == "PegHole" and mate.bKind == "Axle") then
+			slide = axleThroughHoleSlide(self, edge, mate)
+		end
+		return lineArchetype(true, slide > mates.kMatedEpsilon, mate.position, mate.axis)
 	end
 end
 
@@ -518,10 +605,10 @@ local function intersectArchetypes(x: Archetype, y: Archetype): Archetype
 	)
 end
 
-local function foldArchetype(matesList: { mates.Mate }): Archetype
+local function foldArchetype(self: AssemblyGraph, edge: Edge): Archetype
 	local result: Archetype? = nil
-	for _, mate in matesList do
-		local archetype = mateArchetype(mate)
+	for _, mate in edge.mates do
+		local archetype = mateArchetype(self, edge, mate)
 		result = if result == nil then archetype else intersectArchetypes(result :: Archetype, archetype)
 		if (result :: Archetype).kind == "Fixed" then
 			return kFixed
@@ -530,8 +617,8 @@ local function foldArchetype(matesList: { mates.Mate }): Archetype
 	return result or kFixed
 end
 
-AssemblyGraph.foldArchetype = function(_self: AssemblyGraph, edge: Edge): Archetype
-	return foldArchetype(edge.mates)
+AssemblyGraph.foldArchetype = function(self: AssemblyGraph, edge: Edge): Archetype
+	return foldArchetype(self, edge)
 end
 
 local function isFastener(unit: UnitInput): boolean
@@ -597,7 +684,7 @@ function AssemblyGraph.physicsPlan(self: AssemblyGraph): PhysicsPlan
 		end
 		local edgeA = self.adjacency[id][neighbors[1]]
 		local edgeB = self.adjacency[id][neighbors[2]]
-		local throughArchetype = intersectArchetypes(foldArchetype(edgeA.mates), foldArchetype(edgeB.mates))
+		local throughArchetype = intersectArchetypes(foldArchetype(self, edgeA), foldArchetype(self, edgeB))
 		absorbedEdges[edgeA] = true
 		absorbedEdges[edgeB] = true
 		union(id, neighbors[1]) -- fastener rides with one side
@@ -617,7 +704,7 @@ function AssemblyGraph.physicsPlan(self: AssemblyGraph): PhysicsPlan
 				continue
 			end
 			seenEdges[edge] = true
-			local archetype = foldArchetype(edge.mates)
+			local archetype = foldArchetype(self, edge)
 			if archetype.kind == "Fixed" then
 				union(edge.a, edge.b)
 			else
@@ -850,7 +937,7 @@ function AssemblyGraph.physicsJoints(self: AssemblyGraph): PhysicsJoints
 		end
 		local neighborEdges: { { other: any, edge: Edge, archetype: Archetype } } = {}
 		for otherId, edge in self.adjacency[id] or {} do
-			table.insert(neighborEdges, { other = otherId, edge = edge, archetype = foldArchetype(edge.mates) })
+			table.insert(neighborEdges, { other = otherId, edge = edge, archetype = foldArchetype(self, edge) })
 		end
 		if #neighborEdges < 2 then
 			continue -- a lone-ended fastener keeps its direct edge
@@ -879,7 +966,7 @@ function AssemblyGraph.physicsJoints(self: AssemblyGraph): PhysicsJoints
 				continue
 			end
 			seenEdges[edge] = true
-			emit(edge.a, edge.b, foldArchetype(edge.mates), edge.mates[1].position)
+			emit(edge.a, edge.b, foldArchetype(self, edge), edge.mates[1].position)
 		end
 	end
 
