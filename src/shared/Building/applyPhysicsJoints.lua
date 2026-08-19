@@ -72,7 +72,9 @@ local function createConstraint(
 	axis: Vector3,
 	folder: Folder,
 	created: { Instance },
-	constraintPairs: { { BasePart } }
+	constraintPairs: { { BasePart } },
+	slideLower: number?,
+	slideUpper: number?
 )
 	table.insert(constraintPairs, { part0, part1 })
 	local attachment0 = axisAttachment(part0, position, axis)
@@ -91,6 +93,20 @@ local function createConstraint(
 	end
 	constraint.Attachment0 = attachment0
 	constraint.Attachment1 = attachment1
+	-- Sliding limits (Attachment1's travel along Attachment0's axis;
+	-- the attachments start coincident, so limits are relative to the
+	-- current pose): an axle through a hole slides only as far as its
+	-- poke-out range / keyed stops allow.
+	if
+		(kind == "Cylindrical" or kind == "Prismatic")
+		and slideLower ~= nil
+		and slideUpper ~= nil
+	then
+		local sliding = constraint :: CylindricalConstraint | PrismaticConstraint
+		sliding.LimitsEnabled = true
+		sliding.LowerLimit = slideLower :: number
+		sliding.UpperLimit = slideUpper :: number
+	end
 	constraint.Parent = folder
 end
 
@@ -187,7 +203,9 @@ local function apply(graph: AssemblyGraph.AssemblyGraph, unitFilter: { [any]: bo
 			entry.axis,
 			folder,
 			created,
-			constraintPairs
+			constraintPairs,
+			entry.slideLower,
+			entry.slideUpper
 		)
 	end
 

@@ -411,16 +411,63 @@ return function(t: TestTypes.TestContext)
 			return AssemblyGraph.build(units)
 		end
 
-		-- One gear: the axle can still slide the other way.
+		-- One gear: the axle can still slide the other way, and the
+		-- cylindrical carries the one-sided limit (constraint emitted
+		-- a=axle, b=beam: beam-relative travel [0, 1] = the axle may
+		-- move only -1..0 toward the gearless end).
 		local open = chassis(false):physicsJoints()
 		t.expect(#open.constraints).toBe(1)
-		t.expect(open.constraints[1].kind).toBe("Cylindrical")
+		local openConstraint = open.constraints[1]
+		t.expect(openConstraint.kind).toBe("Cylindrical")
+		t.expect(openConstraint.a).toBe("axle")
+		t.expect(openConstraint.slideLower :: any).toBeCloseTo(0, 0.001)
+		t.expect(openConstraint.slideUpper :: any).toBeCloseTo(1, 0.001)
 
 		-- Gears keyed on BOTH ends butt against the beam hole: no axial
 		-- travel left - it is just a hinge.
 		local trapped = chassis(true):physicsJoints()
 		t.expect(#trapped.constraints).toBe(1)
 		t.expect(trapped.constraints[1].kind).toBe("Hinge")
+	end)
+
+	t.test("axle through a hole with slack between stops keeps bounded slide", function()
+		-- 5L axle through a beam hole, gears keyed at both ends with a
+		-- stud of space either side: still cylindrical, but the slide is
+		-- LIMITED to that space instead of the raw poke-out range.
+		local kAxisZ2 = Vector3.new(0, 0, 1)
+		local graph = AssemblyGraph.build({
+			{
+				id = "axle",
+				connectors = {
+					{ kind = "Axle", position = Vector3.zero, direction = kAxisZ2, length = 5 },
+				},
+			},
+			{
+				id = "beam",
+				connectors = {
+					{ kind = "PegHole", position = Vector3.zero, direction = kAxisZ2, length = 1 },
+				},
+			},
+			{
+				id = "gearA",
+				connectors = {
+					{ kind = "AxleHole", position = Vector3.new(0, 0, -2), direction = kAxisZ2, length = 1 },
+				},
+			},
+			{
+				id = "gearB",
+				connectors = {
+					{ kind = "AxleHole", position = Vector3.new(0, 0, 2), direction = kAxisZ2, length = 1 },
+				},
+			},
+		})
+		local joints = graph:physicsJoints()
+		t.expect(#joints.constraints).toBe(1)
+		local constraint = joints.constraints[1]
+		t.expect(constraint.kind).toBe("Cylindrical")
+		-- Raw poke-out would be +-2; the gears cap it at +-1.
+		t.expect(constraint.slideLower :: any).toBeCloseTo(-1, 0.001)
+		t.expect(constraint.slideUpper :: any).toBeCloseTo(1, 0.001)
 	end)
 
 	t.test("physicsJoints: axle welds to its keyed gear, spins in round holes", function()

@@ -53,6 +53,9 @@ export type Mate = {
 	bPosition: Vector3?,
 	aLength: number?,
 	bLength: number?,
+	-- True for blind-bore (one-sided) axial mates, whose slide interval
+	-- is asymmetric (physics limits skip these).
+	oneSided: boolean?,
 }
 
 export type MateRule = "point" | "axial" | "ball" | "mouth"
@@ -280,6 +283,7 @@ function mates.check(a: MateConnector, b: MateConnector): Mate?
 				axis = female.direction,
 				slide = (sMax - sMin) / 2,
 				separationsA = { aSeparation },
+				oneSided = true,
 				aPosition = a.position,
 				bPosition = b.position,
 				aLength = a.length,

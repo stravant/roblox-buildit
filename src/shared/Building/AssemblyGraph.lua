@@ -51,6 +51,10 @@ export type Archetype = {
 	kind: "Fixed" | "Hinge" | "Cylindrical" | "Prismatic" | "Ball",
 	position: Vector3?,
 	axis: Vector3?,
+	-- Sliding limits (Cylindrical/Prismatic): allowed translation of
+	-- unit B relative to unit A along +axis, from the current pose.
+	slideLower: number?,
+	slideUpper: number?,
 }
 
 export type Constraint = {
@@ -59,6 +63,11 @@ export type Constraint = {
 	b: any,
 	position: Vector3,
 	axis: Vector3,
+	-- Sliding limits: allowed translation of `b` relative to `a` along
+	-- +axis from the current pose (LowerLimit/UpperLimit with the
+	-- constraint's Attachment0 on `a`).
+	slideLower: number?,
+	slideUpper: number?,
 }
 
 export type WeldJoint = {
@@ -272,6 +281,7 @@ function AssemblyGraph._addMate(self: AssemblyGraph, idA: any, idB: any, mate: m
 			axis = mate.axis,
 			slide = mate.slide,
 			separationsA = flipped,
+			oneSided = mate.oneSided,
 			aPosition = mate.bPosition,
 			bPosition = mate.aPosition,
 			aLength = mate.bLength,
@@ -468,13 +478,32 @@ end
 
 -- Line joints carry rotate/slide freedom flags: Hinge = rotate only,
 -- Prismatic = slide only, Cylindrical = both.
-local function lineArchetype(rotates: boolean, slides: boolean, position: Vector3, axis: Vector3): Archetype
+local function lineArchetype(
+	rotates: boolean,
+	slides: boolean,
+	position: Vector3,
+	axis: Vector3,
+	slideLower: number?,
+	slideUpper: number?
+): Archetype
 	if rotates and slides then
-		return { kind = "Cylindrical", position = position, axis = axis }
+		return {
+			kind = "Cylindrical",
+			position = position,
+			axis = axis,
+			slideLower = slideLower,
+			slideUpper = slideUpper,
+		}
 	elseif rotates then
 		return { kind = "Hinge", position = position, axis = axis }
 	elseif slides then
-		return { kind = "Prismatic", position = position, axis = axis }
+		return {
+			kind = "Prismatic",
+			position = position,
+			axis = axis,
+			slideLower = slideLower,
+			slideUpper = slideUpper,
+		}
 	end
 	return kFixed
 end
@@ -487,21 +516,28 @@ local function archetypeSlides(archetype: Archetype): boolean
 	return archetype.kind == "Prismatic" or archetype.kind == "Cylindrical"
 end
 
--- How far an axle can actually slide through a round pin hole before
--- a KEYED stop on the axle (a gear or bush gripping it) butts against
--- the hole: walk the axle unit's other keyed mates on the same line
--- and clamp the geometric slide by the gaps between their spans and
--- the hole's span. Returns the larger single-direction allowance (a
--- stop on ONE side still leaves the other way free).
-local function axleThroughHoleSlide(self: AssemblyGraph, edge: Edge, mate: mates.Mate): number
+-- How far an axle can actually slide through a round pin hole:
+-- geometric poke-out bounds (asymmetric when the axle sits off-center
+-- in the hole), further clamped by KEYED stops on the axle (gears or
+-- bushes gripping it) butting against the hole - walk the axle unit's
+-- other keyed mates on the same line and clamp by the gaps between
+-- their spans and the hole's span. Returns the allowed travel of the
+-- AXLE along +axis as (positive, negative) allowances from the
+-- current pose (a stop on ONE side still leaves the other way free).
+local function axleThroughHoleAllowances(self: AssemblyGraph, edge: Edge, mate: mates.Mate): (number, number)
 	local axleIsA = mate.aKind == "Axle"
 	local axleId = if axleIsA then edge.a else edge.b
 	local axis = mate.axis
-	local holeCenter = ((if axleIsA then mate.bPosition else mate.aPosition) or mate.position):Dot(axis)
+	local axlePosition = (if axleIsA then mate.aPosition else mate.bPosition) or mate.position
+	local holePosition = (if axleIsA then mate.bPosition else mate.aPosition) or mate.position
+	local holeCenter = holePosition:Dot(axis)
 	local holeHalf = ((if axleIsA then mate.bLength else mate.aLength) or 0) / 2
 	local holeLow, holeHigh = holeCenter - holeHalf, holeCenter + holeHalf
-	local positiveAllowance = mate.slide
-	local negativeAllowance = mate.slide
+	-- Current along-axis offset of the axle in the hole: the poke-out
+	-- bounds shrink on the side it is already shifted toward.
+	local offset = (axlePosition - holePosition):Dot(axis)
+	local positiveAllowance = math.max(0, mate.slide - offset)
+	local negativeAllowance = math.max(0, mate.slide + offset)
 	for _, otherEdge in self.adjacency[axleId] or {} do
 		for _, other in otherEdge.mates do
 			if other == mate or other.class ~= "axial" then
@@ -534,7 +570,7 @@ local function axleThroughHoleSlide(self: AssemblyGraph, edge: Edge, mate: mates
 			end
 		end
 	end
-	return math.max(positiveAllowance, negativeAllowance)
+	return positiveAllowance, negativeAllowance
 end
 
 local function mateArchetype(self: AssemblyGraph, edge: Edge, mate: mates.Mate): Archetype
@@ -554,14 +590,35 @@ local function mateArchetype(self: AssemblyGraph, edge: Edge, mate: mates.Mate):
 		if pairIn(kStoppedPinPairs, mate.aKind, mate.bKind) then
 			return { kind = "Hinge", position = mate.position, axis = mate.axis }
 		end
-		if pairIn(kSplinedPairs, mate.aKind, mate.bKind) then
-			return lineArchetype(false, mate.slide > mates.kMatedEpsilon, mate.position, mate.axis)
-		end
+		-- Sliding limits (B relative to A along +axis, from the current
+		-- pose): geometric poke-out bounds, tightened by keyed stops for
+		-- an axle through a round hole. Blind bores skip limits (their
+		-- interval is asymmetric in a different way).
 		local slide = mate.slide
-		if (mate.aKind == "Axle" and mate.bKind == "PegHole") or (mate.aKind == "PegHole" and mate.bKind == "Axle") then
-			slide = axleThroughHoleSlide(self, edge, mate)
+		local slideLower: number? = nil
+		local slideUpper: number? = nil
+		if mate.oneSided ~= true and mate.aPosition ~= nil and mate.bPosition ~= nil then
+			local along = ((mate.aPosition :: Vector3) - (mate.bPosition :: Vector3)):Dot(mate.axis)
+			slideLower = along - slide
+			slideUpper = along + slide
 		end
-		return lineArchetype(true, slide > mates.kMatedEpsilon, mate.position, mate.axis)
+		local axleInPinHole = (mate.aKind == "Axle" and mate.bKind == "PegHole")
+			or (mate.aKind == "PegHole" and mate.bKind == "Axle")
+		if axleInPinHole then
+			local positiveAllowance, negativeAllowance = axleThroughHoleAllowances(self, edge, mate)
+			slide = math.max(positiveAllowance, negativeAllowance)
+			-- Allowances describe the AXLE's motion; limits describe B
+			-- relative to A.
+			if mate.aKind == "Axle" then
+				slideLower, slideUpper = -positiveAllowance, negativeAllowance
+			else
+				slideLower, slideUpper = -negativeAllowance, positiveAllowance
+			end
+		end
+		if pairIn(kSplinedPairs, mate.aKind, mate.bKind) then
+			return lineArchetype(false, slide > mates.kMatedEpsilon, mate.position, mate.axis, slideLower, slideUpper)
+		end
+		return lineArchetype(true, slide > mates.kMatedEpsilon, mate.position, mate.axis, slideLower, slideUpper)
 	end
 end
 
@@ -597,11 +654,35 @@ local function intersectArchetypes(x: Archetype, y: Archetype): Archetype
 	if not sameLine(x.position :: Vector3, x.axis :: Vector3, y.position :: Vector3, y.axis :: Vector3) then
 		return kFixed
 	end
+	-- Sliding limits intersect (translation along the line is common to
+	-- the whole edge); flip y's interval if its axis points the other
+	-- way.
+	local slideLower = x.slideLower
+	local slideUpper = x.slideUpper
+	local otherLower = y.slideLower
+	local otherUpper = y.slideUpper
+	if (x.axis :: Vector3):Dot(y.axis :: Vector3) < 0 then
+		local flippedLower = if otherUpper ~= nil then -(otherUpper :: number) else nil
+		local flippedUpper = if otherLower ~= nil then -(otherLower :: number) else nil
+		otherLower, otherUpper = flippedLower, flippedUpper
+	end
+	if slideLower == nil then
+		slideLower = otherLower
+	elseif otherLower ~= nil then
+		slideLower = math.max(slideLower :: number, otherLower :: number)
+	end
+	if slideUpper == nil then
+		slideUpper = otherUpper
+	elseif otherUpper ~= nil then
+		slideUpper = math.min(slideUpper :: number, otherUpper :: number)
+	end
 	return lineArchetype(
 		archetypeRotates(x) and archetypeRotates(y),
 		archetypeSlides(x) and archetypeSlides(y),
 		x.position :: Vector3,
-		x.axis :: Vector3
+		x.axis :: Vector3,
+		slideLower,
+		slideUpper
 	)
 end
 
@@ -763,6 +844,8 @@ function AssemblyGraph.physicsPlan(self: AssemblyGraph): PhysicsPlan
 			b = pair.b,
 			position = archetype.position :: Vector3,
 			axis = (archetype.axis :: Vector3?) or Vector3.yAxis,
+			slideLower = archetype.slideLower,
+			slideUpper = archetype.slideUpper,
 		})
 	end
 
@@ -927,8 +1010,26 @@ function AssemblyGraph.physicsJoints(self: AssemblyGraph): PhysicsJoints
 				b = b,
 				position = (archetype.position :: Vector3?) or fallbackPosition,
 				axis = (archetype.axis :: Vector3?) or Vector3.yAxis,
+				slideLower = archetype.slideLower,
+				slideUpper = archetype.slideUpper,
 			})
 		end
+	end
+
+	-- An edge archetype is expressed B-relative-to-A of ITS edge; when
+	-- emitting with the opposite orientation the slide interval negates
+	-- and swaps.
+	local function orientArchetype(archetype: Archetype, edge: Edge, emitA: any): Archetype
+		if edge.a == emitA or (archetype.slideLower == nil and archetype.slideUpper == nil) then
+			return archetype
+		end
+		return {
+			kind = archetype.kind,
+			position = archetype.position,
+			axis = archetype.axis,
+			slideLower = if archetype.slideUpper ~= nil then -(archetype.slideUpper :: number) else nil,
+			slideUpper = if archetype.slideLower ~= nil then -(archetype.slideLower :: number) else nil,
+		}
 	end
 
 	for id, unit in self.units do
@@ -954,7 +1055,7 @@ function AssemblyGraph.physicsJoints(self: AssemblyGraph): PhysicsJoints
 			if index == 1 then
 				table.insert(welds, { a = id, b = entry.other, position = entry.edge.mates[1].position })
 			else
-				emit(id, entry.other, entry.archetype, entry.edge.mates[1].position)
+				emit(id, entry.other, orientArchetype(entry.archetype, entry.edge, id), entry.edge.mates[1].position)
 			end
 		end
 	end
