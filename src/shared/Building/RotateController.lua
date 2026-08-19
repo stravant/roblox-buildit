@@ -72,10 +72,13 @@ type Session = {
 			lastAngle: number,
 			accumulated: number,
 			-- Per-frame alignment gate: gear centers/axes in their
-			-- reference parts' LOCAL space, re-projected each frame - an
-			-- axle sliding mid-drag can pull the gears out of mesh, and
-			-- a misaligned bridge DISENGAGES (permanently for this drag;
-			-- re-engagement would need fresh tooth phasing).
+			-- reference parts' LOCAL space, re-projected each frame. An
+			-- axle sliding mid-drag can pull the gears out of mesh:
+			-- while misaligned the bridge does not drive (the teeth slip
+			-- past each other - driver rotation is NOT accumulated), and
+			-- it naturally re-engages if the pair slides back into
+			-- alignment. `engaged` is just the previous frame's state,
+			-- for transition messages.
 			engaged: boolean,
 			fromTeeth: number,
 			toTeeth: number,
@@ -643,14 +646,12 @@ function RotateController.start(options: StartOptions?): Controller
 				-- Angles are accumulated frame to frame (valid while no
 				-- gear turns more than half a revolution per frame).
 				for _, step in session.gearSteps do
-					if not step.engaged then
-						continue
-					end
-					-- Alignment pre-check from CURRENT poses: an axle
-					-- sliding mid-drag can pull the pair out of mesh.
+					-- Alignment gate from CURRENT poses: an axle sliding
+					-- mid-drag can pull the pair out of mesh; sliding back
+					-- re-engages it.
 					local fromNow = step.fromReference.CFrame
 					local toNow = step.toReference.CFrame
-					local stillAligned = AssemblyGraph.gearsAligned(
+					local aligned = AssemblyGraph.gearsAligned(
 						fromNow:PointToWorldSpace(step.fromCenterLocal),
 						fromNow:VectorToWorldSpace(step.fromAxisLocal),
 						step.fromTeeth,
@@ -658,13 +659,12 @@ function RotateController.start(options: StartOptions?): Controller
 						toNow:VectorToWorldSpace(step.toAxisLocal),
 						step.toTeeth
 					)
-					if not stillAligned then
-						step.engaged = false
+					if aligned ~= step.engaged then
+						step.engaged = aligned
 						warn(
 							`[BuildIt Rotate] gear mesh {step.fromTeeth}t -> {step.toTeeth}t`
-								.. ` slid out of alignment: drive disengaged for this drag`
+								.. ` {if aligned then "re-engaged" else "slid out of alignment: not driving"}`
 						)
-						continue
 					end
 					local reference = step.fromReference
 					local original = session.originalCFrames[reference]
@@ -690,6 +690,13 @@ function RotateController.start(options: StartOptions?): Controller
 						wrap += 2 * math.pi
 					end
 					step.lastAngle = raw
+					if not aligned then
+						-- Teeth slipping past each other: track the driver
+						-- (so wrap accounting stays valid) but do not
+						-- accumulate - on re-engagement the driven gear
+						-- resumes from where it is, no catch-up jump.
+						continue
+					end
 					step.accumulated += wrap
 
 					local drivenAngle = step.accumulated * step.ratio + step.phase
