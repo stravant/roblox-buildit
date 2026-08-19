@@ -451,6 +451,36 @@ function RotateController.start(options: StartOptions?): Controller
 		local gearSteps = {}
 		do
 			local meshes = graph:gearMeshes()
+			-- Discovery may include POTENTIAL meshes (within sliding
+			-- range but not currently aligned): process aligned meshes
+			-- first in the BFS so a dormant bridge never claims a gear
+			-- that a live bridge could drive, and start dormant steps
+			-- disengaged (the per-frame gate wakes them).
+			local meshAligned: { [any]: boolean } = {}
+			if #meshes > 0 then
+				table.sort(meshes, function(lhs, rhs)
+					local function alignedNow(mesh): boolean
+						local cached = meshAligned[mesh]
+						if cached == nil then
+							cached = AssemblyGraph.gearsAligned(
+								mesh.centerA,
+								mesh.axisA,
+								mesh.teethA,
+								mesh.centerB,
+								mesh.axisB,
+								mesh.teethB
+							)
+							meshAligned[mesh] = cached
+						end
+						return cached :: boolean
+					end
+					local lhsAligned = alignedNow(lhs)
+					if lhsAligned ~= alignedNow(rhs) then
+						return lhsAligned
+					end
+					return false
+				end)
+			end
 			if #meshes > 0 then
 				local function unitMainPart(id: any): BasePart?
 					local instance = id :: Instance
@@ -543,7 +573,7 @@ function RotateController.start(options: StartOptions?): Controller
 								phase = phase,
 								lastAngle = 0,
 								accumulated = 0,
-								engaged = true,
+								engaged = meshAligned[mesh] == true,
 								fromTeeth = fromTeeth,
 								toTeeth = toTeeth,
 								fromCenterLocal = fromPart.CFrame:PointToObjectSpace(fromCenter),

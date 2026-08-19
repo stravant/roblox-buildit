@@ -556,6 +556,50 @@ return function(t: TestTypes.TestContext)
 		t.expect(#offset:gearMeshes()).toBe(0)
 	end)
 
+	t.test("sliding range widens potential-mesh discovery", function()
+		local kAxisZ2 = Vector3.new(0, 0, 1)
+		-- 8t keyed on a 4L axle that can slide through a beam bearing;
+		-- a 24t sits 1.2 studs off axially (past the strict 0.6 window,
+		-- within the slide range). Discovered as a POTENTIAL mesh.
+		local function build(withBearing: boolean)
+			local units = {
+				{
+					id = "small",
+					partNumber = "3647",
+					connectors = {
+						{ kind = "AxleHole", position = Vector3.zero, direction = kAxisZ2, length = 1 } :: any,
+					},
+				},
+				{
+					id = "axle",
+					connectors = {
+						{ kind = "Axle", position = Vector3.new(0, 0, 0.5), direction = kAxisZ2, length = 4 } :: any,
+					},
+				},
+				{
+					id = "big",
+					partNumber = "3648",
+					connectors = {
+						{ kind = "AxleHole", position = Vector3.new(2, 0, 1.2), direction = kAxisZ2, length = 1 } :: any,
+					},
+				},
+			}
+			if withBearing then
+				table.insert(units, {
+					id = "beam",
+					connectors = {
+						{ kind = "PegHole", position = Vector3.new(0, 0, 1.5), direction = kAxisZ2, length = 1 } :: any,
+					},
+				})
+			end
+			return AssemblyGraph.build(units)
+		end
+		-- Without the bearing there is no slide range: not discovered.
+		t.expect(#build(false):gearMeshes()).toBe(0)
+		-- With it, the axle's slide widens the search window.
+		t.expect(#build(true):gearMeshes()).toBe(1)
+	end)
+
 	t.test("gearsAligned: the per-frame mesh gate", function()
 		local kAxisZ2 = Vector3.new(0, 0, 1)
 		-- 8t (pitch 0.5) + 24t (pitch 1.5) at 2 studs: aligned.

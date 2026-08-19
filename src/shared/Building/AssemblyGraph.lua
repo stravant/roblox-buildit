@@ -914,23 +914,25 @@ local kMeshAxialTolerance = 0.6 -- studs (tooth faces must overlap)
 
 -- Are two gears in meshing alignment: axes parallel, tooth faces
 -- axially overlapping, centers a pitch-radius sum apart? Used both to
--- DISCOVER meshes (gearMeshes) and re-checked per frame while driving
--- (an axle sliding during a rotate can pull a gear out of alignment,
--- disengaging the drive).
+-- DISCOVER meshes (gearMeshes, with the axial window widened by any
+-- sliding range - see extraAxialTolerance) and re-checked strictly per
+-- frame while driving (an axle sliding during a rotate engages and
+-- disengages the drive).
 function AssemblyGraph.gearsAligned(
 	centerA: Vector3,
 	axisA: Vector3,
 	teethA: number,
 	centerB: Vector3,
 	axisB: Vector3,
-	teethB: number
+	teethB: number,
+	extraAxialTolerance: number?
 ): boolean
 	if math.abs(axisA:Dot(axisB)) < kMeshAxisDot then
 		return false
 	end
 	local delta = centerB - centerA
 	local axial = delta:Dot(axisA)
-	if math.abs(axial) > kMeshAxialTolerance then
+	if math.abs(axial) > kMeshAxialTolerance + (extraAxialTolerance or 0) then
 		return false
 	end
 	local radial = (delta - axisA * axial).Magnitude
@@ -943,7 +945,45 @@ end
 -- many teeth); callers give meshing pairs a NoCollisionConstraint and
 -- drive rotation by tooth ratio in code.
 function AssemblyGraph.gearMeshes(self: AssemblyGraph): { GearMesh }
-	local gears: { { id: any, teeth: number, center: Vector3, axis: Vector3, secondary: Vector3? } } = {}
+	-- Axial slack: how far a gear could travel along its axis - it
+	-- rides its keyed axle, and that axle may slide through round
+	-- bearings. Pairs within the widened window are discovered as
+	-- POTENTIAL meshes (the drive's strict per-frame gate keeps them
+	-- dormant until actually slid into alignment).
+	local function axialSlack(id: any): number
+		local slack = 0
+		for _, edge in self.adjacency[id] or {} do
+			for _, mate in edge.mates do
+				if mate.class ~= "axial" then
+					continue
+				end
+				local keyed = (mate.aKind == "Axle" and mate.bKind == "AxleHole")
+					or (mate.aKind == "AxleHole" and mate.bKind == "Axle")
+				if not keyed then
+					continue
+				end
+				local axleId = if mate.aKind == "Axle" then edge.a else edge.b
+				if axleId == id then
+					continue
+				end
+				for _, axleEdge in self.adjacency[axleId] or {} do
+					for _, bearing in axleEdge.mates do
+						if bearing.class ~= "axial" then
+							continue
+						end
+						local loose = (bearing.aKind == "Axle" and bearing.bKind == "PegHole")
+							or (bearing.aKind == "PegHole" and bearing.bKind == "Axle")
+						if loose then
+							slack = math.max(slack, bearing.slide)
+						end
+					end
+				end
+			end
+		end
+		return slack
+	end
+
+	local gears: { { id: any, teeth: number, center: Vector3, axis: Vector3, secondary: Vector3?, slack: number } } = {}
 	for id, unit in self.units do
 		local info = if unit.partNumber ~= nil then gearInfo[unit.partNumber :: string] else nil
 		if info == nil then
@@ -959,6 +999,7 @@ function AssemblyGraph.gearMeshes(self: AssemblyGraph): { GearMesh }
 			center = center :: Vector3,
 			axis = (axis :: Vector3).Unit,
 			secondary = secondary,
+			slack = axialSlack(id),
 		})
 	end
 	local meshes: { GearMesh } = {}
@@ -972,7 +1013,8 @@ function AssemblyGraph.gearMeshes(self: AssemblyGraph): { GearMesh }
 					gearA.teeth,
 					gearB.center,
 					gearB.axis,
-					gearB.teeth
+					gearB.teeth,
+					gearA.slack + gearB.slack
 				)
 			then
 				continue
