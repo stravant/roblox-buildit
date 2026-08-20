@@ -360,6 +360,47 @@ return function(t: TestTypes.TestContext)
 		t.expect(connections[1].length).toBeCloseTo(4)
 	end)
 
+	t.test("bush (3713): mesh refinement recovers the full through-bore", function()
+		-- bush.dat's curated span only covers the sleeve section
+		-- [-6, 10]; the base collar's bore is raw ring geometry. With
+		-- the mesh available, the span must grow to the full physical
+		-- part: 20 LDU, centered.
+		local mesh = flattenMesh(library, "3713.dat") :: Types.FlatMesh
+		local connections = findConnections(library, "3713.dat", mesh) :: any
+		local found = false
+		for _, connection in connections do
+			if connection.type == "AxleHole" then
+				found = true
+				t.expect(connection.length).toBeCloseTo(20, 0.5)
+				t.expect(connection.position).toBeCloseTo(Vector3.new(0, 0, 0), 0.5)
+			end
+		end
+		t.expect(found).toBe(true)
+
+		-- Without the mesh, the curated (short) span stands.
+		local bare = findConnections(library, "3713.dat") :: any
+		for _, connection in bare do
+			if connection.type == "AxleHole" then
+				t.expect(connection.length).toBeCloseTo(16, 0.5)
+			end
+		end
+	end)
+
+	t.test("technic brick (3700): peghole span survives refinement", function()
+		-- A plain through-hole in a 1-wide beam is already correct
+		-- (20 LDU): refinement must not stretch or shift it.
+		local mesh = flattenMesh(library, "3700.dat") :: Types.FlatMesh
+		local connections = findConnections(library, "3700.dat", mesh) :: any
+		local found = false
+		for _, connection in connections do
+			if connection.type == "PegHole" then
+				found = true
+				t.expect(connection.length).toBeCloseTo(20, 1)
+			end
+		end
+		t.expect(found).toBe(true)
+	end)
+
 	t.test("gear 24 tooth single axle hole (3648b): center override", function()
 		local connections = findConnections(library, "3648b.dat") :: any
 		local counts = countByType(connections)

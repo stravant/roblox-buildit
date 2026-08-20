@@ -32,6 +32,7 @@
 local Types = require(script.Parent.Types)
 local LDrawLibrary = require(script.Parent.LDrawLibrary)
 local connectorPrimitives = require(script.Parent.connectorPrimitives)
+local refineBoreSpans = require(script.Parent.refineBoreSpans)
 
 local kMaxDepth = 64
 local kRimOffset = Vector3.new(0, -4, 0)
@@ -577,6 +578,13 @@ local function findConnections(
 			table.insert(rebuilt, connection)
 		end
 		mConnections = rebuilt
+	end
+
+	-- Refine bore spans from the actual mesh: curated primitive spans
+	-- under-cover when parts complete a bore with raw geometry (3713's
+	-- collar), which puts grid-snap stations off along axles.
+	if mesh ~= nil then
+		refineBoreSpans(mesh :: Types.FlatMesh, mConnections)
 	end
 
 	-- Sort for deterministic output.
