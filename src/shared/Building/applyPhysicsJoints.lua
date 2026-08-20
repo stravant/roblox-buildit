@@ -20,25 +20,12 @@
 
 local AssemblyGraph = require(script.Parent.AssemblyGraph)
 
-export type ConstraintInstance = {
-	instance: Constraint,
-	kind: string,
-	part0: BasePart,
-	part1: BasePart,
-}
-
 export type Applied = {
 	folder: Folder,
 	-- Part-level weld pairs (for rigid grouping).
 	weldedPairs: { { BasePart } },
 	-- Part-level articulated pairs (for walking the joint graph).
 	constraintPairs: { { BasePart } },
-	-- The articulated constraint INSTANCES with metadata: runtime
-	-- drives motorize the grabbed group's bearing joint directly
-	-- (empirically, non-rigid aligns cannot move a constrained
-	-- assembly at all - motoring the joint is the reliable,
-	-- IK-like, joint-space way to drive).
-	constraintInstances: { ConstraintInstance },
 	destroy: () -> (),
 }
 
@@ -89,7 +76,6 @@ local function createConstraint(
 	folder: Folder,
 	created: { Instance },
 	constraintPairs: { { BasePart } },
-	constraintInstances: { ConstraintInstance },
 	slideLower: number?,
 	slideUpper: number?
 )
@@ -127,12 +113,6 @@ local function createConstraint(
 	end
 	constraint.Parent = part0
 	table.insert(created, constraint)
-	table.insert(constraintInstances, {
-		instance = constraint,
-		kind = kind,
-		part0 = part0,
-		part1 = part1,
-	})
 end
 
 -- Composite internal joints: pair JointPivot attachments by JointIndex
@@ -141,8 +121,7 @@ local function applyCompositeJoints(
 	unit: Instance,
 	folder: Folder,
 	created: { Instance },
-	constraintPairs: { { BasePart } },
-	constraintInstances: { ConstraintInstance }
+	constraintPairs: { { BasePart } }
 )
 	if not unit:IsA("Model") then
 		return
@@ -191,7 +170,6 @@ local function apply(graph: AssemblyGraph.AssemblyGraph, unitFilter: { [any]: bo
 	local created: { Instance } = {}
 	local weldedPairs: { { BasePart } } = {}
 	local constraintPairs: { { BasePart } } = {}
-	local constraintInstances: { ConstraintInstance } = {}
 
 	local function included(id: any): boolean
 		return unitFilter == nil or unitFilter[id] == true
@@ -233,7 +211,6 @@ local function apply(graph: AssemblyGraph.AssemblyGraph, unitFilter: { [any]: bo
 			folder,
 			created,
 			constraintPairs,
-			constraintInstances,
 			entry.slideLower,
 			entry.slideUpper
 		)
@@ -241,7 +218,7 @@ local function apply(graph: AssemblyGraph.AssemblyGraph, unitFilter: { [any]: bo
 
 	for id in graph.units do
 		if included(id) and typeof(id) == "Instance" then
-			applyCompositeJoints(id :: Instance, folder, created, constraintPairs, constraintInstances)
+			applyCompositeJoints(id :: Instance, folder, created, constraintPairs)
 		end
 	end
 
@@ -276,7 +253,6 @@ local function apply(graph: AssemblyGraph.AssemblyGraph, unitFilter: { [any]: bo
 		folder = folder,
 		weldedPairs = weldedPairs,
 		constraintPairs = constraintPairs,
-		constraintInstances = constraintInstances,
 		destroy = destroy,
 	}
 end

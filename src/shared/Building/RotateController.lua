@@ -230,18 +230,6 @@ function RotateController.start(options: StartOptions?): Controller
 		-- of the next session).
 		mLeftoverJoints = session.joints
 		if kIsRuntime then
-			-- Neutralize the bearing motor: the joint instance persists
-			-- (debug free-run), and a live motor would keep spinning it.
-			local b = session.bearing
-			if b ~= nil then
-				pcall(function()
-					local motor = (b :: any).constraint :: any
-					if (b :: any).kind == "Cylindrical" then
-						motor.AngularActuatorType = Enum.ActuatorType.None
-					end
-					motor.ActuatorType = Enum.ActuatorType.None
-				end)
-			end
 			-- DEBUG (per user): drop the DRIVE (handle + weld, position/
 			-- orientation aligns) but KEEP the antigravity lifts, and
 			-- leave sim parts unanchored and collision-free - the
@@ -772,80 +760,80 @@ function RotateController.start(options: StartOptions?): Controller
 			slide: AlignPosition?,
 		}? = nil
 		if kIsRuntime then
-			local candidates: { applyPhysicsJoints.ConstraintInstance } = {}
-			for _, entry in joints.constraintInstances do
-				if groupOf[entry.part0] == nil or groupOf[entry.part1] == nil then
+			local function mainPartOfUnit(id: any): BasePart?
+				local instance = id :: Instance
+				if instance:IsA("BasePart") then
+					return instance
+				end
+				return instance:FindFirstChildWhichIsA("BasePart", true)
+			end
+			local grabbedJoints: { AssemblyGraph.Constraint } = {}
+			for _, constraint in graph:physicsJoints().constraints do
+				local partA = mainPartOfUnit(constraint.a)
+				local partB = mainPartOfUnit(constraint.b)
+				if
+					partA == nil
+					or partB == nil
+					or groupOf[partA :: BasePart] == nil
+					or groupOf[partB :: BasePart] == nil
+				then
 					continue
 				end
-				local root0 = find(entry.part0)
-				local root1 = find(entry.part1)
-				local grabbed0 = root0 == grabbedRoot
-				local grabbed1 = root1 == grabbedRoot
-				if grabbed0 == grabbed1 then
+				local rootA = find(partA :: BasePart)
+				local rootB = find(partB :: BasePart)
+				local grabbedA = rootA == grabbedRoot
+				local grabbedB = rootB == grabbedRoot
+				if grabbedA == grabbedB then
 					continue -- internal to a group, or unrelated
 				end
-				local otherRoot = if grabbed0 then root1 else root0
-				table.insert(candidates, entry)
+				local otherRoot = if grabbedA then rootB else rootA
+				table.insert(grabbedJoints, constraint)
 				if otherRoot ~= anchoredRoot then
 					-- Only a joint to GROUND gives a static axis to
 					-- steer about: a moving neighbor disqualifies by
 					-- pushing the count past one.
-					table.insert(candidates, entry)
+					table.insert(grabbedJoints, constraint)
 				end
 			end
-			if #candidates == 1 then
-				local entry = candidates[1]
-				local instance = entry.instance :: any
-				local attachment0 = instance.Attachment0 :: Attachment
-				local axis = attachment0.WorldCFrame.XVector
-				local position = attachment0.WorldPosition
-				local radial0 = grabWorldPosition - position
-				radial0 -= axis * radial0:Dot(axis)
-				if
-					(entry.kind == "Hinge" or entry.kind == "Cylindrical")
-					and radial0.Magnitude > 0.3
-				then
-					local startDegrees = 0
-					local startPosition = 0
-					if entry.kind == "Hinge" then
-						startDegrees = instance.CurrentAngle
-						instance.ServoMaxTorque = 1e6
-						instance.AngularSpeed = 25
-						instance.TargetAngle = startDegrees
-						instance.ActuatorType = Enum.ActuatorType.Servo
-					else
-						startDegrees = instance.CurrentAngle
-						startPosition = instance.CurrentPosition
-						instance.ServoMaxAngularTorque = 1e6
-						instance.AngularSpeed = 25
-						instance.TargetAngle = startDegrees
-						instance.AngularActuatorType = Enum.ActuatorType.Servo
-						instance.ServoMaxForce = 1e6
-						instance.Speed = 20
-						instance.TargetPosition = startPosition
-						instance.ActuatorType = Enum.ActuatorType.Servo
+			if #grabbedJoints == 1 then
+				local joint = grabbedJoints[1]
+				if joint.kind == "Hinge" or joint.kind == "Cylindrical" then
+					local radial0 = grabWorldPosition - joint.position
+					radial0 -= joint.axis * radial0:Dot(joint.axis)
+					if radial0.Magnitude > 0.3 then
+						local orientAttachment = Instance.new("Attachment")
+						orientAttachment.Name = "BuildItDrive"
+						orientAttachment.Parent = hitPart
+						local orient = Instance.new("AlignOrientation")
+						orient.Mode = Enum.OrientationAlignmentMode.OneAttachment
+						orient.Attachment0 = orientAttachment
+						orient.RigidityEnabled = false
+						orient.MaxTorque = 1e5
+						orient.Responsiveness = 80
+						orient.CFrame = hitPart.CFrame.Rotation
+						orient.Parent = joints.folder
+						local slide: AlignPosition? = nil
+						if joint.kind == "Cylindrical" then
+							local slideAlign = Instance.new("AlignPosition")
+							slideAlign.Mode = Enum.PositionAlignmentMode.OneAttachment
+							slideAlign.Attachment0 = orientAttachment
+							slideAlign.RigidityEnabled = false
+							slideAlign.MaxForce = 1e4
+							slideAlign.MaxVelocity = 100
+							slideAlign.Responsiveness = 80
+							slideAlign.Position = hitPart.Position
+							slideAlign.Parent = joints.folder
+							slide = slideAlign
+						end
+						bearing = {
+							position = joint.position,
+							axis = joint.axis,
+							radial0 = radial0.Unit,
+							axial0 = (grabWorldPosition - joint.position):Dot(joint.axis),
+							orient = orient,
+							slide = slide,
+						}
 					end
-					bearing = {
-						constraint = entry.instance,
-						kind = entry.kind,
-						position = position,
-						axis = axis,
-						radial0 = radial0.Unit,
-						axial0 = (grabWorldPosition - position):Dot(axis),
-						startDegrees = startDegrees,
-						startPosition = startPosition,
-						reference = hitPart,
-						lastMeasuredRaw = 0,
-						measured = 0,
-						lastTargetRaw = 0,
-						targetAngle = 0,
-						axialMeasureStart = (hitPart.Position - position):Dot(axis),
-						signFactor = nil,
-						calibrationBase = nil,
-						calibrationFrames = 0,
-						linSignFactor = nil,
-						linCalibrationBase = nil,
-					}
 				end
 			end
 		end
@@ -963,84 +951,39 @@ function RotateController.start(options: StartOptions?): Controller
 			local target = part.CFrame.Rotation + planeTarget
 			if kDriveEnabled then
 				if kIsRuntime then
-					local b = session.bearing
-					if b ~= nil then
-						local motor = (b :: any).constraint :: any
-						-- Continuous MEASURED angle of the grabbed part
-						-- about the bearing axis (wrap-accumulated).
-						local original = session.originalCFrames[b.reference]
-						if original ~= nil then
-							local rawMeasured = spinAngle(b.reference, original :: CFrame, b.axis)
-							local wrapMeasured = rawMeasured - b.lastMeasuredRaw
-							if wrapMeasured > math.pi then
-								wrapMeasured -= 2 * math.pi
-							elseif wrapMeasured < -math.pi then
-								wrapMeasured += 2 * math.pi
-							end
-							b.lastMeasuredRaw = rawMeasured
-							b.measured += wrapMeasured
-						end
-						-- Continuous TARGET angle from the cursor.
+					local bearingDrive = session.bearing
+					if bearingDrive ~= nil then
+						-- Convert the cursor to an ANGLE about the
+						-- bearing axis; the orientation target is always
+						-- reachable, so no off-arc fighting.
+						local b = bearingDrive :: {
+							position: Vector3,
+							axis: Vector3,
+							radial0: Vector3,
+							axial0: number,
+							orient: AlignOrientation,
+							slide: AlignPosition?,
+						}
 						local radialTarget = planeTarget - b.position
 						radialTarget -= b.axis * radialTarget:Dot(b.axis)
 						if radialTarget.Magnitude > 1e-3 then
-							local rawTarget = math.atan2(
-								b.radial0:Cross(radialTarget.Unit):Dot(b.axis),
-								b.radial0:Dot(radialTarget.Unit)
+							radialTarget = radialTarget.Unit
+							local angle = math.atan2(
+								b.radial0:Cross(radialTarget):Dot(b.axis),
+								b.radial0:Dot(radialTarget)
 							)
-							local wrapTarget = rawTarget - b.lastTargetRaw
-							if wrapTarget > math.pi then
-								wrapTarget -= 2 * math.pi
-							elseif wrapTarget < -math.pi then
-								wrapTarget += 2 * math.pi
-							end
-							b.lastTargetRaw = rawTarget
-							b.targetAngle += wrapTarget
-						end
-
-						if b.signFactor == nil then
-							-- SIGN CALIBRATION: nudge the servo target a
-							-- few degrees and observe which way OUR
-							-- measured angle moves.
-							if b.calibrationBase == nil then
-								b.calibrationBase = b.measured
-								if b.kind == "Cylindrical" then
-									b.linCalibrationBase = (b.reference.Position - b.position):Dot(b.axis)
+							local original = session.originalCFrames[session.grabbedPart]
+							if original ~= nil then
+								local spin = CFrame.fromAxisAngle(b.axis, angle)
+								b.orient.CFrame = spin * (original :: CFrame).Rotation
+								if b.slide ~= nil then
+									local axialDelta = (planeTarget - b.position):Dot(b.axis) - b.axial0
+									local offset = (original :: CFrame).Position - b.position
+									local slideAlign = b.slide :: AlignPosition
+									slideAlign.Position = b.position
+										+ spin:VectorToWorldSpace(offset)
+										+ b.axis * axialDelta
 								end
-							end
-							motor.TargetAngle = b.startDegrees + 8
-							if b.kind == "Cylindrical" then
-								motor.TargetPosition = b.startPosition + 0.3
-							end
-							b.calibrationFrames += 1
-							local swept = b.measured - (b.calibrationBase :: number)
-							if math.abs(swept) > 0.005 then
-								b.signFactor = if swept > 0 then 1 else -1
-							elseif b.calibrationFrames > 40 then
-								b.signFactor = 1 -- give up guessing
-							end
-							if b.kind == "Cylindrical" and b.linSignFactor == nil then
-								local sweptLinear = (b.reference.Position - b.position):Dot(b.axis)
-									- (b.linCalibrationBase :: number)
-								if math.abs(sweptLinear) > 0.005 then
-									b.linSignFactor = if sweptLinear > 0 then 1 else -1
-								elseif b.calibrationFrames > 40 then
-									b.linSignFactor = 1
-								end
-							end
-						else
-							-- Servo the joint coordinate toward the
-							-- cursor pose - the runtime analog of the IK
-							-- solve. (TargetAngle lives in [-180, 180]:
-							-- more than half a turn from the grab pose
-							-- clamps; regrab to keep cranking.)
-							local targetDegrees = b.startDegrees
-								+ math.deg(b.targetAngle) * (b.signFactor :: number)
-							motor.TargetAngle = math.clamp(targetDegrees, -180, 180)
-							if b.kind == "Cylindrical" and b.linSignFactor ~= nil then
-								local axialTarget = (planeTarget - b.position):Dot(b.axis) - b.axial0
-								motor.TargetPosition = b.startPosition
-									+ axialTarget * (b.linSignFactor :: number)
 							end
 						end
 					elseif session.driveAlign ~= nil then
