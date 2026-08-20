@@ -1,68 +1,83 @@
 --!strict
 
--- Persistence for instruction sets: each set is one StringValue of
--- serialized SetData inside workspace.BuildItSets, so sets save with
--- the place and replicate to players.
+-- Client-side set persistence API. The set editor runs on the client,
+-- so save/load/list broker through the server's DataStore-backed
+-- remote (SetStoreServer: one DataStore key per player holding all of
+-- their sets). When the remote is unavailable (offline module tests),
+-- an in-memory table stands in so the tools still function - with no
+-- persistence.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local SetData = require(script.Parent.SetData)
 
-local kFolderName = "BuildItSets"
+local kRemoteName = "BuildItSetStore"
+local kRemoteTimeout = 5
 
 local SetStore = {}
 
-local function folder(create: boolean): Folder?
-	local existing = workspace:FindFirstChild(kFolderName)
-	if existing ~= nil and existing:IsA("Folder") then
-		return existing
+local mRemote: RemoteFunction? = nil
+local mRemoteResolved = false
+local mLocalFallback: { [string]: string } = {}
+
+local function getRemote(): RemoteFunction?
+	if not mRemoteResolved then
+		mRemoteResolved = true
+		local found = ReplicatedStorage:WaitForChild(kRemoteName, kRemoteTimeout)
+		if found ~= nil and found:IsA("RemoteFunction") then
+			mRemote = found
+		else
+			warn("[BuildIt] set store remote missing; sets will NOT persist")
+		end
 	end
-	if not create then
+	return mRemote
+end
+
+local function invoke(action: string, name: string?, payload: string?): any
+	local remote = getRemote()
+	if remote == nil then
 		return nil
 	end
-	local made = Instance.new("Folder")
-	made.Name = kFolderName
-	made.Parent = workspace
-	return made
+	local ok, result = pcall(function()
+		return (remote :: RemoteFunction):InvokeServer(action, name, payload)
+	end)
+	if not ok then
+		warn(`[BuildIt] set store {action} failed: {result}`)
+		return nil
+	end
+	return result
 end
 
 function SetStore.save(data: SetData.SetData)
-	local container = folder(true) :: Folder
-	local entry = container:FindFirstChild(data.name)
-	if entry == nil or not entry:IsA("StringValue") then
-		if entry ~= nil then
-			entry:Destroy()
-		end
-		local value = Instance.new("StringValue")
-		value.Name = data.name
-		value.Parent = container
-		entry = value
+	local serialized = SetData.serialize(data)
+	if invoke("save", data.name, serialized) == true then
+		return
 	end
-	(entry :: StringValue).Value = SetData.serialize(data)
+	mLocalFallback[data.name] = serialized
 end
 
 function SetStore.load(name: string): SetData.SetData?
-	local container = folder(false)
-	if container == nil then
+	local serialized = invoke("load", name)
+	if type(serialized) ~= "string" then
+		serialized = mLocalFallback[name]
+	end
+	if type(serialized) ~= "string" then
 		return nil
 	end
-	local entry = (container :: Folder):FindFirstChild(name)
-	if entry == nil or not entry:IsA("StringValue") then
-		return nil
-	end
-	return SetData.deserialize((entry :: StringValue).Value)
+	return SetData.deserialize(serialized :: string)
 end
 
 function SetStore.list(): { string }
-	local names = {}
-	local container = folder(false)
-	if container ~= nil then
-		for _, child in (container :: Folder):GetChildren() do
-			if child:IsA("StringValue") then
-				table.insert(names, child.Name)
-			end
-		end
+	local names = invoke("list")
+	if type(names) == "table" then
+		return names :: { string }
 	end
-	table.sort(names)
-	return names
+	local fallbackNames = {}
+	for name in mLocalFallback do
+		table.insert(fallbackNames, name)
+	end
+	table.sort(fallbackNames)
+	return fallbackNames
 end
 
 return SetStore

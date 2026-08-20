@@ -18,6 +18,9 @@
 			"$ignoreUnknownInstances": true,
 			"PartLibraryBootstrap": {
 				"$path": "src/entry/PartLibraryBootstrap.server.lua"
+			},
+			"SetStoreServer": {
+				"$path": "src/entry/SetStoreServer.server.lua"
 			}
 		},
 		"StarterPlayer": {
