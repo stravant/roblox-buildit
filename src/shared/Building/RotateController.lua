@@ -20,6 +20,12 @@ local GuiService = game:GetService("GuiService")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
+-- In a RUNNING game there is no IKMoveTo (that is the Edit-time
+-- dragger solve); physics is live instead, so the handle is pulled by
+-- an AlignPosition and driven gears by AlignOrientations - the same
+-- constraint network does the articulation either way.
+local kIsRuntime = RunService:IsRunning()
+
 local getConnectors = require(script.Parent.getConnectors)
 local AssemblyGraph = require(script.Parent.AssemblyGraph)
 local applyPhysicsJoints = require(script.Parent.applyPhysicsJoints)
@@ -95,6 +101,7 @@ type Session = {
 			-- from CURRENT geometry whenever the bridge (re-)engages.
 			fromSecondaryLocal: Vector3?,
 			toSecondaryLocal: Vector3?,
+			orient: AlignOrientation?,
 		}
 	},
 	reportedDriveError: boolean?,
@@ -715,6 +722,23 @@ function RotateController.start(options: StartOptions?): Controller
 		handleWeld.Part1 = hitPart
 		handleWeld.Parent = joints.folder
 
+		-- Runtime drive: AlignPosition pulls the handle toward the
+		-- cursor plane target; the constraint network articulates the
+		-- rest, exactly like the Edit-time IK solve.
+		local driveAlign: AlignPosition? = nil
+		if kIsRuntime then
+			local driveAttachment = Instance.new("Attachment")
+			driveAttachment.Name = "BuildItDrive"
+			driveAttachment.Parent = handle
+			local align = Instance.new("AlignPosition")
+			align.Mode = Enum.PositionAlignmentMode.OneAttachment
+			align.Attachment0 = driveAttachment
+			align.RigidityEnabled = true
+			align.Position = grabWorldPosition
+			align.Parent = joints.folder
+			driveAlign = align
+		end
+
 		-- Jam state per driven root (for transition messages only).
 		local mLastJammed: { [BasePart]: boolean } = {}
 
@@ -722,6 +746,7 @@ function RotateController.start(options: StartOptions?): Controller
 		local session: Session = {
 			grabbedPart = hitPart,
 			handle = handle,
+			driveAlign = driveAlign,
 			simParts = simParts,
 			anchoredParts = anchoredParts,
 			originalCFrames = originalCFrames,
@@ -771,7 +796,13 @@ function RotateController.start(options: StartOptions?): Controller
 			local part = session.handle
 			local target = part.CFrame.Rotation + planeTarget
 			if kDriveEnabled then
-				ikMoveTo(part, target)
+				if kIsRuntime then
+					if session.driveAlign ~= nil then
+						(session.driveAlign :: AlignPosition).Position = planeTarget
+					end
+				else
+					ikMoveTo(part, target)
+				end
 
 				-- Propagate across the gear bridges off the solved pose:
 				-- each driven gear gets its ratio target and IKMoveTo
@@ -894,7 +925,26 @@ function RotateController.start(options: StartOptions?): Controller
 						local spin = CFrame.new(step.toCenter)
 							* CFrame.fromAxisAngle(step.toAxis, drivenAngle)
 							* CFrame.new(-step.toCenter)
-						ikMoveTo(step.toReference, spin * (toOriginal :: CFrame))
+						local driven = spin * (toOriginal :: CFrame)
+						if kIsRuntime then
+							-- Lazy per-bridge orientation driver.
+							local orient = step.orient
+							if orient == nil then
+								local attachment = Instance.new("Attachment")
+								attachment.Name = "BuildItDrive"
+								attachment.Parent = step.toReference
+								local align = Instance.new("AlignOrientation")
+								align.Mode = Enum.OrientationAlignmentMode.OneAttachment
+								align.Attachment0 = attachment
+								align.RigidityEnabled = true
+								align.Parent = session.joints.folder
+								step.orient = align
+								orient = align
+							end
+							(orient :: AlignOrientation).CFrame = driven.Rotation
+						else
+							ikMoveTo(step.toReference, driven)
+						end
 					end
 				end
 			end

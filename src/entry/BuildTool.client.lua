@@ -23,7 +23,7 @@ local function buildOrigin(): CFrame
 		local part = zone :: BasePart
 		return part.CFrame * CFrame.new(0, part.Size.Y / 2, 0)
 	end
-	return CFrame.new(0, 1, -40)
+	return CFrame.new(0, 4, -40)
 end
 
 local screenGui = Instance.new("ScreenGui")

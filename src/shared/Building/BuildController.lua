@@ -33,14 +33,17 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
 local getConnectors = require(script.Parent.getConnectors)
+local RotateController = require(script.Parent.RotateController)
 local findSnapPlacement = require(script.Parent.findSnapPlacement)
 local AssemblyGraph = require(script.Parent.AssemblyGraph)
 local PartPalette = require(script.Parent.PartPalette)
 
 local kMaxSnapDistance = 1.25
 local kGridSize = 1
--- Virtual ground plane for the no-hit raycast fallback (build zones
--- float above world zero).
+-- Virtual WORK PLANE: builds happen at this height. Ray hits below it
+-- (the scenery baseplate) get promoted onto it, and it catches rays
+-- that hit nothing at all - so initial placements never sink into the
+-- ground, in free build and instructions mode alike.
 local kFallbackPlaneY = 4
 local kRaycastDistance = 500
 -- Spatial query bounds: only connectors near the ghost are tested and
@@ -292,6 +295,10 @@ function BuildController.start(options: StartOptions?): Controller
 	-- Axial grid snap: when ON, axle holes land on one-stud increments
 	-- along axles (and axles in pin holes) instead of sliding freely.
 	local mGridSnap = false
+	-- In-game Rotate tool: while active, build interactions pause and a
+	-- RotateController session handles the mouse (posing mechanisms to
+	-- the orientation you want before building onto them).
+	local mRotateController: { stop: () -> () }? = nil
 	local mModeBar: Frame? = nil
 
 	do
@@ -360,6 +367,38 @@ function BuildController.start(options: StartOptions?): Controller
 			restyleGrid()
 		end)
 		restyleGrid()
+		-- Rotate tool toggle (in-game only; the plugin has a toolbar
+		-- button for the Edit-mode rotate tool).
+		if pluginRef == nil then
+			local rotateButton = Instance.new("TextButton")
+			rotateButton.Name = "RotateTool"
+			rotateButton.Size = UDim2.new(0, 76, 1, 0)
+			rotateButton.Font = Enum.Font.SourceSansBold
+			rotateButton.TextSize = 14
+			rotateButton.BorderSizePixel = 0
+			rotateButton.AutoButtonColor = true
+			rotateButton.Parent = bar
+			local function restyleRotate()
+				local active = mRotateController ~= nil
+				rotateButton.Text = if active then "Rotating" else "Rotate"
+				rotateButton.BackgroundColor3 = if active
+					then Color3.fromRGB(158, 90, 0)
+					else Color3.fromRGB(58, 58, 58)
+				rotateButton.TextColor3 = if active
+					then Color3.fromRGB(255, 255, 255)
+					else Color3.fromRGB(190, 190, 190)
+			end
+			rotateButton.Activated:Connect(function()
+				if mRotateController ~= nil then
+					(mRotateController :: { stop: () -> () }).stop()
+					mRotateController = nil
+				else
+					mRotateController = RotateController.start()
+				end
+				restyleRotate()
+			end)
+			restyleRotate()
+		end
 		restyle()
 		bar.Parent = guiParent
 		mModeBar = bar
@@ -583,17 +622,20 @@ function BuildController.start(options: StartOptions?): Controller
 
 		local hitPoint: Vector3
 		local result = workspace:Raycast(ray.Origin, ray.Direction * kRaycastDistance, params)
-		if result ~= nil then
+		if result ~= nil and result.Position.Y >= kFallbackPlaneY - 1e-3 then
 			hitPoint = result.Position
 		else
-			-- Nothing under the cursor: fall back to a virtual plane at
-			-- kFallbackPlaneY so initial placements rest at build height
-			-- instead of sinking to world zero.
+			-- Nothing under the cursor, or only scenery below the work
+			-- plane: place on the virtual plane at kFallbackPlaneY so
+			-- initial placements rest at build height instead of
+			-- sinking to the ground.
 			local t = if math.abs(ray.Direction.Y) > 1e-4
 				then (kFallbackPlaneY - ray.Origin.Y) / ray.Direction.Y
 				else -1
 			if t > 0 then
 				hitPoint = ray.Origin + ray.Direction * t
+			elseif result ~= nil then
+				hitPoint = result.Position
 			else
 				hitPoint = ray.Origin + ray.Direction * 40
 			end
@@ -747,6 +789,9 @@ function BuildController.start(options: StartOptions?): Controller
 	end
 
 	local function beginDrag(source: PVInstance, isExisting: boolean, grabWorldPosition: Vector3?)
+		if mRotateController ~= nil then
+			return -- the Rotate tool owns the mouse
+		end
 		endDrag(true)
 		beginRecording(if isExisting then "BuildIt: Move part" else "BuildIt: Place part")
 		if isExisting and opts.onPicked ~= nil then
@@ -982,6 +1027,10 @@ function BuildController.start(options: StartOptions?): Controller
 
 	local function stop()
 		endDrag(true)
+		if mRotateController ~= nil then
+			(mRotateController :: { stop: () -> () }).stop()
+			mRotateController = nil
+		end
 		mPickupConnection:Disconnect()
 		if mModeBar ~= nil then
 			(mModeBar :: Frame):Destroy()
