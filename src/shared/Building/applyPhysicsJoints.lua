@@ -10,10 +10,13 @@
 --     (JointType "Hinge") or PrismaticConstraint ("Slider"), likewise
 --     axis-wrapped (JointPivot uses UpVector as the articulation axis).
 --
--- Everything created lives under one folder plus attachments on the
--- parts; destroy() removes all of it, leaving the assembly untouched.
--- Returns the weld PART pairs so callers can compute part-level rigid
--- groups (e.g. to decide what stays anchored while simulating).
+-- Joint instances are parented UNDER their Part0 (named BuildItSim*),
+-- so copying a set of parts into a test place brings their joints
+-- along for repro; session-scoped extras (the drag handle, drive
+-- aligns) live in the returned folder. destroy() removes all of it,
+-- leaving the assembly untouched. Returns the weld PART pairs so
+-- callers can compute part-level rigid groups (e.g. to decide what
+-- stays anchored while simulating).
 
 local AssemblyGraph = require(script.Parent.AssemblyGraph)
 
@@ -91,6 +94,7 @@ local function createConstraint(
 	else
 		constraint = Instance.new("BallSocketConstraint")
 	end
+	constraint.Name = `BuildItSim{kind}`
 	constraint.Attachment0 = attachment0
 	constraint.Attachment1 = attachment1
 	-- Sliding limits (Attachment1's travel along Attachment0's axis;
@@ -107,7 +111,8 @@ local function createConstraint(
 		sliding.LowerLimit = slideLower :: number
 		sliding.UpperLimit = slideUpper :: number
 	end
-	constraint.Parent = folder
+	constraint.Parent = part0
+	table.insert(created, constraint)
 end
 
 -- Composite internal joints: pair JointPivot attachments by JointIndex
@@ -181,9 +186,11 @@ local function apply(graph: AssemblyGraph.AssemblyGraph, unitFilter: { [any]: bo
 			continue
 		end
 		local constraint = Instance.new("WeldConstraint")
+		constraint.Name = "BuildItSimWeld"
 		constraint.Part0 = part0
 		constraint.Part1 = part1
-		constraint.Parent = folder
+		constraint.Parent = part0
+		table.insert(created, constraint)
 		table.insert(weldedPairs, { part0 :: BasePart, part1 :: BasePart })
 	end
 	for _, entry in joints.constraints do
@@ -228,9 +235,11 @@ local function apply(graph: AssemblyGraph.AssemblyGraph, unitFilter: { [any]: bo
 			continue
 		end
 		local noCollision = Instance.new("NoCollisionConstraint")
+		noCollision.Name = "BuildItSimNoCollide"
 		noCollision.Part0 = part0
 		noCollision.Part1 = part1
-		noCollision.Parent = folder
+		noCollision.Parent = part0 :: BasePart
+		table.insert(created, noCollision)
 	end
 
 	local function destroy()

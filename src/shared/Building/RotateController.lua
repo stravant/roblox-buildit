@@ -233,6 +233,11 @@ function RotateController.start(options: StartOptions?): Controller
 			part.AssemblyAngularVelocity = Vector3.zero
 			part.Anchored = true
 		end
+		if session.savedCanCollide ~= nil then
+			for part, canCollide in session.savedCanCollide :: { [BasePart]: boolean } do
+				part.CanCollide = canCollide
+			end
+		end
 		if not commit then
 			for part, cframe in session.originalCFrames do
 				part.CFrame = cframe
@@ -257,6 +262,9 @@ function RotateController.start(options: StartOptions?): Controller
 		end
 		for _, descendant in workspace:GetDescendants() do
 			if descendant:IsA("Attachment") and (descendant.Name == "BuildItJoint" or descendant.Name == "BuildItDrive") then
+				descendant:Destroy()
+			elseif descendant.Name:sub(1, 10) == "BuildItSim" and descendant.Parent ~= nil and descendant.Parent:IsA("BasePart") then
+				-- Joint instances live under their Part0 (copyable repro).
 				descendant:Destroy()
 			end
 		end
@@ -701,6 +709,15 @@ function RotateController.start(options: StartOptions?): Controller
 			recording = ChangeHistoryService:TryBeginRecording("BuildIt: Pose assembly")
 		end
 
+		local savedCanCollide: { [BasePart]: boolean }? = nil
+		if kIsRuntime then
+			local saved: { [BasePart]: boolean } = {}
+			for _, part in simParts do
+				saved[part] = part.CanCollide
+				part.CanCollide = false
+			end
+			savedCanCollide = saved
+		end
 		for _, part in simParts do
 			part.Anchored = false
 		end
@@ -776,6 +793,7 @@ function RotateController.start(options: StartOptions?): Controller
 			grabbedPart = hitPart,
 			handle = handle,
 			driveAlign = driveAlign,
+			savedCanCollide = savedCanCollide,
 			simParts = simParts,
 			anchoredParts = anchoredParts,
 			originalCFrames = originalCFrames,
