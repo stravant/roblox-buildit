@@ -16,7 +16,6 @@
 -- restores.
 
 local ChangeHistoryService = game:GetService("ChangeHistoryService")
-local GuiService = game:GetService("GuiService")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
@@ -196,9 +195,11 @@ function RotateController.start(options: StartOptions?): Controller
 
 	local function mouseRay(): Ray
 		local camera = workspace.CurrentCamera
+		-- GetMouseLocation is VIEWPORT coordinates (inset included):
+		-- pair with ViewportPointToRay directly, no inset subtraction
+		-- (that would aim the ray above the cursor in-game).
 		local mouse = UserInputService:GetMouseLocation()
-		local inset = GuiService:GetGuiInset()
-		return camera:ViewportPointToRay(mouse.X - inset.X, mouse.Y - inset.Y)
+		return camera:ViewportPointToRay(mouse.X, mouse.Y)
 	end
 
 	local function finishRecording(session: Session, commit: boolean)

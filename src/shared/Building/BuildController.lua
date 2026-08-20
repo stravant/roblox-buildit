@@ -531,9 +531,12 @@ function BuildController.start(options: StartOptions?): Controller
 
 	local function mouseRay(): Ray
 		local camera = workspace.CurrentCamera
+		-- GetMouseLocation is VIEWPORT coordinates (inset included), so
+		-- it pairs with ViewportPointToRay directly - subtracting the
+		-- inset here would aim the ray ~58px above the cursor in-game
+		-- (Edit mode has no inset, which hid the mistake).
 		local mouse = UserInputService:GetMouseLocation()
-		local inset = GuiService:GetGuiInset()
-		return camera:ViewportPointToRay(mouse.X - inset.X, mouse.Y - inset.Y)
+		return camera:ViewportPointToRay(mouse.X, mouse.Y)
 	end
 
 	-- Lift the move group into the drag: every unit in `moving` (except
