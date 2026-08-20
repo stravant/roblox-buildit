@@ -784,10 +784,13 @@ function RotateController.start(options: StartOptions?): Controller
 			align.Mode = Enum.PositionAlignmentMode.OneAttachment
 			align.Attachment0 = driveAttachment
 			align.RigidityEnabled = false
-			-- Generous force + high responsiveness: snappy like the
-			-- Edit-mode IK, but still finite so the joints win when the
-			-- cursor leaves the reachable arc.
-			align.MaxForce = math.max(totalMass, 1) * workspace.Gravity * 100
+			-- LIGHT pull: the assembly is weightless (per-part lifts),
+			-- so only a couple g of acceleration budget is needed to
+			-- feel snappy - and light is the point. The cursor target is
+			-- almost always off the reachable arc; a strong align
+			-- presses the joints hard and finite solver stiffness turns
+			-- that into stiction ("sticky as soon as I'm off the arc").
+			align.MaxForce = math.max(totalMass, 1) * 400
 			align.MaxVelocity = 100
 			align.Responsiveness = 80
 			align.Position = grabWorldPosition
