@@ -724,16 +724,42 @@ function RotateController.start(options: StartOptions?): Controller
 
 		-- Runtime drive: AlignPosition pulls the handle toward the
 		-- cursor plane target; the constraint network articulates the
-		-- rest, exactly like the Edit-time IK solve.
+		-- rest, exactly like the Edit-time IK solve. The align must be
+		-- FORCE-LIMITED: a rigid align applies whatever force reaches
+		-- the target, and the cursor is almost always off the
+		-- mechanism's reachable arc, so unlimited force visibly drags
+		-- the joints out of alignment (the runtime analog of the Edit
+		-- stiffness-1.0 explosion). Mass-scaled finite force lets the
+		-- hard joints always win. Sim parts also get per-part gravity
+		-- compensation: this is a POSING tool, and fighting droop with
+		-- drive force is another alignment-error source.
 		local driveAlign: AlignPosition? = nil
 		if kIsRuntime then
+			local totalMass = 0
+			for _, part in simParts do
+				totalMass += part.Mass
+				if part.Mass > 0 then
+					local liftAttachment = Instance.new("Attachment")
+					liftAttachment.Name = "BuildItDrive"
+					liftAttachment.Parent = part
+					local lift = Instance.new("VectorForce")
+					lift.Attachment0 = liftAttachment
+					lift.RelativeTo = Enum.ActuatorRelativeTo.World
+					lift.ApplyAtCenterOfMass = true
+					lift.Force = Vector3.new(0, part.Mass * workspace.Gravity, 0)
+					lift.Parent = joints.folder
+				end
+			end
 			local driveAttachment = Instance.new("Attachment")
 			driveAttachment.Name = "BuildItDrive"
 			driveAttachment.Parent = handle
 			local align = Instance.new("AlignPosition")
 			align.Mode = Enum.PositionAlignmentMode.OneAttachment
 			align.Attachment0 = driveAttachment
-			align.RigidityEnabled = true
+			align.RigidityEnabled = false
+			align.MaxForce = math.max(totalMass, 1) * workspace.Gravity * 20
+			align.MaxVelocity = 40
+			align.Responsiveness = 35
 			align.Position = grabWorldPosition
 			align.Parent = joints.folder
 			driveAlign = align
