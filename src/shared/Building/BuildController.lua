@@ -589,28 +589,37 @@ function BuildController.start(options: StartOptions?): Controller
 		end
 
 		local rotation = state.orientation * state.baseRotation
-		-- Rest the rotated bounding box on the hit point, keeping the
-		-- grabbed point under the cursor horizontally (the grab point is
-		-- the drag handle).
 		local size = unitExtents(state.ghost)
+		local rotatedGrab = rotation:VectorToWorldSpace(state.grabLocal)
+		-- SNAP pose: the grabbed point follows the cursor in ALL THREE
+		-- axes - the cursor expresses where the user wants the grabbed
+		-- spot to go, so mate candidates are measured from there. (The
+		-- rested pose below would float a large unit's connectors half
+		-- its bounding box above the surface under the cursor - a 24t
+		-- gear's bore ends up ~1.8 studs off an axle the cursor is
+		-- pointing straight at, outside the snap radius.)
+		local snapBaseCFrame = rotation + (hitPoint - rotatedGrab)
+		local grabWorldPosition = hitPoint
+
+		-- DISPLAY pose when nothing snaps: rest the rotated bounding box
+		-- on the hit point, keeping the grabbed point under the cursor
+		-- horizontally (natural for dropping bricks onto surfaces).
 		local halfHeight = 0.5 * (
 			math.abs(rotation.XVector.Y) * size.X
 			+ math.abs(rotation.YVector.Y) * size.Y
 			+ math.abs(rotation.ZVector.Y) * size.Z
 		)
-		local rotatedGrab = rotation:VectorToWorldSpace(state.grabLocal)
-		local baseCFrame = rotation + Vector3.new(
+		local restedCFrame = rotation + Vector3.new(
 			hitPoint.X - rotatedGrab.X,
 			hitPoint.Y + halfHeight,
 			hitPoint.Z - rotatedGrab.Z
 		)
-		local grabWorldPosition = baseCFrame:PointToWorldSpace(state.grabLocal)
 
 		-- Spatial query: only connectors near the ghost participate in
 		-- snapping and get markers.
 		state.overlapParams.FilterDescendantsInstances = filterList
 		local queryRadius = size.Magnitude / 2 + kSnapQueryPadding
-		local nearbyParts = workspace:GetPartBoundsInRadius(baseCFrame.Position, queryRadius, state.overlapParams)
+		local nearbyParts = workspace:GetPartBoundsInRadius(snapBaseCFrame.Position, queryRadius, state.overlapParams)
 
 		local worldConnectors: { WorldConnector } = {}
 		local localPositions: { Vector3 } = {}
@@ -640,7 +649,7 @@ function BuildController.start(options: StartOptions?): Controller
 		end
 
 		local snap = findSnapPlacement(
-			baseCFrame,
+			snapBaseCFrame,
 			state.ghostConnectors :: any,
 			worldConnectors,
 			kMaxSnapDistance,
@@ -652,7 +661,7 @@ function BuildController.start(options: StartOptions?): Controller
 		if snap ~= nil then
 			targetPivot = snap.cframe
 		else
-			local position = baseCFrame.Position
+			local position = restedCFrame.Position
 			targetPivot = rotation + Vector3.new(
 				math.round(position.X / kGridSize) * kGridSize,
 				position.Y,
