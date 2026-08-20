@@ -718,6 +718,14 @@ function RotateController.start(options: StartOptions?): Controller
 			end
 			savedCanCollide = saved
 		end
+		if kIsRuntime then
+			-- DEBUG (per user): every assembly part goes collision-free
+			-- so only the constraints shape the motion. Not restored -
+			-- observing the constraint network in isolation.
+			for _, part in parts do
+				part.CanCollide = false
+			end
+		end
 		for _, part in simParts do
 			part.Anchored = false
 		end
