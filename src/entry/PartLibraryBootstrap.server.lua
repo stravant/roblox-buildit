@@ -96,6 +96,9 @@ task.spawn(function()
 			failed += 1
 			warn(`[BuildIt] import failed for {partNumber}: {if ok then errorMessage else unit}`)
 		end
+		if index % 10 == 0 then
+			print(`[BuildIt] part library rebuild: {index}/{#kTestSet}`)
+		end
 		-- Background pacing: a frame between parts keeps startup smooth.
 		task.wait()
 	end

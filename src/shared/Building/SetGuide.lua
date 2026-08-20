@@ -93,6 +93,62 @@ function SetGuide.nextStep(
 	return pendingAttach
 end
 
+-- A bag's entries group into numbered INSTRUCTION STEPS at "step"
+-- markers: each step places multiple parts, order-free within the
+-- step; the follower finishes a step before the next one's hints
+-- appear. No markers = the whole bag is one step.
+function SetGuide.stepRuns(
+	steps: { SetData.Step },
+	first: number,
+	last: number
+): { { first: number, last: number } }
+	local runs: { { first: number, last: number } } = {}
+	local runFirst = first
+	for index = first, last do
+		local step = steps[index]
+		if step ~= nil and step.kind == "step" and index > runFirst then
+			table.insert(runs, { first = runFirst, last = index - 1 })
+			runFirst = index
+		end
+	end
+	table.insert(runs, { first = runFirst, last = last })
+	return runs
+end
+
+-- The earliest instruction step still containing pending work:
+-- (first, last, ordinal, count) or nil when the whole range is done.
+function SetGuide.currentRun(
+	steps: { SetData.Step },
+	done: { [number]: boolean },
+	first: number,
+	last: number
+): (number?, number?, number?, number?)
+	local runs = SetGuide.stepRuns(steps, first, last)
+	for ordinal, run in runs do
+		if not SetGuide.rangeComplete(steps, done, run.first, run.last) then
+			return run.first, run.last, ordinal, #runs
+		end
+	end
+	return nil, nil, nil, nil
+end
+
+-- All pending place entries in a range (the current step's hints).
+function SetGuide.pendingPlaces(
+	steps: { SetData.Step },
+	done: { [number]: boolean },
+	first: number,
+	last: number
+): { number }
+	local pending = {}
+	for index = first, last do
+		local step = steps[index]
+		if step ~= nil and step.kind == "place" and not done[index] then
+			table.insert(pending, index)
+		end
+	end
+	return pending
+end
+
 -- True when every place/attach step in the range is done (bag drained).
 function SetGuide.rangeComplete(
 	steps: { SetData.Step },

@@ -236,6 +236,10 @@ function SetEditorController.start(options: StartOptions): Controller
 			insertStep({ kind = "bag" })
 			refreshUi()
 		end,
+		onAddStep = function()
+			insertStep({ kind = "step" })
+			refreshUi()
+		end,
 		onAddSubbuild = function()
 			local id = SetData.nextSubbuildId(data.steps)
 			insertStep({ kind = "subbuild", id = id })

@@ -5,6 +5,9 @@
 --
 --   bag      - start a new bag (a pile of parts drawn down to empty
 --              before the next bag begins)
+--   step     - start a new numbered instruction step within the bag: a
+--              step places MULTIPLE parts, and the author advances
+--              explicitly (NEXT STEP), not after each placement
 --   subbuild - open a sub-build: an isolated target assembled on its
 --              own platform, later attached to the main build
 --   place    - place one part (partNumber + color + pose relative to
@@ -17,7 +20,7 @@
 
 local HttpService = game:GetService("HttpService")
 
-export type StepKind = "bag" | "subbuild" | "place" | "attach"
+export type StepKind = "bag" | "step" | "subbuild" | "place" | "attach"
 
 export type Step = {
 	kind: StepKind,

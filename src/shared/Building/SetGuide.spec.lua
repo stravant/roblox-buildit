@@ -74,6 +74,43 @@ return function(t: TestTypes.TestContext)
 		t.expect(SetGuide.nextStep(steps, { [3] = true, [4] = true, [5] = true }, 1, 5)).toBe(nil)
 	end)
 
+	t.test("step markers split a bag into instruction steps", function()
+		local steps: { SetData.Step } = {
+			{ kind = "bag" }, -- 1
+			place("3001", 0), -- 2
+			place("3020", 2), -- 3
+			{ kind = "step" }, -- 4
+			place("3001", 4), -- 5
+		}
+		local runs = SetGuide.stepRuns(steps, 1, 5)
+		t.expect(#runs).toBe(2)
+		t.expect(runs[1].first).toBe(1)
+		t.expect(runs[1].last).toBe(3)
+		t.expect(runs[2].first).toBe(4)
+		t.expect(runs[2].last).toBe(5)
+
+		-- Current run: first with pending work; advances when drained.
+		local first, last, ordinal, count = SetGuide.currentRun(steps, {}, 1, 5)
+		t.expect(first).toBe(1)
+		t.expect(last).toBe(3)
+		t.expect(ordinal).toBe(1)
+		t.expect(count).toBe(2)
+		first, last, ordinal = SetGuide.currentRun(steps, { [2] = true, [3] = true }, 1, 5)
+		t.expect(first).toBe(4)
+		t.expect(ordinal).toBe(2)
+		t.expect(SetGuide.currentRun(steps, { [2] = true, [3] = true, [5] = true }, 1, 5)).toBe(nil)
+
+		-- All pending places of the current step, for the hint ghosts.
+		local pending = SetGuide.pendingPlaces(steps, { [2] = true }, 1, 3)
+		t.expect(#pending).toBe(1)
+		t.expect(pending[1]).toBe(3)
+
+		-- No markers: the whole bag is one step.
+		local flat: { SetData.Step } = { { kind = "bag" }, place("3001", 0) }
+		local flatRuns = SetGuide.stepRuns(flat, 1, 2)
+		t.expect(#flatRuns).toBe(1)
+	end)
+
 	t.test("rangeComplete requires every place and attach done", function()
 		local steps: { SetData.Step } = {
 			{ kind = "bag" },

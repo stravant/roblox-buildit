@@ -18,6 +18,7 @@ local kBagCellWidth = 34
 export type Callbacks = {
 	onScrub: (cursor: number) -> (),
 	onAddBag: () -> (),
+	onAddStep: () -> (),
 	onAddSubbuild: () -> (),
 	onDelete: () -> (),
 	onSave: () -> (),
@@ -62,6 +63,7 @@ function Sequencer.create(parent: Instance, setName: string, callbacks: Callback
 	local endButton = addButton(">|", 28, function() end)
 	x += 8
 	addButton("+ BAG", 56, callbacks.onAddBag)
+	addButton("NEXT STEP", 84, callbacks.onAddStep)
 	addButton("+ SUB-BUILD", 96, callbacks.onAddSubbuild)
 	addButton("DELETE", 64, callbacks.onDelete)
 	x += 8
@@ -95,6 +97,8 @@ function Sequencer.create(parent: Instance, setName: string, callbacks: Callback
 	local function cellColor(step: SetData.Step): Color3
 		if step.kind == "bag" then
 			return FlatUI.kBackground
+		elseif step.kind == "step" then
+			return FlatUI.kCell
 		elseif step.kind == "subbuild" or step.kind == "attach" then
 			return FlatUI.kAccent
 		end
@@ -126,13 +130,19 @@ function Sequencer.create(parent: Instance, setName: string, callbacks: Callback
 		cellX += 8 + kCellGap
 
 		local bagNumber = 0
+		local stepNumber = 0
 		for index, step in mSteps do
 			local width = kCellSize
 			local text = ""
 			if step.kind == "bag" then
 				bagNumber += 1
+				stepNumber = 0
 				width = kBagCellWidth
 				text = `B{bagNumber}`
+			elseif step.kind == "step" then
+				stepNumber += 1
+				width = kBagCellWidth
+				text = `S{stepNumber + 1}`
 			elseif step.kind == "subbuild" then
 				width = kBagCellWidth
 				text = "SUB"
@@ -149,7 +159,9 @@ function Sequencer.create(parent: Instance, setName: string, callbacks: Callback
 			cell.BorderSizePixel = if index == mCursor then 2 else 0
 			cell.BorderColor3 = FlatUI.kText
 			cell.Text = text
-			cell.TextColor3 = if step.kind == "bag" then FlatUI.kText else FlatUI.kBackground
+			cell.TextColor3 = if step.kind == "bag" or step.kind == "step"
+				then FlatUI.kText
+				else FlatUI.kBackground
 			cell.Font = FlatUI.kFontBold
 			cell.TextSize = 12
 			local stepIndex = index

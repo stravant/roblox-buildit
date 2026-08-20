@@ -16,6 +16,7 @@ return function(t: TestTypes.TestContext)
 				scrubbed = cursor
 			end,
 			onAddBag = function() end,
+			onAddStep = function() end,
 			onAddSubbuild = function() end,
 			onDelete = function() end,
 			onSave = function() end,
@@ -30,6 +31,7 @@ return function(t: TestTypes.TestContext)
 				partNumber = "3001",
 				cframe = SetData.packCFrame(CFrame.identity),
 			},
+			{ kind = "step" },
 			{ kind = "subbuild", id = "sub1" },
 			{ kind = "attach", id = "sub1", cframe = SetData.packCFrame(CFrame.identity) },
 		}
@@ -45,10 +47,11 @@ return function(t: TestTypes.TestContext)
 				cells += 1
 			end
 		end
-		t.expect(cells).toBe(5)
+		t.expect(cells).toBe(6)
 		t.expect((strip:FindFirstChild("Cell1") :: TextButton).Text).toBe("B1")
-		t.expect((strip:FindFirstChild("Cell3") :: TextButton).Text).toBe("SUB")
-		t.expect((strip:FindFirstChild("Cell4") :: TextButton).Text).toBe("ATT")
+		t.expect((strip:FindFirstChild("Cell3") :: TextButton).Text).toBe("S2")
+		t.expect((strip:FindFirstChild("Cell4") :: TextButton).Text).toBe("SUB")
+		t.expect((strip:FindFirstChild("Cell5") :: TextButton).Text).toBe("ATT")
 
 		sequencer.destroy()
 		t.expect(parent:FindFirstChild("Sequencer")).toBe(nil)

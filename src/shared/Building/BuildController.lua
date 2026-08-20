@@ -39,6 +39,9 @@ local PartPalette = require(script.Parent.PartPalette)
 
 local kMaxSnapDistance = 1.25
 local kGridSize = 1
+-- Virtual ground plane for the no-hit raycast fallback (build zones
+-- float above world zero).
+local kFallbackPlaneY = 4
 local kRaycastDistance = 500
 -- Spatial query bounds: only connectors near the ghost are tested and
 -- shown (a large imported set makes global scans O(n) per frame).
@@ -582,10 +585,18 @@ function BuildController.start(options: StartOptions?): Controller
 		local result = workspace:Raycast(ray.Origin, ray.Direction * kRaycastDistance, params)
 		if result ~= nil then
 			hitPoint = result.Position
-		elseif ray.Direction.Y < -1e-4 then
-			hitPoint = ray.Origin + ray.Direction * (-ray.Origin.Y / ray.Direction.Y)
 		else
-			hitPoint = ray.Origin + ray.Direction * 40
+			-- Nothing under the cursor: fall back to a virtual plane at
+			-- kFallbackPlaneY so initial placements rest at build height
+			-- instead of sinking to world zero.
+			local t = if math.abs(ray.Direction.Y) > 1e-4
+				then (kFallbackPlaneY - ray.Origin.Y) / ray.Direction.Y
+				else -1
+			if t > 0 then
+				hitPoint = ray.Origin + ray.Direction * t
+			else
+				hitPoint = ray.Origin + ray.Direction * 40
+			end
 		end
 
 		local rotation = state.orientation * state.baseRotation

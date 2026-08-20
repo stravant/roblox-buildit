@@ -96,7 +96,7 @@ function SetPlayerController.start(options: StartOptions): Controller
 	local mBagIndex = 0
 	local mDone: { [number]: boolean } = {}
 	local mPile: { PileEntry } = {}
-	local mHint: PVInstance? = nil
+	local mHints: { PVInstance } = {}
 	local mComplete = false
 
 	local mConnections: { RBXScriptConnection } = {}
@@ -112,6 +112,18 @@ function SetPlayerController.start(options: StartOptions): Controller
 		return range.first, range.last
 	end
 
+	-- The current INSTRUCTION STEP within the bag: multiple parts per
+	-- step, guided together; the next step's hints appear only once
+	-- this one is complete. (No step markers = the whole bag.)
+	local function currentRunRange(): (number, number, number, number)
+		local first, last = currentBagRange()
+		local runFirst, runLast, ordinal, count = SetGuide.currentRun(steps, mDone, first, last)
+		if runFirst == nil then
+			return first, last, 1, 1
+		end
+		return runFirst :: number, runLast :: number, ordinal :: number, count :: number
+	end
+
 	local function targetWorldPose(index: number): CFrame
 		local step = steps[index]
 		if step.kind == "attach" then
@@ -122,10 +134,10 @@ function SetPlayerController.start(options: StartOptions): Controller
 	end
 
 	local function clearHint()
-		if mHint ~= nil then
-			(mHint :: PVInstance):Destroy()
-			mHint = nil
+		for _, hint in mHints do
+			hint:Destroy()
 		end
+		table.clear(mHints)
 	end
 
 	local function partName(partNumber: string): string
@@ -138,35 +150,46 @@ function SetPlayerController.start(options: StartOptions): Controller
 		if mComplete or mBagIndex == 0 then
 			return
 		end
-		local first, last = currentBagRange()
-		local nextIndex = SetGuide.nextStep(steps, mDone, first, last)
-		if nextIndex == nil then
-			hintLabel.Text = ""
+		local runFirst, runLast = currentRunRange()
+		local pending = SetGuide.pendingPlaces(steps, mDone, runFirst, runLast)
+		if #pending == 0 then
+			local nextIndex = SetGuide.nextStep(steps, mDone, runFirst, runLast)
+			if nextIndex ~= nil and steps[nextIndex :: number].kind == "attach" then
+				hintLabel.Text = "Attach the sub-build to the build"
+			else
+				hintLabel.Text = ""
+			end
 			return
 		end
-		local step = steps[nextIndex :: number]
-		if step.kind == "attach" then
-			hintLabel.Text = "Attach the sub-build to the build"
-			return
+		-- Hint ghosts for EVERY pending part of the current step.
+		local names: { [string]: boolean } = {}
+		for _, index in pending do
+			local step = steps[index]
+			names[partName(step.partNumber :: string)] = true
+			local template = SetRig.findTemplate(templatesFolder, step.partNumber :: string)
+			if template == nil then
+				continue
+			end
+			local hint = (template :: PVInstance):Clone()
+			forEachPart(hint, function(part)
+				part.Anchored = true
+				part.CanCollide = false
+				part.CanQuery = false
+				part.CanTouch = false
+				part.CastShadow = false
+				part.Color = FlatUI.kAccent
+				part.Transparency = kHintTransparency
+			end)
+			hint:PivotTo(targetWorldPose(index))
+			hint.Parent = rig.container
+			table.insert(mHints, hint)
 		end
-		hintLabel.Text = `Place: {partName(step.partNumber :: string)}`
-		local template = SetRig.findTemplate(templatesFolder, step.partNumber :: string)
-		if template == nil then
-			return
+		local nameList = {}
+		for name in names do
+			table.insert(nameList, name)
 		end
-		local hint = (template :: PVInstance):Clone()
-		forEachPart(hint, function(part)
-			part.Anchored = true
-			part.CanCollide = false
-			part.CanQuery = false
-			part.CanTouch = false
-			part.CastShadow = false
-			part.Color = FlatUI.kAccent
-			part.Transparency = kHintTransparency
-		end)
-		hint:PivotTo(targetWorldPose(nextIndex :: number))
-		hint.Parent = rig.container
-		mHint = hint
+		table.sort(nameList)
+		hintLabel.Text = `Place: {table.concat(nameList, ", ")}`
 	end
 
 	local function refreshProgress()
@@ -175,10 +198,10 @@ function SetPlayerController.start(options: StartOptions): Controller
 			hintLabel.Text = ""
 			return
 		end
-		local first, last = currentBagRange()
+		local runFirst, runLast, ordinal, runCount = currentRunRange()
 		local total = 0
 		local doneCount = 0
-		for index = first, last do
+		for index = runFirst, runLast do
 			local step = steps[index]
 			if step.kind == "place" or step.kind == "attach" then
 				total += 1
@@ -187,7 +210,8 @@ function SetPlayerController.start(options: StartOptions): Controller
 				end
 			end
 		end
-		progressLabel.Text = `Bag {mBagIndex}/{#bags} · {doneCount}/{total} steps`
+		progressLabel.Text =
+			`Bag {mBagIndex}/{#bags} · Step {ordinal}/{runCount} · {doneCount}/{total} parts`
 	end
 
 	local function spawnPile()
@@ -278,8 +302,8 @@ function SetPlayerController.start(options: StartOptions): Controller
 		if mComplete or mBagIndex == 0 then
 			return nil, nil
 		end
-		local first, last = currentBagRange()
-		local nextIndex = SetGuide.nextStep(steps, mDone, first, last)
+		local runFirst, runLast = currentRunRange()
+		local nextIndex = SetGuide.nextStep(steps, mDone, runFirst, runLast)
 		if nextIndex == nil or steps[nextIndex :: number].kind ~= "attach" then
 			return nil, nil
 		end
@@ -318,8 +342,8 @@ function SetPlayerController.start(options: StartOptions): Controller
 		if mDragAttach ~= nil then
 			local id = mDragAttach :: string
 			local root = rig.subbuildRoots[id]
-			local first, last = currentBagRange()
-			local attachIndex = SetGuide.nextStep(steps, mDone, first, last)
+			local runFirst, runLast = currentRunRange()
+			local attachIndex = SetGuide.nextStep(steps, mDone, runFirst, runLast)
 			if root == nil or attachIndex == nil then
 				return
 			end
@@ -338,12 +362,12 @@ function SetPlayerController.start(options: StartOptions): Controller
 		if entry == nil then
 			return
 		end
-		local first, last = currentBagRange()
+		local runFirst, runLast = currentRunRange()
 		local candidates = SetGuide.matchingSteps(
 			steps,
 			mDone,
-			first,
-			last,
+			runFirst,
+			runLast,
 			(entry :: PileEntry).partNumber,
 			(entry :: PileEntry).color
 		)
