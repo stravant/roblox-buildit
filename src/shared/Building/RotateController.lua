@@ -483,34 +483,18 @@ function RotateController.start(options: StartOptions?): Controller
 		do
 			local meshes = graph:gearMeshes()
 			-- Discovery may include POTENTIAL meshes (within sliding
-			-- range but not currently aligned): process aligned meshes
-			-- first in the BFS so a dormant bridge never claims a gear
-			-- that a live bridge could drive, and start dormant steps
-			-- disengaged (the per-frame gate wakes them).
+			-- range but not currently aligned): dormant steps start
+			-- disengaged and the per-frame gate wakes them.
 			local meshAligned: { [any]: boolean } = {}
-			if #meshes > 0 then
-				table.sort(meshes, function(lhs, rhs)
-					local function alignedNow(mesh): boolean
-						local cached = meshAligned[mesh]
-						if cached == nil then
-							cached = AssemblyGraph.gearsAligned(
-								mesh.centerA,
-								mesh.axisA,
-								mesh.teethA,
-								mesh.centerB,
-								mesh.axisB,
-								mesh.teethB
-							)
-							meshAligned[mesh] = cached
-						end
-						return cached :: boolean
-					end
-					local lhsAligned = alignedNow(lhs)
-					if lhsAligned ~= alignedNow(rhs) then
-						return lhsAligned
-					end
-					return false
-				end)
+			for _, mesh in meshes do
+				meshAligned[mesh] = AssemblyGraph.gearsAligned(
+					mesh.centerA,
+					mesh.axisA,
+					mesh.teethA,
+					mesh.centerB,
+					mesh.axisB,
+					mesh.teethB
+				)
 			end
 			if #meshes > 0 then
 				local function unitMainPart(id: any): BasePart?
@@ -607,39 +591,68 @@ function RotateController.start(options: StartOptions?): Controller
 				local driven: { [BasePart]: boolean } = { [grabbedRoot] = true }
 				local depth: { [BasePart]: number } = { [grabbedRoot] = 0 }
 				local usedMesh: { [any]: boolean } = {}
-				local frontier = { grabbedRoot }
-				local round = 0
-				while #frontier > 0 do
-					round += 1
-					local nextFrontier = {}
+
+				-- Does this unused mesh cross from a reached group to an
+				-- unreached one? Returns the orientation and parts if so.
+				local function crossing(mesh): (boolean?, BasePart?, BasePart?)
+					local partA, partB = resolveMesh(mesh)
+					if partA == nil or partB == nil then
+						return nil, nil, nil
+					end
+					local rootA = find(partA :: BasePart)
+					local rootB = find(partB :: BasePart)
+					if rootA == rootB then
+						return nil, nil, nil -- welded together (same axle)
+					end
+					local forward = driven[rootA] == true and driven[rootB] ~= true
+					local backward = driven[rootB] == true and driven[rootA] ~= true
+					if not forward and not backward then
+						return nil, nil, nil
+					end
+					local toRoot = if forward then rootB else rootA
+					if toRoot == anchoredRoot then
+						return nil, nil, nil -- never drive the ground
+					end
+					return forward, partA, partB
+				end
+
+				local function findCrossing(requireAligned: boolean): (any?, boolean?, BasePart?, BasePart?)
 					for _, mesh in meshes do
-						local partA, partB = resolveMesh(mesh)
-						if partA == nil or partB == nil then
+						if usedMesh[mesh] then
 							continue
 						end
-						local rootA = find(partA :: BasePart)
-						local rootB = find(partB :: BasePart)
-						if rootA == rootB then
-							continue -- welded together (same axle): no gearing
+						if requireAligned and meshAligned[mesh] ~= true then
+							continue
 						end
-						for _, current in frontier do
-							local forward = rootA == current and not driven[rootB]
-							local backward = rootB == current and not driven[rootA]
-							if not forward and not backward then
-								continue
-							end
-							local toRoot = if forward then rootB else rootA
-							if toRoot == anchoredRoot then
-								continue -- never drive the ground
-							end
-							driven[toRoot] = true
-							depth[toRoot] = round
-							usedMesh[mesh] = true
-							table.insert(nextFrontier, toRoot)
-							buildStep(mesh, forward, partA :: BasePart, partB :: BasePart, false)
+						local forward, partA, partB = crossing(mesh)
+						if forward ~= nil then
+							return mesh, forward, partA, partB
 						end
 					end
-					frontier = nextFrontier
+					return nil, nil, nil, nil
+				end
+
+				-- Grow the drive tree one bridge at a time, ALWAYS taking
+				-- an aligned crossing anywhere before falling back to a
+				-- dormant one. A dormant mesh straight to a nearby group
+				-- must not claim it at a shallow depth and shut out the
+				-- multi-hop aligned path that actually drives it right now
+				-- (two 40t gears a pitch-sum apart but axially offset
+				-- would otherwise steal the root from the live 8t chain).
+				while true do
+					local mesh, forward, partA, partB = findCrossing(true)
+					if mesh == nil then
+						mesh, forward, partA, partB = findCrossing(false)
+					end
+					if mesh == nil then
+						break
+					end
+					local fromRoot = find(if forward == true then partA :: BasePart else partB :: BasePart)
+					local toRoot = find(if forward == true then partB :: BasePart else partA :: BasePart)
+					driven[toRoot] = true
+					depth[toRoot] = (depth[fromRoot] or 0) + 1
+					usedMesh[mesh :: any] = true
+					buildStep(mesh :: any, forward == true, partA :: BasePart, partB :: BasePart, false)
 				end
 
 				-- ALTERNATE bridges: unused meshes whose two groups the
