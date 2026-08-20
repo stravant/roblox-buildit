@@ -19,10 +19,10 @@ local ChangeHistoryService = game:GetService("ChangeHistoryService")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
--- In a RUNNING game there is no IKMoveTo (that is the Edit-time
--- dragger solve); physics is live instead, so the handle is pulled by
--- an AlignPosition and driven gears by AlignOrientations - the same
--- constraint network does the articulation either way.
+-- In a RUNNING game there is no IKMoveTo (plugin security; that is
+-- the Edit-time dragger solve). Physics is live instead, so the drive
+-- is a hand-rolled spring force at the grab point and rotational
+-- springs on gear bridges - see the tuning constants below.
 local kIsRuntime = RunService:IsRunning()
 
 local getConnectors = require(script.Parent.getConnectors)
@@ -40,6 +40,15 @@ local kRotateStiffness = 0.5
 -- Debug toggle: with the drive off, sessions only build joints for
 -- inspection and nothing moves.
 local kDriveEnabled = true
+-- Runtime spring drive tuning (validated on a hinged-lever rig):
+-- F = min(kSpringGain * error, kSpringMax) * assemblyMass at the grab
+-- point; gear bridges get a rotational spring; a mild velocity drag
+-- of our own replaces the engine movers' problematic critical damper.
+local kSpringGain = 300 -- per stud of error, per unit mass
+local kSpringMax = 800 -- force cap per unit mass
+local kDriveDrag = 12 -- 1/s
+local kGearTorqueGain = 1e4
+local kGearTorqueMax = 2e5
 
 type Session = {
 	grabbedPart: BasePart,
@@ -100,10 +109,14 @@ type Session = {
 			-- from CURRENT geometry whenever the bridge (re-)engages.
 			fromSecondaryLocal: Vector3?,
 			toSecondaryLocal: Vector3?,
-			orient: AlignOrientation?,
+			torque: Torque?,
 		}
 	},
 	reportedDriveError: boolean?,
+	-- Runtime spring drive (see beginSession): force instance at the
+	-- grab point plus the assembly mass its cap scales by.
+	driveForce: VectorForce?,
+	totalMass: number,
 	joints: applyPhysicsJoints.Applied,
 	planeOrigin: Vector3,
 	planeNormal: Vector3,
@@ -238,7 +251,7 @@ function RotateController.start(options: StartOptions?): Controller
 			-- else. (Lifts die with the folder at the next session's
 			-- leftover sweep.)
 			for _, child in session.joints.folder:GetChildren() do
-				if not child:IsA("VectorForce") then
+				if not (child:IsA("VectorForce") and child.Name == "BuildItLift") then
 					child:Destroy()
 				end
 			end
@@ -749,115 +762,28 @@ function RotateController.start(options: StartOptions?): Controller
 		handleWeld.Part1 = hitPart
 		handleWeld.Parent = joints.folder
 
-		-- SINGLE-BEARING detection: the grabbed group's articulation to
-		-- the anchored ground, if it is exactly one hinge/cylindrical.
-		local bearing: {
-			position: Vector3,
-			axis: Vector3,
-			radial0: Vector3,
-			axial0: number,
-			orient: AlignOrientation,
-			slide: AlignPosition?,
-		}? = nil
+		-- Runtime drive: a hand-rolled SPRING at the grab point plus a
+		-- mild velocity drag of our own. Engine movers are unusable for
+		-- posing (non-rigid aligns produce ZERO motion against a
+		-- constrained assembly; motor P-control oscillates; servos are
+		-- single-axis), but RAW forces articulate the constraint
+		-- network fine - so the drive is simply F = k*error at the grab
+		-- point, force-capped so the joints always win, with drag we
+		-- control instead of an engine critical damper (that damper is
+		-- what made off-arc dragging sticky). Works for any joint
+		-- topology. Gear bridges get the rotational analog (see the
+		-- drive loop). Lifts make posing weightless in the meantime.
+		local driveForce: VectorForce? = nil
+		local totalMass = 0
 		if kIsRuntime then
-			local function mainPartOfUnit(id: any): BasePart?
-				local instance = id :: Instance
-				if instance:IsA("BasePart") then
-					return instance
-				end
-				return instance:FindFirstChildWhichIsA("BasePart", true)
-			end
-			local grabbedJoints: { AssemblyGraph.Constraint } = {}
-			for _, constraint in graph:physicsJoints().constraints do
-				local partA = mainPartOfUnit(constraint.a)
-				local partB = mainPartOfUnit(constraint.b)
-				if
-					partA == nil
-					or partB == nil
-					or groupOf[partA :: BasePart] == nil
-					or groupOf[partB :: BasePart] == nil
-				then
-					continue
-				end
-				local rootA = find(partA :: BasePart)
-				local rootB = find(partB :: BasePart)
-				local grabbedA = rootA == grabbedRoot
-				local grabbedB = rootB == grabbedRoot
-				if grabbedA == grabbedB then
-					continue -- internal to a group, or unrelated
-				end
-				local otherRoot = if grabbedA then rootB else rootA
-				table.insert(grabbedJoints, constraint)
-				if otherRoot ~= anchoredRoot then
-					-- Only a joint to GROUND gives a static axis to
-					-- steer about: a moving neighbor disqualifies by
-					-- pushing the count past one.
-					table.insert(grabbedJoints, constraint)
-				end
-			end
-			if #grabbedJoints == 1 then
-				local joint = grabbedJoints[1]
-				if joint.kind == "Hinge" or joint.kind == "Cylindrical" then
-					local radial0 = grabWorldPosition - joint.position
-					radial0 -= joint.axis * radial0:Dot(joint.axis)
-					if radial0.Magnitude > 0.3 then
-						local orientAttachment = Instance.new("Attachment")
-						orientAttachment.Name = "BuildItDrive"
-						orientAttachment.Parent = hitPart
-						local orient = Instance.new("AlignOrientation")
-						orient.Mode = Enum.OrientationAlignmentMode.OneAttachment
-						orient.Attachment0 = orientAttachment
-						orient.RigidityEnabled = false
-						orient.MaxTorque = 1e5
-						orient.Responsiveness = 80
-						orient.CFrame = hitPart.CFrame.Rotation
-						orient.Parent = joints.folder
-						local slide: AlignPosition? = nil
-						if joint.kind == "Cylindrical" then
-							local slideAlign = Instance.new("AlignPosition")
-							slideAlign.Mode = Enum.PositionAlignmentMode.OneAttachment
-							slideAlign.Attachment0 = orientAttachment
-							slideAlign.RigidityEnabled = false
-							slideAlign.MaxForce = 1e4
-							slideAlign.MaxVelocity = 100
-							slideAlign.Responsiveness = 80
-							slideAlign.Position = hitPart.Position
-							slideAlign.Parent = joints.folder
-							slide = slideAlign
-						end
-						bearing = {
-							position = joint.position,
-							axis = joint.axis,
-							radial0 = radial0.Unit,
-							axial0 = (grabWorldPosition - joint.position):Dot(joint.axis),
-							orient = orient,
-							slide = slide,
-						}
-					end
-				end
-			end
-		end
-
-		-- Runtime drive: AlignPosition pulls the handle toward the
-		-- cursor plane target; the constraint network articulates the
-		-- rest, exactly like the Edit-time IK solve. The align must be
-		-- FORCE-LIMITED: a rigid align applies whatever force reaches
-		-- the target, and the cursor is almost always off the
-		-- mechanism's reachable arc, so unlimited force visibly drags
-		-- the joints out of alignment (the runtime analog of the Edit
-		-- stiffness-1.0 explosion). Mass-scaled finite force lets the
-		-- hard joints always win. Sim parts also get per-part gravity
-		-- compensation: this is a POSING tool, and fighting droop with
-		-- drive force is another alignment-error source.
-		local driveAlign: AlignPosition? = nil
-		if kIsRuntime then
-			-- Weightless posing in both drive modes.
 			for _, part in simParts do
+				totalMass += part.Mass
 				if part.Mass > 0 then
 					local liftAttachment = Instance.new("Attachment")
 					liftAttachment.Name = "BuildItDrive"
 					liftAttachment.Parent = part
 					local lift = Instance.new("VectorForce")
+					lift.Name = "BuildItLift"
 					lift.Attachment0 = liftAttachment
 					lift.RelativeTo = Enum.ActuatorRelativeTo.World
 					lift.ApplyAtCenterOfMass = true
@@ -865,31 +791,17 @@ function RotateController.start(options: StartOptions?): Controller
 					lift.Parent = joints.folder
 				end
 			end
-		end
-		if kIsRuntime and bearing == nil then
-			local totalMass = 0
-			for _, part in simParts do
-				totalMass += part.Mass
-			end
-			local driveAttachment = Instance.new("Attachment")
-			driveAttachment.Name = "BuildItDrive"
-			driveAttachment.Parent = handle
-			local align = Instance.new("AlignPosition")
-			align.Mode = Enum.PositionAlignmentMode.OneAttachment
-			align.Attachment0 = driveAttachment
-			align.RigidityEnabled = false
-			-- LIGHT pull: the assembly is weightless (per-part lifts),
-			-- so only a couple g of acceleration budget is needed to
-			-- feel snappy - and light is the point. The cursor target is
-			-- almost always off the reachable arc; a strong align
-			-- presses the joints hard and finite solver stiffness turns
-			-- that into stiction ("sticky as soon as I'm off the arc").
-			align.MaxForce = math.max(totalMass, 1) * 400
-			align.MaxVelocity = 100
-			align.Responsiveness = 80
-			align.Position = grabWorldPosition
-			align.Parent = joints.folder
-			driveAlign = align
+			local springAttachment = Instance.new("Attachment")
+			springAttachment.Name = "BuildItDrive"
+			springAttachment.Parent = handle
+			local spring = Instance.new("VectorForce")
+			spring.Name = "BuildItSpring"
+			spring.Attachment0 = springAttachment
+			spring.RelativeTo = Enum.ActuatorRelativeTo.World
+			spring.ApplyAtCenterOfMass = false
+			spring.Force = Vector3.zero
+			spring.Parent = joints.folder
+			driveForce = spring
 		end
 
 		-- Jam state per driven root (for transition messages only).
@@ -899,8 +811,8 @@ function RotateController.start(options: StartOptions?): Controller
 		local session: Session = {
 			grabbedPart = hitPart,
 			handle = handle,
-			driveAlign = driveAlign,
-			bearing = bearing,
+			driveForce = driveForce,
+			totalMass = totalMass,
 			simParts = simParts,
 			anchoredParts = anchoredParts,
 			originalCFrames = originalCFrames,
@@ -913,7 +825,7 @@ function RotateController.start(options: StartOptions?): Controller
 		}
 		mSession = session
 
-		table.insert(session.connections, RunService.RenderStepped:Connect(function(_deltaTime: number)
+		table.insert(session.connections, RunService.RenderStepped:Connect(function(deltaTime: number)
 			-- Cursor target on the camera-facing plane through the grab
 			-- point (the classic 3D drag plane).
 			local ray = mouseRay()
@@ -951,43 +863,33 @@ function RotateController.start(options: StartOptions?): Controller
 			local target = part.CFrame.Rotation + planeTarget
 			if kDriveEnabled then
 				if kIsRuntime then
-					local bearingDrive = session.bearing
-					if bearingDrive ~= nil then
-						-- Convert the cursor to an ANGLE about the
-						-- bearing axis; the orientation target is always
-						-- reachable, so no off-arc fighting.
-						local b = bearingDrive :: {
-							position: Vector3,
-							axis: Vector3,
-							radial0: Vector3,
-							axial0: number,
-							orient: AlignOrientation,
-							slide: AlignPosition?,
-						}
-						local radialTarget = planeTarget - b.position
-						radialTarget -= b.axis * radialTarget:Dot(b.axis)
-						if radialTarget.Magnitude > 1e-3 then
-							radialTarget = radialTarget.Unit
-							local angle = math.atan2(
-								b.radial0:Cross(radialTarget):Dot(b.axis),
-								b.radial0:Dot(radialTarget)
-							)
-							local original = session.originalCFrames[session.grabbedPart]
-							if original ~= nil then
-								local spin = CFrame.fromAxisAngle(b.axis, angle)
-								b.orient.CFrame = spin * (original :: CFrame).Rotation
-								if b.slide ~= nil then
-									local axialDelta = (planeTarget - b.position):Dot(b.axis) - b.axial0
-									local offset = (original :: CFrame).Position - b.position
-									local slideAlign = b.slide :: AlignPosition
-									slideAlign.Position = b.position
-										+ spin:VectorToWorldSpace(offset)
-										+ b.axis * axialDelta
-								end
-							end
+					-- Spring toward the cursor, applied at the grab
+					-- point; capped so the joints always win off-arc.
+					local spring = session.driveForce :: VectorForce?
+					if spring ~= nil then
+						local springForce = spring :: VectorForce
+						local errorVector = planeTarget - session.handle.Position
+						local errorMagnitude = errorVector.Magnitude
+						if errorMagnitude > 1e-4 then
+							local magnitude = math.min(kSpringGain * errorMagnitude, kSpringMax)
+								* math.max(session.totalMass, 1)
+							springForce.Force = errorVector.Unit * magnitude
+						else
+							springForce.Force = Vector3.zero
 						end
-					elseif session.driveAlign ~= nil then
-						(session.driveAlign :: AlignPosition).Position = planeTarget
+					end
+					-- Our own mild drag (once per ASSEMBLY, not per part:
+					-- welded groups share assembly velocity).
+					local scale = math.max(0, 1 - kDriveDrag * deltaTime)
+					local seenRoots: { [BasePart]: boolean } = {}
+					for _, simPart in session.simParts do
+						local root = simPart.AssemblyRootPart
+						if root ~= nil and not seenRoots[root :: BasePart] then
+							local rootPart = root :: BasePart
+							seenRoots[rootPart] = true
+							rootPart.AssemblyLinearVelocity *= scale
+							rootPart.AssemblyAngularVelocity *= scale
+						end
 					end
 				else
 					ikMoveTo(part, target)
@@ -1111,28 +1013,36 @@ function RotateController.start(options: StartOptions?): Controller
 					local drivenAngle = step.accumulated * step.ratio + step.phase
 					local toOriginal = session.originalCFrames[step.toReference]
 					if toOriginal ~= nil then
-						local spin = CFrame.new(step.toCenter)
-							* CFrame.fromAxisAngle(step.toAxis, drivenAngle)
-							* CFrame.new(-step.toCenter)
-						local driven = spin * (toOriginal :: CFrame)
 						if kIsRuntime then
-							-- Lazy per-bridge orientation driver.
-							local orient = step.orient
-							if orient == nil then
+							-- Rotational spring: torque toward the ratio
+							-- target about the gear axis (shortest path;
+							-- self-consistent signs since torque and
+							-- error use the same axis convention).
+							local gearTorque = step.torque
+							if gearTorque == nil then
 								local attachment = Instance.new("Attachment")
 								attachment.Name = "BuildItDrive"
 								attachment.Parent = step.toReference
-								local align = Instance.new("AlignOrientation")
-								align.Mode = Enum.OrientationAlignmentMode.OneAttachment
-								align.Attachment0 = attachment
-								align.RigidityEnabled = true
-								align.Parent = session.joints.folder
-								step.orient = align
-								orient = align
+								local torque = Instance.new("Torque")
+								torque.Name = "BuildItGearTorque"
+								torque.Attachment0 = attachment
+								torque.RelativeTo = Enum.ActuatorRelativeTo.World
+								torque.Torque = Vector3.zero
+								torque.Parent = session.joints.folder
+								step.torque = torque
+								gearTorque = torque
 							end
-							(orient :: AlignOrientation).CFrame = driven.Rotation
+							local rawMeasured = spinAngle(step.toReference, toOriginal :: CFrame, step.toAxis)
+							local errorAngle = drivenAngle - rawMeasured
+							errorAngle = math.atan2(math.sin(errorAngle), math.cos(errorAngle))
+							local gearTorqueInstance = gearTorque :: Torque
+							gearTorqueInstance.Torque = step.toAxis
+								* math.clamp(kGearTorqueGain * errorAngle, -kGearTorqueMax, kGearTorqueMax)
 						else
-							ikMoveTo(step.toReference, driven)
+							local spin = CFrame.new(step.toCenter)
+								* CFrame.fromAxisAngle(step.toAxis, drivenAngle)
+								* CFrame.new(-step.toCenter)
+							ikMoveTo(step.toReference, spin * (toOriginal :: CFrame))
 						end
 					end
 				end
