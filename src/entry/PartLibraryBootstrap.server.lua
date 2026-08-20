@@ -1,14 +1,17 @@
 --!strict
 
--- PartLibrary bootstrap (ServerScriptService): EditableMesh-backed
--- MeshParts do not survive save/play copies, so the part library is
--- rebuilt from LDraw data IN THE BACKGROUND on game startup. Requires
--- ldrawserver.py running (ws://localhost:38742); if it is unreachable
--- the bootstrap warns once and leaves whatever library exists.
+-- PartLibrary bootstrap (ServerScriptService): imported meshes are
+-- DataModel content - session-fixed, replicating to clients, but NOT
+-- saved with the place - so the part library is rebuilt from LDraw
+-- data IN THE BACKGROUND on game startup. Requires ldrawserver.py
+-- (ws://localhost:38742); if it is unreachable the bootstrap warns
+-- once and leaves whatever library exists.
 --
 -- Templates replace their predecessors one by one as they finish, so
 -- the palette fills in progressively; the folder itself is created
--- immediately so tools waiting on it can start.
+-- immediately so tools waiting on it can start. Import work is
+-- time-budgeted through the pipeline's cooperative yield so the
+-- rebuild does not stutter.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -71,6 +74,20 @@ task.spawn(function()
 	end
 
 	print(`[BuildIt] rebuilding part library ({#kTestSet} parts) in the background...`)
+
+	-- Time-budgeted cooperative yield: the import pipeline calls this
+	-- inside its heavy loops; past the per-frame budget it waits a
+	-- frame, so the rebuild never stutters gameplay.
+	local kFrameBudgetSeconds = 0.006
+	local budgetStart = os.clock()
+	local function backgroundYield()
+		if os.clock() - budgetStart > kFrameBudgetSeconds then
+			task.wait()
+			budgetStart = os.clock()
+		end
+	end
+	local importOptions = { yield = backgroundYield }
+
 	local rebuilt = 0
 	local failed = 0
 	for index, partNumber in kTestSet do
@@ -78,9 +95,9 @@ task.spawn(function()
 		local resolved = compositeParts.resolve(ref)
 		local ok, unit, errorMessage = pcall(function()
 			if compositeParts.get(resolved) ~= nil then
-				return importComposite(library, resolved, folder)
+				return importComposite(library, resolved, folder, importOptions)
 			end
-			return importPart(library, ref, folder)
+			return importPart(library, ref, folder, importOptions)
 		end)
 		if ok and unit ~= nil then
 			local importedNumber = tostring((unit :: Instance):GetAttribute("PartNumber") or partNumber)
@@ -99,7 +116,6 @@ task.spawn(function()
 		if index % 10 == 0 then
 			print(`[BuildIt] part library rebuild: {index}/{#kTestSet}`)
 		end
-		-- Background pacing: a frame between parts keeps startup smooth.
 		task.wait()
 	end
 	print(

@@ -89,12 +89,27 @@ local function addRegionAttachment(parent: MeshPart, region: Types.ConnectionReg
 	attachment.Parent = parent
 end
 
+export type ImportOptions = {
+	-- Cooperative yield hook for background imports (see
+	-- buildEditableMesh): called between stages and inside the mesh
+	-- build so a runtime rebuild does not stutter the frame.
+	yield: (() -> ())?,
+}
+
 -- Returns the imported MeshPart, or nil and an error message.
 local function importPart(
 	library: LDrawLibrary.LDrawLibrary,
 	partRef: string,
-	parent: Instance
+	parent: Instance,
+	importOptions: ImportOptions?
 ): (Instance?, string?)
+	local yieldHook = if importOptions ~= nil then importOptions.yield else nil
+	local function stageYield()
+		if yieldHook ~= nil then
+			(yieldHook :: () -> ())()
+		end
+	end
+
 	local file = library:getFile(partRef)
 	if file == nil then
 		return nil, `Part file not found: {partRef}`
@@ -104,19 +119,46 @@ local function importPart(
 	if #mesh.triangles == 0 then
 		return nil, `{partRef} contains no geometry`
 	end
+	stageYield()
 	local connections = findConnections(library, partRef, mesh) :: { Types.Connection }
 	local sockets = deriveSockets(connections, mesh)
+	stageYield()
 
 	-- Build one MeshPart from a FlatMesh(-shaped) table. Split chunks
 	-- reuse the parent mesh's bounds, so every chunk shares one
 	-- coordinate space (meshCenter derives from the bounds).
 	local function createMeshPart(flatMesh: Types.FlatMesh): (MeshPart?, Vector3?, string?)
-		local okBuild, editableMesh: any, buildStats: any = pcall(buildEditableMesh, flatMesh)
+		local okBuild, editableMesh: any, buildStats: any =
+			pcall(buildEditableMesh, flatMesh, { yield = yieldHook })
 		if not okBuild then
 			return nil, nil, tostring(editableMesh)
 		end
+		-- Convert to DATAMODEL CONTENT: a session-fixed content that
+		-- REPLICATES to clients (raw object content does not - clients
+		-- see blank collision boxes) and lets the editable mesh's
+		-- memory be released. Session-scoped: not saved with the place,
+		-- which is why the game rebuilds the library on startup.
+		local content: any
+		local okConvert, converted = pcall(function()
+			local result, dataModelContent =
+				(AssetService :: any):CreateDataModelContentAsync(Content.fromObject(editableMesh))
+			if result ~= Enum.CreateContentResult.Success then
+				error(`CreateDataModelContentAsync failed: {tostring(result)}`)
+			end
+			return dataModelContent
+		end)
+		if okConvert then
+			content = converted
+			pcall(function()
+				(editableMesh :: any):Destroy()
+			end)
+		else
+			-- Older API surface: keep the live object content (works in
+			-- the local DataModel only).
+			content = Content.fromObject(editableMesh)
+		end
 		local okCreate, meshPart: any = pcall(function()
-			return AssetService:CreateMeshPartAsync(Content.fromObject(editableMesh))
+			return AssetService:CreateMeshPartAsync(content)
 		end)
 		if not okCreate then
 			return nil, nil, tostring(meshPart)

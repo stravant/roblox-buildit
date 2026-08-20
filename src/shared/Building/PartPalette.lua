@@ -187,12 +187,24 @@ function PartPalette.create(
 
 	rebuild()
 	table.insert(mConnections, search:GetPropertyChangedSignal("Text"):Connect(rebuild))
-	table.insert(mConnections, templatesFolder.ChildAdded:Connect(function()
-		task.defer(rebuild)
-	end))
-	table.insert(mConnections, templatesFolder.ChildRemoved:Connect(function()
-		task.defer(rebuild)
-	end))
+	-- Debounce folder churn: a background reimport replaces every
+	-- template (two events each); rebuilding per event is quadratic
+	-- viewport work and can catch a template mid-replication. One
+	-- rebuild shortly after the last event also refreshes thumbnails
+	-- with the reimported geometry.
+	local mRebuildPending = false
+	local function scheduleRebuild()
+		if mRebuildPending then
+			return
+		end
+		mRebuildPending = true
+		task.delay(0.5, function()
+			mRebuildPending = false
+			rebuild()
+		end)
+	end
+	table.insert(mConnections, templatesFolder.ChildAdded:Connect(scheduleRebuild))
+	table.insert(mConnections, templatesFolder.ChildRemoved:Connect(scheduleRebuild))
 
 	frame.Parent = parentGui
 

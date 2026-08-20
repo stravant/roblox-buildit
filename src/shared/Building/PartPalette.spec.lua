@@ -22,13 +22,13 @@ return function(t: TestTypes.TestContext)
 		t.expect(entry).toBeTruthy()
 		t.expect((entry :: Instance):FindFirstChildOfClass("ViewportFrame")).toBeTruthy()
 
-		-- Adding a template refreshes the list.
+		-- Adding templates refreshes the list, DEBOUNCED (a background
+		-- reimport churns the folder; one rebuild shortly after the
+		-- last event).
 		local second = Instance.new("Part")
 		second.Name = "3020"
 		second.Size = Vector3.new(4, 0.6, 2)
 		second.Parent = folder
-		task.wait()
-		t.expect(palette.frame:FindFirstChild("Entry_3020", true)).toBeTruthy()
 
 		-- Composite Model templates get entries too.
 		local composite = Instance.new("Model")
@@ -37,7 +37,8 @@ return function(t: TestTypes.TestContext)
 		segment.Size = Vector3.new(2, 0.4, 1)
 		segment.Parent = composite
 		composite.Parent = folder
-		task.wait()
+		task.wait(0.6)
+		t.expect(palette.frame:FindFirstChild("Entry_3020", true)).toBeTruthy()
 		t.expect(palette.frame:FindFirstChild("Entry_Hinge", true)).toBeTruthy()
 
 		palette.destroy()

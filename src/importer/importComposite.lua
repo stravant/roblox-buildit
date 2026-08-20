@@ -16,7 +16,8 @@ local LDrawFolder = require(script.Parent.ldrawFolder) :: any
 local LDrawLibrary = require(LDrawFolder.LDrawLibrary)
 local compositeParts = require(LDrawFolder.compositeParts)
 local RobloxConvert = require(LDrawFolder.RobloxConvert)
-local importPart = require(script.Parent.importPart)
+local importPartModule = require(script.Parent.importPart)
+local importPart = importPartModule :: any
 
 local function cleanDescription(description: string?): string?
 	if description == nil then
@@ -29,7 +30,8 @@ end
 local function importComposite(
 	library: LDrawLibrary.LDrawLibrary,
 	assemblyRef: string,
-	parent: Instance
+	parent: Instance,
+	importOptions: importPartModule.ImportOptions?
 ): (Model?, string?)
 	local composite = compositeParts.get(assemblyRef)
 	if composite == nil then
@@ -67,7 +69,7 @@ local function importComposite(
 	local model = Instance.new("Model")
 	local segmentIndex = 0
 	for _, ref in segmentRefs do
-		local segment, errorMessage = importPart(library, ref.fileName, model)
+		local segment, errorMessage = importPart(library, ref.fileName, model, importOptions)
 		if segment == nil then
 			model:Destroy()
 			return nil, `Segment {ref.fileName}: {errorMessage}`

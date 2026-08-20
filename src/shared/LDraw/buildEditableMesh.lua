@@ -43,6 +43,10 @@ local kOpposedDotMin = -0.5
 
 type BuildOptions = {
 	scale: number?,
+	-- Cooperative yield hook: called periodically inside the heavy
+	-- loops so background imports (the runtime PartLibrary rebuild)
+	-- can spread work across frames instead of stuttering.
+	yield: (() -> ())?,
 }
 
 export type BuildStats = {
@@ -66,6 +70,17 @@ type FaceRecord = {
 
 local function buildEditableMesh(flatMesh: Types.FlatMesh, options: BuildOptions?): (EditableMesh, BuildStats)
 	local scale = if options ~= nil and options.scale ~= nil then options.scale else RobloxConvert.kDefaultScale
+	local yieldHook = if options ~= nil then options.yield else nil
+	local mWorkCounter = 0
+	local function stepWork()
+		if yieldHook == nil then
+			return
+		end
+		mWorkCounter += 1
+		if mWorkCounter % 256 == 0 then
+			(yieldHook :: () -> ())()
+		end
+	end
 
 	-- Converted-space bounds: the Y/Z negation swaps mins and maxes.
 	local convertedMin = Vector3.new(flatMesh.boundsMin.X, -flatMesh.boundsMax.Y, -flatMesh.boundsMax.Z) * scale
@@ -122,6 +137,7 @@ local function buildEditableMesh(flatMesh: Types.FlatMesh, options: BuildOptions
 	end
 
 	for _, triangle in flatMesh.triangles do
+		stepWork()
 		local ia = getVertex(triangle.a)
 		local ib = getVertex(triangle.b)
 		local ic = getVertex(triangle.c)
@@ -254,6 +270,7 @@ local function buildEditableMesh(flatMesh: Types.FlatMesh, options: BuildOptions
 	end
 
 	for faceIndex, face in mFaces do
+		stepWork()
 		local cornerNormalIds = table.create(3)
 		for corner, vertexId in face.vertexIds do
 			cornerNormalIds[corner] = getNormalId(cornerNormal(faceIndex, vertexId))
