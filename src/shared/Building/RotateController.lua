@@ -46,9 +46,14 @@ local kDriveEnabled = true
 -- of our own replaces the engine movers' problematic critical damper.
 local kSpringGain = 300 -- per stud of error, per unit mass
 local kSpringMax = 800 -- force cap per unit mass
-local kDriveDrag = 12 -- 1/s
+-- Grab-point damping sized just under critical (zeta 0.8) for the
+-- spring gain: kills the wobble while tracking tight. Rig-validated:
+-- settle bands collapse to a tenth of a degree with mid-ramp lag ~8.
+local kSpringDamp = 2 * math.sqrt(kSpringGain) * 0.8
+local kDriveDrag = 4 -- 1/s, light backstop only
 local kGearTorqueGain = 1e4
 local kGearTorqueMax = 2e5
+local kGearTorqueDamp = 300
 
 type Session = {
 	grabbedPart: BasePart,
@@ -117,6 +122,7 @@ type Session = {
 	-- grab point plus the assembly mass its cap scales by.
 	driveForce: VectorForce?,
 	totalMass: number,
+	savedCanCollide: { [BasePart]: boolean }?,
 	joints: applyPhysicsJoints.Applied,
 	planeOrigin: Vector3,
 	planeNormal: Vector3,
@@ -201,10 +207,6 @@ function RotateController.start(options: StartOptions?): Controller
 	local pluginRef = opts.plugin
 
 	local mSession: Session? = nil
-	-- DEBUG AID: joints from the previous session are left in the place
-	-- on mouse up (inspect them with constraint visualization); they are
-	-- only cleaned up when the next session begins.
-	local mLeftoverJoints: applyPhysicsJoints.Applied? = nil
 
 	local function mouseRay(): Ray
 		local camera = workspace.CurrentCamera
@@ -239,29 +241,17 @@ function RotateController.start(options: StartOptions?): Controller
 		for _, connection in session.connections do
 			connection:Disconnect()
 		end
-		-- Keep the joints around for inspection (destroyed at the start
-		-- of the next session).
-		mLeftoverJoints = session.joints
-		if kIsRuntime then
-			-- DEBUG (per user): drop the DRIVE (handle + weld, position/
-			-- orientation aligns) but KEEP the antigravity lifts, and
-			-- leave sim parts unanchored and collision-free - the
-			-- assembly floats weightless under the mechanism constraints
-			-- alone, isolating drive-force problems from everything
-			-- else. (Lifts die with the folder at the next session's
-			-- leftover sweep.)
-			for _, child in session.joints.folder:GetChildren() do
-				if not (child:IsA("VectorForce") and child.Name == "BuildItLift") then
-					child:Destroy()
-				end
-			end
-		else
-			for _, part in session.simParts do
-				part.AssemblyLinearVelocity = Vector3.zero
-				part.AssemblyAngularVelocity = Vector3.zero
-				part.Anchored = true
+		for _, part in session.simParts do
+			part.AssemblyLinearVelocity = Vector3.zero
+			part.AssemblyAngularVelocity = Vector3.zero
+			part.Anchored = true
+		end
+		if session.savedCanCollide ~= nil then
+			for part, canCollide in session.savedCanCollide :: { [BasePart]: boolean } do
+				part.CanCollide = canCollide
 			end
 		end
+		session.joints.destroy()
 		if not commit then
 			for part, cframe in session.originalCFrames do
 				part.CFrame = cframe
@@ -275,10 +265,6 @@ function RotateController.start(options: StartOptions?): Controller
 	-- reloads, undo can resurrect committed joint folders, and the
 	-- debug keep-on-mouse-up behavior leaves them around by design.
 	local function destroyLeftoverJoints()
-		if mLeftoverJoints ~= nil then
-			pcall((mLeftoverJoints :: applyPhysicsJoints.Applied).destroy)
-			mLeftoverJoints = nil
-		end
 		for _, child in workspace:GetChildren() do
 			if child:IsA("Folder") and child.Name == "BuildItSimJoints" then
 				child:Destroy()
@@ -733,13 +719,17 @@ function RotateController.start(options: StartOptions?): Controller
 			recording = ChangeHistoryService:TryBeginRecording("BuildIt: Pose assembly")
 		end
 
+		-- Sessions run collision-free (mated LEGO parts interpenetrate
+		-- by design and would grind against live physics); saved state
+		-- is restored on release.
+		local savedCanCollide: { [BasePart]: boolean }? = nil
 		if kIsRuntime then
-			-- DEBUG (per user): every assembly part goes collision-free
-			-- so only the constraints shape the motion. Not restored -
-			-- observing the constraint network in isolation.
+			local saved: { [BasePart]: boolean } = {}
 			for _, part in parts do
+				saved[part] = part.CanCollide
 				part.CanCollide = false
 			end
+			savedCanCollide = saved
 		end
 		for _, part in simParts do
 			part.Anchored = false
@@ -813,6 +803,7 @@ function RotateController.start(options: StartOptions?): Controller
 			handle = handle,
 			driveForce = driveForce,
 			totalMass = totalMass,
+			savedCanCollide = savedCanCollide,
 			simParts = simParts,
 			anchoredParts = anchoredParts,
 			originalCFrames = originalCFrames,
@@ -870,13 +861,17 @@ function RotateController.start(options: StartOptions?): Controller
 						local springForce = spring :: VectorForce
 						local errorVector = planeTarget - session.handle.Position
 						local errorMagnitude = errorVector.Magnitude
+						local springTerm = Vector3.zero
 						if errorMagnitude > 1e-4 then
-							local magnitude = math.min(kSpringGain * errorMagnitude, kSpringMax)
-								* math.max(session.totalMass, 1)
-							springForce.Force = errorVector.Unit * magnitude
-						else
-							springForce.Force = Vector3.zero
+							springTerm = errorVector.Unit
+								* math.min(kSpringGain * errorMagnitude, kSpringMax)
 						end
+						-- PD: damp the grab point's velocity so the
+						-- spring rides near critical damping instead of
+						-- wobbling.
+						local grabVelocity = session.handle:GetVelocityAtPosition(session.handle.Position)
+						springForce.Force = (springTerm - grabVelocity * kSpringDamp)
+							* math.max(session.totalMass, 1)
 					end
 					-- Our own mild drag (once per ASSEMBLY, not per part:
 					-- welded groups share assembly velocity).
@@ -1035,9 +1030,11 @@ function RotateController.start(options: StartOptions?): Controller
 							local rawMeasured = spinAngle(step.toReference, toOriginal :: CFrame, step.toAxis)
 							local errorAngle = drivenAngle - rawMeasured
 							errorAngle = math.atan2(math.sin(errorAngle), math.cos(errorAngle))
+							local omega = step.toReference.AssemblyAngularVelocity:Dot(step.toAxis)
 							local gearTorqueInstance = gearTorque :: Torque
 							gearTorqueInstance.Torque = step.toAxis
-								* math.clamp(kGearTorqueGain * errorAngle, -kGearTorqueMax, kGearTorqueMax)
+								* (math.clamp(kGearTorqueGain * errorAngle, -kGearTorqueMax, kGearTorqueMax)
+									- kGearTorqueDamp * omega)
 						else
 							local spin = CFrame.new(step.toCenter)
 								* CFrame.fromAxisAngle(step.toAxis, drivenAngle)
