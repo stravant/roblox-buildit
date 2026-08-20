@@ -230,11 +230,18 @@ function RotateController.start(options: StartOptions?): Controller
 		-- of the next session).
 		mLeftoverJoints = session.joints
 		if kIsRuntime then
-			-- DEBUG (per user): drop only the DRIVE (handle, aligns,
-			-- gravity lifts - the session folder) and leave sim parts
-			-- unanchored and collision-free, so the assembly settles
-			-- under the mechanism constraints alone.
-			session.joints.folder:Destroy()
+			-- DEBUG (per user): drop the DRIVE (handle + weld, position/
+			-- orientation aligns) but KEEP the antigravity lifts, and
+			-- leave sim parts unanchored and collision-free - the
+			-- assembly floats weightless under the mechanism constraints
+			-- alone, isolating drive-force problems from everything
+			-- else. (Lifts die with the folder at the next session's
+			-- leftover sweep.)
+			for _, child in session.joints.folder:GetChildren() do
+				if not child:IsA("VectorForce") then
+					child:Destroy()
+				end
+			end
 		else
 			for _, part in session.simParts do
 				part.AssemblyLinearVelocity = Vector3.zero
