@@ -229,14 +229,17 @@ function RotateController.start(options: StartOptions?): Controller
 		-- Keep the joints around for inspection (destroyed at the start
 		-- of the next session).
 		mLeftoverJoints = session.joints
-		for _, part in session.simParts do
-			part.AssemblyLinearVelocity = Vector3.zero
-			part.AssemblyAngularVelocity = Vector3.zero
-			part.Anchored = true
-		end
-		if session.savedCanCollide ~= nil then
-			for part, canCollide in session.savedCanCollide :: { [BasePart]: boolean } do
-				part.CanCollide = canCollide
+		if kIsRuntime then
+			-- DEBUG (per user): drop only the DRIVE (handle, aligns,
+			-- gravity lifts - the session folder) and leave sim parts
+			-- unanchored and collision-free, so the assembly settles
+			-- under the mechanism constraints alone.
+			session.joints.folder:Destroy()
+		else
+			for _, part in session.simParts do
+				part.AssemblyLinearVelocity = Vector3.zero
+				part.AssemblyAngularVelocity = Vector3.zero
+				part.Anchored = true
 			end
 		end
 		if not commit then
@@ -710,15 +713,6 @@ function RotateController.start(options: StartOptions?): Controller
 			recording = ChangeHistoryService:TryBeginRecording("BuildIt: Pose assembly")
 		end
 
-		local savedCanCollide: { [BasePart]: boolean }? = nil
-		if kIsRuntime then
-			local saved: { [BasePart]: boolean } = {}
-			for _, part in simParts do
-				saved[part] = part.CanCollide
-				part.CanCollide = false
-			end
-			savedCanCollide = saved
-		end
 		if kIsRuntime then
 			-- DEBUG (per user): every assembly part goes collision-free
 			-- so only the constraints shape the motion. Not restored -
@@ -802,7 +796,6 @@ function RotateController.start(options: StartOptions?): Controller
 			grabbedPart = hitPart,
 			handle = handle,
 			driveAlign = driveAlign,
-			savedCanCollide = savedCanCollide,
 			simParts = simParts,
 			anchoredParts = anchoredParts,
 			originalCFrames = originalCFrames,
