@@ -91,6 +91,10 @@ type Session = {
 			fromAxisLocal: Vector3,
 			toCenterLocal: Vector3,
 			toAxisLocal: Vector3,
+			-- Tooth references in local space, for recomputing the phase
+			-- from CURRENT geometry whenever the bridge (re-)engages.
+			fromSecondaryLocal: Vector3?,
+			toSecondaryLocal: Vector3?,
 		}
 	},
 	reportedDriveError: boolean?,
@@ -110,6 +114,24 @@ export type Controller = {
 }
 
 local RotateController = {}
+
+-- A part's rotation about `axis` relative to its original CFrame, in
+-- (-pi, pi]: rotate a seed vector perpendicular to the axis by the
+-- part's delta rotation and measure the swept angle.
+local function spinAngle(part: BasePart, original: CFrame, axis: Vector3): number
+	local deltaRotation = part.CFrame.Rotation * original.Rotation:Inverse()
+	local seed = axis:Cross(Vector3.yAxis)
+	if seed.Magnitude < 1e-3 then
+		seed = axis:Cross(Vector3.xAxis)
+	end
+	seed = seed.Unit
+	local rotated = deltaRotation * seed
+	rotated -= axis * rotated:Dot(axis)
+	if rotated.Magnitude < 1e-4 then
+		return 0
+	end
+	return math.atan2(seed:Cross(rotated.Unit):Dot(axis), seed:Dot(rotated.Unit))
+end
 
 local function forEachUnitPart(unit: Instance, fn: (BasePart) -> ())
 	if unit:IsA("BasePart") then
@@ -767,9 +789,38 @@ function RotateController.start(options: StartOptions?): Controller
 					stepAligned[step] = aligned
 					if aligned ~= step.engaged then
 						step.engaged = aligned
+						if aligned then
+							-- (Re-)engagement REBASE: while this bridge was
+							-- dormant another bridge (or nothing) turned
+							-- the driven group, so the frozen target is
+							-- stale - driving it would snap the axle to a
+							-- different orientation. Anchor the bridge to
+							-- the group's ACTUAL spin, with the tooth
+							-- interleave recomputed from current geometry.
+							local toOriginal = session.originalCFrames[step.toReference]
+							if toOriginal ~= nil then
+								local actualSpin =
+									spinAngle(step.toReference, toOriginal :: CFrame, step.toAxis)
+								local fromAxisNow = fromNow:VectorToWorldSpace(step.fromAxisLocal)
+								local meshPhaseNow = gearMeshPhase(
+									if step.fromSecondaryLocal ~= nil
+										then fromNow:VectorToWorldSpace(step.fromSecondaryLocal :: Vector3)
+										else nil,
+									if step.toSecondaryLocal ~= nil
+										then toNow:VectorToWorldSpace(step.toSecondaryLocal :: Vector3)
+										else nil,
+									fromAxisNow,
+									fromNow:PointToWorldSpace(step.fromCenterLocal),
+									toNow:PointToWorldSpace(step.toCenterLocal),
+									step.fromTeeth,
+									step.toTeeth
+								)
+								step.phase = actualSpin + meshPhaseNow - step.accumulated * step.ratio
+							end
+						end
 						warn(
 							`[BuildIt Rotate] gear mesh {step.fromTeeth}t -> {step.toTeeth}t`
-								.. ` {if aligned then "re-engaged" else "slid out of alignment: not driving"}`
+								.. ` {if aligned then "engaged" else "slid out of alignment: not driving"}`
 						)
 					end
 					if aligned then
@@ -799,18 +850,7 @@ function RotateController.start(options: StartOptions?): Controller
 					if original == nil then
 						continue
 					end
-					local deltaRotation = reference.CFrame.Rotation * original.Rotation:Inverse()
-					local seed = step.fromAxis:Cross(Vector3.yAxis)
-					if seed.Magnitude < 1e-3 then
-						seed = step.fromAxis:Cross(Vector3.xAxis)
-					end
-					seed = seed.Unit
-					local rotated = deltaRotation * seed
-					rotated -= step.fromAxis * rotated:Dot(step.fromAxis)
-					local raw = 0
-					if rotated.Magnitude > 1e-4 then
-						raw = math.atan2(seed:Cross(rotated.Unit):Dot(step.fromAxis), seed:Dot(rotated.Unit))
-					end
+					local raw = spinAngle(reference, original :: CFrame, step.fromAxis)
 					local wrap = raw - step.lastAngle
 					if wrap > math.pi then
 						wrap -= 2 * math.pi
