@@ -58,6 +58,35 @@ end
 task.spawn(function()
 	local folder = getPartLibraryFolder()
 
+	-- Purge templates whose mesh content died with a previous session:
+	-- object/DataModel content does not save, so templates from older
+	-- imports reopen as geometry-less grey boxes (SourceType None).
+	-- Test-set parts get rebuilt below; stale extras (old model
+	-- imports) just go away.
+	local purged = 0
+	for _, child in folder:GetChildren() do
+		local dead = false
+		local function check(instance: Instance)
+			if
+				instance:IsA("MeshPart")
+				and instance.MeshContent.SourceType == Enum.ContentSourceType.None
+			then
+				dead = true
+			end
+		end
+		check(child)
+		for _, descendant in child:GetDescendants() do
+			check(descendant)
+		end
+		if dead then
+			child:Destroy()
+			purged += 1
+		end
+	end
+	if purged > 0 then
+		print(`[BuildIt] purged {purged} stale geometry-less templates`)
+	end
+
 	local okProvider, provider = pcall(wsFileProvider, kServerUrl)
 	if not okProvider then
 		warn(`[BuildIt] part library rebuild skipped: LDraw server unreachable ({provider})`)
