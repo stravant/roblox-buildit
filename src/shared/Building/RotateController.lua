@@ -757,9 +757,12 @@ function RotateController.start(options: StartOptions?): Controller
 			align.Mode = Enum.PositionAlignmentMode.OneAttachment
 			align.Attachment0 = driveAttachment
 			align.RigidityEnabled = false
-			align.MaxForce = math.max(totalMass, 1) * workspace.Gravity * 20
-			align.MaxVelocity = 40
-			align.Responsiveness = 35
+			-- Generous force + high responsiveness: snappy like the
+			-- Edit-mode IK, but still finite so the joints win when the
+			-- cursor leaves the reachable arc.
+			align.MaxForce = math.max(totalMass, 1) * workspace.Gravity * 100
+			align.MaxVelocity = 100
+			align.Responsiveness = 80
 			align.Position = grabWorldPosition
 			align.Parent = joints.folder
 			driveAlign = align
