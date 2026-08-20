@@ -8,6 +8,16 @@
 			"$ignoreUnknownInstances": true,
 			"BuildIt": {
 				"$path": "src/shared"
+			},
+			"BuildItImporter": {
+				"$path": "src/importer"
+			}
+		},
+		"ServerScriptService": {
+			"$className": "ServerScriptService",
+			"$ignoreUnknownInstances": true,
+			"PartLibraryBootstrap": {
+				"$path": "src/entry/PartLibraryBootstrap.server.lua"
 			}
 		},
 		"StarterPlayer": {

@@ -12,7 +12,7 @@
 --
 -- No undo recording here: the caller owns the undo waypoint.
 
-local LDrawFolder = script.Parent.Parent.shared.LDraw
+local LDrawFolder = require(script.Parent.ldrawFolder) :: any
 local LDrawLibrary = require(LDrawFolder.LDrawLibrary)
 local compositeParts = require(LDrawFolder.compositeParts)
 local RobloxConvert = require(LDrawFolder.RobloxConvert)

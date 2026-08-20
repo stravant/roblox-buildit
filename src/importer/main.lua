@@ -9,8 +9,9 @@ local ChangeHistoryService = game:GetService("ChangeHistoryService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Selection = game:GetService("Selection")
 
-local LDrawLibrary = require(script.Parent.Parent.shared.LDraw.LDrawLibrary)
-local compositeParts = require(script.Parent.Parent.shared.LDraw.compositeParts)
+local LDrawFolder = require(script.Parent.ldrawFolder) :: any
+local LDrawLibrary = require(LDrawFolder.LDrawLibrary)
+local compositeParts = require(LDrawFolder.compositeParts)
 local importPart = require(script.Parent.importPart)
 local importComposite = require(script.Parent.importComposite)
 local importModel = require(script.Parent.importModel)

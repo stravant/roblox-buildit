@@ -17,7 +17,7 @@
 
 local AssetService = game:GetService("AssetService")
 
-local LDrawFolder = script.Parent.Parent.shared.LDraw
+local LDrawFolder = require(script.Parent.ldrawFolder) :: any
 local LDrawLibrary = require(LDrawFolder.LDrawLibrary)
 local Types = require(LDrawFolder.Types)
 local flattenMesh = require(LDrawFolder.flattenMesh)
