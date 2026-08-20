@@ -174,6 +174,18 @@ function mates.slideRange(lengthA: number?, lengthB: number?): number
 	return math.abs((lengthA or 0) - (lengthB or 0)) / 2
 end
 
+-- Axle pairs stay CONNECTED while partially engaged: an axle hole
+-- stuck halfway onto an axle's end still holds. Engagement (and the
+-- residual slide) extends to the point where only this much overlap
+-- remains between the two spans.
+mates.kMinAxialOverlap = 0.4
+
+local kPartialEngagementPairs: { [string]: { [string]: boolean } } = {
+	Axle = { AxleHole = true, PegHole = true },
+	AxleHole = { Axle = true },
+	PegHole = { Axle = true },
+}
+
 -- Blind female bore: the male seats anywhere from bottomed-out to
 -- half-engaged, measured along the female's (mouth-facing) direction.
 function mates.oneSidedInterval(maleLength: number, femaleLength: number): (number, number)
@@ -294,6 +306,13 @@ function mates.check(a: MateConnector, b: MateConnector): Mate?
 		local along = delta:Dot(b.direction)
 		local perpendicular = (delta - b.direction * along).Magnitude
 		local slide = mates.slideRange(a.length, b.length)
+		if kPartialEngagementPairs[a.kind] ~= nil and kPartialEngagementPairs[a.kind][b.kind] then
+			-- Partial engagement: connected while the spans overlap by
+			-- at least kMinAxialOverlap (a gear halfway onto an axle
+			-- end), and free to slide anywhere in that interval.
+			local overlapSlide = ((a.length or 0) + (b.length or 0)) / 2 - mates.kMinAxialOverlap
+			slide = math.max(slide, overlapSlide)
+		end
 		if perpendicular > kEpsilon or math.abs(along) > slide + kEpsilon then
 			return nil
 		end

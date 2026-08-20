@@ -464,6 +464,37 @@ return function(t: TestTypes.TestContext)
 		t.expect(left.cframe.Position).toBeCloseTo(Vector3.new(0, 0, 0))
 	end)
 
+	t.test("axial grid snap quantizes to one-stud stations on the axle", function()
+		-- 4L axle along Z; a 1-long axle hole slides freely without the
+		-- grid, but with it lands on flush-anchored one-stud stations
+		-- (+-1.5, +-0.5).
+		local world = {
+			{ kind = "Axle", position = Vector3.new(0, 5, 0), direction = Vector3.new(0, 0, 1), length = 4 },
+		}
+		local hole = {
+			{ kind = "AxleHole", position = Vector3.zero, direction = Vector3.new(0, 0, 1), length = 1 },
+		}
+		local free = findSnapPlacement(CFrame.new(0.1, 5, 0.7), hole :: any, world :: any, kMaxSnap) :: any
+		t.expect(free).toBeTruthy()
+		t.expect(free.cframe.Position).toBeCloseTo(Vector3.new(0, 5, 0.7))
+		local grid = findSnapPlacement(CFrame.new(0.1, 5, 0.7), hole :: any, world :: any, kMaxSnap, nil, true) :: any
+		t.expect(grid).toBeTruthy()
+		t.expect(grid.cframe.Position).toBeCloseTo(Vector3.new(0, 5, 0.5))
+		local gridEnd = findSnapPlacement(CFrame.new(0.1, 5, 1.3), hole :: any, world :: any, kMaxSnap, nil, true) :: any
+		t.expect(gridEnd).toBeTruthy()
+		t.expect(gridEnd.cframe.Position).toBeCloseTo(Vector3.new(0, 5, 1.5))
+		-- Non-grid pairs are unaffected (bar in a clip).
+		local clipWorld = {
+			{ kind = "Clip", position = Vector3.new(0, 5, 0), direction = Vector3.new(0, 0, 1), length = 0.4 },
+		}
+		local bar = {
+			{ kind = "Bar", position = Vector3.zero, direction = Vector3.new(0, 0, 1), length = 4 },
+		}
+		local barSnap = findSnapPlacement(CFrame.new(0.1, 5, 0.7), bar :: any, clipWorld :: any, kMaxSnap, nil, true) :: any
+		t.expect(barSnap).toBeTruthy()
+		t.expect(barSnap.cframe.Position).toBeCloseTo(Vector3.new(0, 5, 0.7))
+	end)
+
 	t.test("a locking mate does not hijack a slide at the cursor", function()
 		-- An axle aimed at an axle hole, with a stud mouth-mate available
 		-- on a pin hole 1 stud away: the joint under the cursor wins even

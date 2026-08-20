@@ -286,6 +286,9 @@ function BuildController.start(options: StartOptions?): Controller
 	--   "assembly" - the whole connected component, including loose
 	--                fits (axles spinning in holes, frictionless pins).
 	local mMoveMode: "part" | "chunk" | "assembly" = "chunk"
+	-- Axial grid snap: when ON, axle holes land on one-stud increments
+	-- along axles (and axles in pin holes) instead of sliding freely.
+	local mGridSnap = false
 	local mModeBar: Frame? = nil
 
 	do
@@ -297,7 +300,7 @@ function BuildController.start(options: StartOptions?): Controller
 		local bar = Instance.new("Frame")
 		bar.Name = "MoveModeBar"
 		bar.Position = UDim2.new(0, 10, 0, 8)
-		bar.Size = UDim2.new(0, 240, 0, 26)
+		bar.Size = UDim2.new(0, 320, 0, 26)
 		bar.BackgroundTransparency = 1
 		local layout = Instance.new("UIListLayout")
 		layout.FillDirection = Enum.FillDirection.Horizontal
@@ -331,6 +334,29 @@ function BuildController.start(options: StartOptions?): Controller
 				restyle()
 			end)
 		end
+		-- Grid snap toggle (independent of the move mode).
+		local gridButton = Instance.new("TextButton")
+		gridButton.Name = "GridSnap"
+		gridButton.Size = UDim2.new(0, 76, 1, 0)
+		gridButton.Font = Enum.Font.SourceSansBold
+		gridButton.TextSize = 14
+		gridButton.BorderSizePixel = 0
+		gridButton.AutoButtonColor = true
+		gridButton.Parent = bar
+		local function restyleGrid()
+			gridButton.Text = if mGridSnap then "Grid: ON" else "Grid: OFF"
+			gridButton.BackgroundColor3 = if mGridSnap
+				then Color3.fromRGB(0, 90, 158)
+				else Color3.fromRGB(58, 58, 58)
+			gridButton.TextColor3 = if mGridSnap
+				then Color3.fromRGB(255, 255, 255)
+				else Color3.fromRGB(190, 190, 190)
+		end
+		gridButton.Activated:Connect(function()
+			mGridSnap = not mGridSnap
+			restyleGrid()
+		end)
+		restyleGrid()
 		restyle()
 		bar.Parent = guiParent
 		mModeBar = bar
@@ -618,7 +644,8 @@ function BuildController.start(options: StartOptions?): Controller
 			state.ghostConnectors :: any,
 			worldConnectors,
 			kMaxSnapDistance,
-			grabWorldPosition
+			grabWorldPosition,
+			mGridSnap
 		)
 
 		local targetPivot: CFrame

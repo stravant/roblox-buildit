@@ -123,6 +123,16 @@ end
 -- bore floor (sMin) to half-engaged in the bore (sMax).
 local oneSidedInterval = mates.oneSidedInterval
 
+-- Axial grid pairs: with grid snapping enabled, these land on
+-- one-stud increments along the rod (anchored at the flush position),
+-- instead of sliding freely - placing gears at exact stations on an
+-- axle.
+local kGridSnapPairs: { [string]: { [string]: boolean } } = {
+	Axle = { AxleHole = true, PegHole = true },
+	AxleHole = { Axle = true },
+	PegHole = { Axle = true },
+}
+
 -- Keyed pairs roll-align on snap: the axle cross has 4-fold symmetry,
 -- so the dragged unit additionally rotates about the mate axis to the
 -- nearest 90-degree cross fit.
@@ -138,7 +148,8 @@ local function findSnapPlacement(
 	dragConnectors: { Connector },
 	worldConnectors: { WorldConnector },
 	maxSnapDistance: number,
-	grabPosition: Vector3?
+	grabPosition: Vector3?,
+	axialGridSnap: boolean?
 ): SnapResult?
 	local rotation = ghostCFrame.Rotation
 	local bestScore = math.huge
@@ -247,8 +258,17 @@ local function findSnapPlacement(
 				else
 					local along = (dragPosition - world.position):Dot(world.direction)
 					local range = slideRange(drag.length, world.length)
-					targetPosition = world.position
-						+ world.direction * math.clamp(along, -range, range)
+					local clamped = math.clamp(along, -range, range)
+					if
+						axialGridSnap == true
+						and kGridSnapPairs[drag.kind] ~= nil
+						and kGridSnapPairs[drag.kind][world.kind]
+					then
+						-- Quantize to one-stud stations anchored at the
+						-- flush (end-aligned) position.
+						clamped = math.clamp(range - math.round(range - clamped), -range, range)
+					end
+					targetPosition = world.position + world.direction * clamped
 					degreesOfFreedom = if range > 0 then 1 else 0
 				end
 			end

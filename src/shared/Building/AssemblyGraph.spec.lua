@@ -413,15 +413,16 @@ return function(t: TestTypes.TestContext)
 
 		-- One gear: the axle can still slide the other way, and the
 		-- cylindrical carries the one-sided limit (constraint emitted
-		-- a=axle, b=beam: beam-relative travel [0, 1] = the axle may
-		-- move only -1..0 toward the gearless end).
+		-- a=axle, b=beam: the gear blocks one direction entirely; the
+		-- other runs until only the minimum partial-engagement overlap
+		-- of the 3L axle remains in the hole: (3+1)/2 - 0.4 = 1.6).
 		local open = chassis(false):physicsJoints()
 		t.expect(#open.constraints).toBe(1)
 		local openConstraint = open.constraints[1]
 		t.expect(openConstraint.kind).toBe("Cylindrical")
 		t.expect(openConstraint.a).toBe("axle")
 		t.expect(openConstraint.slideLower :: any).toBeCloseTo(0, 0.001)
-		t.expect(openConstraint.slideUpper :: any).toBeCloseTo(1, 0.001)
+		t.expect(openConstraint.slideUpper :: any).toBeCloseTo(1.6, 0.001)
 
 		-- Gears keyed on BOTH ends butt against the beam hole: no axial
 		-- travel left - it is just a hinge.
@@ -554,6 +555,46 @@ return function(t: TestTypes.TestContext)
 			gear("big", "3648", 2, 1.5),
 		})
 		t.expect(#offset:gearMeshes()).toBe(0)
+	end)
+
+	t.test("an axle hole halfway onto an axle end is still connected", function()
+		local kAxisZ2 = Vector3.new(0, 0, 1)
+		-- 4L axle spanning z in [-2, 2]; a 1-long bore centered at z=2
+		-- overlaps the axle by only half its length. Connected (and
+		-- rigid: keyed).
+		local graph = AssemblyGraph.build({
+			{
+				id = "axle",
+				connectors = {
+					{ kind = "Axle", position = Vector3.zero, direction = kAxisZ2, length = 4 },
+				},
+			},
+			{
+				id = "gear",
+				connectors = {
+					{ kind = "AxleHole", position = Vector3.new(0, 0, 2), direction = kAxisZ2, length = 1 },
+				},
+			},
+		})
+		t.expect(graph:edge("axle", "gear")).toBeTruthy()
+		t.expect(#graph:physicsJoints().welds).toBe(1)
+
+		-- Barely touching (overlap under the minimum): not connected.
+		local apart = AssemblyGraph.build({
+			{
+				id = "axle",
+				connectors = {
+					{ kind = "Axle", position = Vector3.zero, direction = kAxisZ2, length = 4 },
+				},
+			},
+			{
+				id = "gear",
+				connectors = {
+					{ kind = "AxleHole", position = Vector3.new(0, 0, 2.3), direction = kAxisZ2, length = 1 },
+				},
+			},
+		})
+		t.expect(apart:edge("axle", "gear")).toBe(nil)
 	end)
 
 	t.test("sliding range widens potential-mesh discovery", function()

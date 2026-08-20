@@ -680,6 +680,9 @@ function RotateController.start(options: StartOptions?): Controller
 		handleWeld.Part1 = hitPart
 		handleWeld.Parent = joints.folder
 
+		-- Jam state per driven root (for transition messages only).
+		local mLastJammed: { [BasePart]: boolean } = {}
+
 		local camera = workspace.CurrentCamera
 		local session: Session = {
 			grabbedPart = hitPart,
@@ -740,7 +743,13 @@ function RotateController.start(options: StartOptions?): Controller
 				-- lets the constraint solver move its whole island.
 				-- Angles are accumulated frame to frame (valid while no
 				-- gear turns more than half a revolution per frame).
-				local claimedRoots: { [BasePart]: boolean } = {}
+				-- Alignment pre-pass + jam detection: two aligned
+				-- bridges with CONFLICTING ratios into the same group
+				-- means the gear train is physically jammed - hold the
+				-- group where it is instead of driving garbage.
+				local stepAligned: { [any]: boolean } = {}
+				local rootRatio: { [BasePart]: number } = {}
+				local jammedRoots: { [BasePart]: boolean } = {}
 				for _, step in session.gearSteps do
 					-- Alignment gate from CURRENT poses: an axle sliding
 					-- mid-drag can pull the pair out of mesh; sliding back
@@ -755,6 +764,7 @@ function RotateController.start(options: StartOptions?): Controller
 						toNow:VectorToWorldSpace(step.toAxisLocal),
 						step.toTeeth
 					)
+					stepAligned[step] = aligned
 					if aligned ~= step.engaged then
 						step.engaged = aligned
 						warn(
@@ -762,6 +772,28 @@ function RotateController.start(options: StartOptions?): Controller
 								.. ` {if aligned then "re-engaged" else "slid out of alignment: not driving"}`
 						)
 					end
+					if aligned then
+						local existing = rootRatio[step.toRoot]
+						if existing == nil then
+							rootRatio[step.toRoot] = step.ratio
+						elseif math.abs((existing :: number) - step.ratio) > 1e-4 then
+							jammedRoots[step.toRoot] = true
+						end
+					end
+				end
+				for root in jammedRoots do
+					if not mLastJammed[root] then
+						warn(
+							"[BuildIt Rotate] conflicting gear ratios engaged into the same"
+								.. " group: jammed (holding, not turning)"
+						)
+					end
+				end
+				mLastJammed = jammedRoots
+
+				local claimedRoots: { [BasePart]: boolean } = {}
+				for _, step in session.gearSteps do
+					local aligned = stepAligned[step] == true
 					local reference = step.fromReference
 					local original = session.originalCFrames[reference]
 					if original == nil then
@@ -796,7 +828,12 @@ function RotateController.start(options: StartOptions?): Controller
 						continue
 					end
 					claimedRoots[step.toRoot] = true
-					step.accumulated += wrap
+					if not jammedRoots[step.toRoot] then
+						step.accumulated += wrap
+					end
+					-- Jammed: accumulated stays frozen, so the IK target
+					-- below HOLDS the group at its current angle instead
+					-- of turning it.
 
 					local drivenAngle = step.accumulated * step.ratio + step.phase
 					local toOriginal = session.originalCFrames[step.toReference]
